@@ -1,0 +1,38 @@
+{
+  "manifestVersion": 1,
+  "bundleId": "minimal-fixture-0001",
+  "context": "MinimalContext",
+  "aggregates": [
+    {
+      "aggregateSpecId": "agg-1",
+      "aggregate": "Foo",
+      "identity": {"name": "fooId"},
+      "state": [{"name": "bar", "type": "String"}],
+      "invariants": [
+        {
+          "id": "inv-1",
+          "name": "checkBar",
+          "title": "bar must be present",
+          "errorCode": "barMissing",
+          "rules": [],
+          "status": "confirmed"
+        }
+      ],
+      "events": [{"name": "fooCreated"}]
+    }
+  ],
+  "useCases": [
+    {
+      "useCaseSpecId": "uc-1",
+      "aggregateSpecId": "agg-1",
+      "useCase": "createFoo",
+      "aggregate": "Foo",
+      "input": [{"name": "bar", "type": "String"}],
+      "emittedEvent": "fooCreated",
+      "eventPayload": [{"name": "bar", "type": "String"}],
+      "preconditions": []
+    }
+  ],
+  "readModels": [],
+  "dtos": []
+}

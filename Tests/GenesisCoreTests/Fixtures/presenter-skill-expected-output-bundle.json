@@ -1,0 +1,45 @@
+{
+  "manifestVersion": 1,
+  "bundleId": "presenter-skill-test-input-0001",
+  "context": "AuditQuotingContext",
+  "aggregates": [
+    {
+      "aggregateSpecId": "agg-aq",
+      "aggregate": "AuditQuoting",
+      "identity": {"name": "auditQuotingId"},
+      "state": [],
+      "invariants": [],
+      "events": [
+        {"name": "QuotingProofUploadedToGcs"},
+        {"name": "QuotingProofOnGcsRemoved"}
+      ]
+    }
+  ],
+  "useCases": [],
+  "dtos": [],
+  "readModels": [],
+  "presenters": [
+    {
+      "presenterSpecId": "p-GetQuotingProofs",
+      "name": "GetQuotingProofs",
+      "readModelRef": "GetQuotingProofs",
+      "aggregateRef": "AuditQuoting",
+      "input": {
+        "fields": [
+          {"name": "auditQuotingId", "type": "String", "fromPath": "auditQuotingId"}
+        ]
+      },
+      "output": {
+        "kind": "array",
+        "elementType": "QuotingProofDto",
+        "elementSource": "proofs",
+        "isOptional": false
+      },
+      "endpoint": {
+        "path": "/audit-quoting/{auditQuotingId}/quoting-proofs",
+        "method": "GET"
+      },
+      "comment": null
+    }
+  ]
+}

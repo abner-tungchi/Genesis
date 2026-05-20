@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "bundleId": "readmodels-fixture-0001",
+  "context": "ReadModelContext",
+  "aggregates": [
+    {
+      "aggregateSpecId": "agg-1",
+      "aggregate": "Foo",
+      "identity": {"name": "fooId"},
+      "state": [],
+      "invariants": [],
+      "events": []
+    }
+  ],
+  "useCases": [],
+  "readModels": [
+    {"name": "FooReadModel"}
+  ],
+  "dtos": []
+}

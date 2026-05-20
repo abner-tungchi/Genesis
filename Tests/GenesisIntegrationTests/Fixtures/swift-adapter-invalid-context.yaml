@@ -1,0 +1,9 @@
+adapterVersion: 1
+schemaVersion: 1
+contextName: WrongContext
+
+aggregateSplit:
+  strategy: byBoundedContext
+
+idStrategy:
+  kind: direct

@@ -1,0 +1,13 @@
+{
+  "readModelRef": "GetQuotingProofs",
+  "name": "GetQuotingProofs",
+  "outputKind": "array",
+  "elementType": "QuotingProofDto",
+  "elementSource": "proofs",
+  "isOptional": false,
+  "inputFields": [
+    {"name": "auditQuotingId", "type": "String", "fromPath": "auditQuotingId"}
+  ],
+  "comment": null,
+  "overwriteIfExists": false
+}

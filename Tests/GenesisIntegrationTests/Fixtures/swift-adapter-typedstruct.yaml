@@ -1,0 +1,10 @@
+adapterVersion: 1
+schemaVersion: 1
+contextName: IAMContext
+
+aggregateSplit:
+  strategy: byBoundedContext
+
+idStrategy:
+  kind: typedStruct
+  wrapper: "{Aggregate}ID"

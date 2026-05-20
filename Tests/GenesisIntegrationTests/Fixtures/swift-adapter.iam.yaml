@@ -1,0 +1,18 @@
+adapterVersion: 1
+schemaVersion: 1
+contextName: IAMContext
+bundleId: 01f70251-fa49-4c47-8979-f71781568c74
+
+typeMapping:
+  "Array[String]": "[String]"
+
+customTypes: []
+
+createdEventOverrides:
+  UserAccessProfile: createUserAccessProfile
+
+aggregateSplit:
+  strategy: byBoundedContext
+
+idStrategy:
+  kind: direct

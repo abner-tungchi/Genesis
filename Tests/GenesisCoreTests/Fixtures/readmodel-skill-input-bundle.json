@@ -1,0 +1,137 @@
+{
+  "manifestVersion": 1,
+  "bundleId": "readmodel-skill-test-input-0001",
+  "context": "AuditQuotingContext",
+  "aggregates": [
+    {
+      "aggregateSpecId": "agg-aq",
+      "aggregate": "AuditQuoting",
+      "identity": {"name": "auditQuotingId"},
+      "state": [],
+      "invariants": [],
+      "events": [
+        {"name": "AuditQuotingCreated"},
+        {"name": "AccountingTypeEdited"},
+        {"name": "QuotingProofUploadedToGcs"},
+        {"name": "QuotingProofOnGcsRemoved"}
+      ]
+    },
+    {
+      "aggregateSpecId": "agg-qcg",
+      "aggregate": "QuotingCaseGrouping",
+      "identity": {"name": "quotingCaseGroupingId"},
+      "state": [],
+      "invariants": [],
+      "events": [
+        {"name": "ServiceItemSelected"},
+        {"name": "ServiceItemUnselected"}
+      ]
+    }
+  ],
+  "useCases": [
+    {
+      "useCaseSpecId": "uc-create-aq",
+      "aggregateSpecId": "agg-aq",
+      "useCase": "createAuditQuoting",
+      "aggregate": "AuditQuoting",
+      "input": [
+        {"name": "operatorId", "type": "String"},
+        {"name": "quotingId", "type": "String"}
+      ],
+      "emittedEvent": "AuditQuotingCreated",
+      "eventPayload": [
+        {"name": "quotingId", "type": "String"},
+        {"name": "createdAt", "type": "Date"}
+      ],
+      "preconditions": []
+    },
+    {
+      "useCaseSpecId": "uc-edit-acct",
+      "aggregateSpecId": "agg-aq",
+      "useCase": "editAccountingType",
+      "aggregate": "AuditQuoting",
+      "input": [
+        {"name": "operatorId", "type": "String"},
+        {"name": "quotingId", "type": "String"},
+        {"name": "accountingType", "type": "AccountingTypeDto"}
+      ],
+      "emittedEvent": "AccountingTypeEdited",
+      "eventPayload": [
+        {"name": "quotingId", "type": "String"},
+        {"name": "accountingType", "type": "AccountingTypeDto"}
+      ],
+      "preconditions": []
+    },
+    {
+      "useCaseSpecId": "uc-upload-proof",
+      "aggregateSpecId": "agg-aq",
+      "useCase": "uploadQuotingProof",
+      "aggregate": "AuditQuoting",
+      "input": [
+        {"name": "operatorId", "type": "String"},
+        {"name": "quotingId", "type": "String"},
+        {"name": "documentId", "type": "String"}
+      ],
+      "emittedEvent": "QuotingProofUploadedToGcs",
+      "eventPayload": [
+        {"name": "quotingId", "type": "String"},
+        {"name": "documentId", "type": "String"},
+        {"name": "fileName", "type": "String"}
+      ],
+      "preconditions": []
+    },
+    {
+      "useCaseSpecId": "uc-remove-proof",
+      "aggregateSpecId": "agg-aq",
+      "useCase": "removeQuotingProof",
+      "aggregate": "AuditQuoting",
+      "input": [
+        {"name": "operatorId", "type": "String"},
+        {"name": "quotingId", "type": "String"},
+        {"name": "documentId", "type": "String"}
+      ],
+      "emittedEvent": "QuotingProofOnGcsRemoved",
+      "eventPayload": [
+        {"name": "quotingId", "type": "String"},
+        {"name": "documentId", "type": "String"}
+      ],
+      "preconditions": []
+    },
+    {
+      "useCaseSpecId": "uc-select-service",
+      "aggregateSpecId": "agg-qcg",
+      "useCase": "selectServiceItem",
+      "aggregate": "QuotingCaseGrouping",
+      "input": [
+        {"name": "operatorId", "type": "String"},
+        {"name": "quotingCaseGroupingId", "type": "String"},
+        {"name": "serviceItemId", "type": "String"}
+      ],
+      "emittedEvent": "ServiceItemSelected",
+      "eventPayload": [
+        {"name": "quotingCaseGroupingId", "type": "String"},
+        {"name": "serviceItemId", "type": "String"}
+      ],
+      "preconditions": []
+    },
+    {
+      "useCaseSpecId": "uc-unselect-service",
+      "aggregateSpecId": "agg-qcg",
+      "useCase": "unselectServiceItem",
+      "aggregate": "QuotingCaseGrouping",
+      "input": [
+        {"name": "operatorId", "type": "String"},
+        {"name": "quotingCaseGroupingId", "type": "String"},
+        {"name": "serviceItemId", "type": "String"}
+      ],
+      "emittedEvent": "ServiceItemUnselected",
+      "eventPayload": [
+        {"name": "quotingCaseGroupingId", "type": "String"},
+        {"name": "serviceItemId", "type": "String"}
+      ],
+      "preconditions": []
+    }
+  ],
+  "dtos": [],
+  "readModels": []
+}

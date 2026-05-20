@@ -1,0 +1,17 @@
+{
+  "aggregateRef": "AuditQuoting",
+  "selectedEvents": [
+    {"name": "QuotingProofUploadedToGcs", "sourceAggregate": "AuditQuoting"},
+    {"name": "QuotingProofOnGcsRemoved", "sourceAggregate": "AuditQuoting"}
+  ],
+  "name": "GetQuotingProofs",
+  "keyField": "auditQuotingId",
+  "keyType": "String",
+  "keyFromPayload": "quotingId",
+  "storedFields": [
+    {"name": "documentId", "type": "String?", "default": null},
+    {"name": "fileName", "type": "String?", "default": null}
+  ],
+  "comment": null,
+  "overwriteIfExists": false
+}

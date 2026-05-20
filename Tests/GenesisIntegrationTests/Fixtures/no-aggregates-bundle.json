@@ -1,0 +1,8 @@
+{
+  "manifestVersion": 1,
+  "bundleId": "no-aggregates-fixture-0001",
+  "context": "EmptyContext",
+  "aggregates": [],
+  "useCases": [],
+  "dtos": []
+}

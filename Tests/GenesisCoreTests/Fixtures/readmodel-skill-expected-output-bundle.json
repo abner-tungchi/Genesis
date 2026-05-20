@@ -1,0 +1,55 @@
+{
+  "manifestVersion": 1,
+  "bundleId": "readmodel-skill-test-input-0001",
+  "context": "AuditQuotingContext",
+  "aggregates": [
+    {
+      "aggregateSpecId": "agg-aq",
+      "aggregate": "AuditQuoting",
+      "identity": {"name": "auditQuotingId"},
+      "state": [],
+      "invariants": [],
+      "events": [
+        {"name": "AuditQuotingCreated"},
+        {"name": "AccountingTypeEdited"},
+        {"name": "QuotingProofUploadedToGcs"},
+        {"name": "QuotingProofOnGcsRemoved"}
+      ]
+    },
+    {
+      "aggregateSpecId": "agg-qcg",
+      "aggregate": "QuotingCaseGrouping",
+      "identity": {"name": "quotingCaseGroupingId"},
+      "state": [],
+      "invariants": [],
+      "events": [
+        {"name": "ServiceItemSelected"},
+        {"name": "ServiceItemUnselected"}
+      ]
+    }
+  ],
+  "useCases": [],
+  "dtos": [],
+  "readModels": [
+    {
+      "readModelSpecId": "rm-GetQuotingProofs",
+      "aggregateSpecId": "agg-aq",
+      "aggregateRef": "AuditQuoting",
+      "name": "GetQuotingProofs",
+      "key": {
+        "field": "auditQuotingId",
+        "type": "String",
+        "fromEventPayload": "quotingId"
+      },
+      "storedFields": [
+        {"name": "documentId", "type": "String?", "default": null},
+        {"name": "fileName", "type": "String?", "default": null}
+      ],
+      "events": [
+        {"name": "QuotingProofUploadedToGcs", "sourceAggregate": "AuditQuoting"},
+        {"name": "QuotingProofOnGcsRemoved", "sourceAggregate": "AuditQuoting"}
+      ],
+      "comment": null
+    }
+  ]
+}
