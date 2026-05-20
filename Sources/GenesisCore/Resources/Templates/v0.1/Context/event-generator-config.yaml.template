@@ -1,0 +1,4 @@
+accessModifier: package
+dependencies:
+{AggregateDepsList}
+  - {ContextName}Shared

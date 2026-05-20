@@ -1,0 +1,12 @@
+import DDDKit
+
+package struct {Aggregate}Repository: EventSourcingRepository {
+    package typealias AggregateRootType = {Aggregate}
+    package typealias StorageCoordinator = KurrentStorageCoordinator<{Aggregate}>
+
+    package let coordinator: StorageCoordinator
+
+    package init(coordinator: StorageCoordinator) {
+        self.coordinator = coordinator
+    }
+}

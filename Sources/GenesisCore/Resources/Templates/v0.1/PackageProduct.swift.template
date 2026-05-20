@@ -1,0 +1,1 @@
+        .library(name: "{Aggregate}Aggregate", targets: ["{Aggregate}Aggregate"]),

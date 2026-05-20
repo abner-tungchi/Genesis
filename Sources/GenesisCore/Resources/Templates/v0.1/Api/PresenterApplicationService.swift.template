@@ -1,0 +1,28 @@
+import Foundation
+import KurrentDB
+{SharedImport}
+
+package struct {Name}ApplicationServiceInput {
+{INPUT_FIELDS}
+
+    package init({INIT_PARAMS}) {
+{INIT_ASSIGNMENTS}
+    }
+}
+
+package struct {Name}ApplicationService: ApplicationService {
+    package typealias Input = {Name}ApplicationServiceInput
+    package typealias Output = {OUTPUT_TYPE}
+
+    private let kdbClient: KurrentDBClient
+
+    package init(kdbClient: KurrentDBClient) {
+        self.kdbClient = kdbClient
+    }
+
+    package func execute(input: Input) async throws -> Output {
+        // TODO(/presenter-fill skill): fetch via {Name}Presenter (projector) and map readModel.{ElementSource} to Output
+        // Reference: Sources/{A}Aggregate/Usecase/Projector/{Name}/{Name}Presenter.swift
+        fatalError("TODO(/presenter-fill skill): execute body for {Name}ApplicationService")
+    }
+}

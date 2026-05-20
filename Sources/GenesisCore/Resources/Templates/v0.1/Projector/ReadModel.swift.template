@@ -1,0 +1,13 @@
+import EventSourcing
+{SharedImport}
+
+package class {ReadModelTypeName}: ReadModel {
+    package var id: {KeyType} { {KeyField} }
+    package var {KeyField}: {KeyType}
+{StoredFieldDeclarations}
+
+    package init({KeyField}: {KeyType}) {
+        self.{KeyField} = {KeyField}
+{StoredFieldDefaults}
+    }
+}

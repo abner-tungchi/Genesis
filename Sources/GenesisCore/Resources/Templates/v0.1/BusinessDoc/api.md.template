@@ -1,0 +1,20 @@
+---
+aggregate: {Aggregate}
+context: {ContextName}
+bundleId: {BundleId}
+generated: {GeneratedDate}
+generator: Genesis v{GenesisVersion}
+---
+# API — {Aggregate}
+
+Transport rules + error→HTTP map (D17). Filled by the `/api` Claude Code skill.
+
+## Endpoints
+
+_(placeholder — `/api` skill will populate)_
+
+## Error → HTTP status
+
+| Domain error | HTTP status | Notes |
+|--------------|-------------|-------|
+| _(none yet)_ | _(none)_ | _(filled by `/api`)_ |

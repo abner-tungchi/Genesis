@@ -1,0 +1,4 @@
+        .testTarget(
+            name: "{ContextName}Tests",
+            dependencies: [{TestDependencies}]
+        ),

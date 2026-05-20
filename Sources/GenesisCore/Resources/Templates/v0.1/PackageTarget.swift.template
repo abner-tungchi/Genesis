@@ -1,0 +1,10 @@
+        .target(
+            name: "{Aggregate}Aggregate",
+            dependencies: [
+                .product(name: "DDDKit", package: "swift-ddd-kit"),
+{SharedDependencyLine}{OpenApiTargetDep}            ],
+{OpenApiResources}            plugins: [
+                .plugin(name: "DomainEventGeneratorPlugin", package: "swift-ddd-kit"),
+                .plugin(name: "ModelGeneratorPlugin", package: "swift-ddd-kit"),
+{OpenApiPlugin}            ]
+        ),

@@ -1,0 +1,32 @@
+# {ContextName}
+
+Bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`.
+
+## Layout
+
+| Path | Contents |
+|------|----------|
+| `Package.swift` | SwiftPM manifest |
+| `Sources/{Aggregate}Aggregate/` | One library target per aggregate (`{AggregateCount}` total) |
+| `Sources/{ContextName}Shared/` | Cross-aggregate value types (DTOs / enums / typed IDs) |
+| `Tests/{ContextName}Tests/` | Test target (placeholder until business logic lands) |
+| `.ai/contexts/{ContextName}/` | Adapter + manifest |
+| `.ai/contexts/{ContextName}/<Aggregate>/` | Per-aggregate business docs (SSOT) |
+| `.ai/conventions/api.md` | Cross-aggregate API conventions |
+
+## Aggregates
+
+{AggregateList}
+
+**Total**: {AggregateCount} aggregate(s), {UseCaseCount} use case(s), {DtoCount} DTO(s).
+
+## Build
+
+```bash
+swift build
+swift test
+```
+
+## Next steps
+
+Business logic lives in `.ai/contexts/{ContextName}/<Aggregate>/`. See `CLAUDE.md` for how to use Claude Code skills (`/usecase`, `/readmodel`, `/api`) to fill in the stubs.

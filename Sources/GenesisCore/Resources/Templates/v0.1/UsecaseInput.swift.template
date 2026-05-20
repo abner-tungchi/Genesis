@@ -1,0 +1,10 @@
+import DDDKit
+import Foundation
+{SharedImport}
+package struct {UC}Input: UseCaseInput {
+{InputFieldDecls}
+
+    package init({InitParams}) {
+{InitAssignments}
+    }
+}

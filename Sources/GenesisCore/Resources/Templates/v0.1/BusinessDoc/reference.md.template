@@ -1,0 +1,12 @@
+---
+aggregate: {Aggregate}
+context: {ContextName}
+bundleId: {BundleId}
+generated: {GeneratedDate}
+generator: Genesis v{GenesisVersion}
+---
+# Reference — {Aggregate}
+
+Free-form notes: links to specs, external docs, design rationale, etc.
+
+_(placeholder)_

@@ -1,0 +1,12 @@
+---
+aggregate: {Aggregate}
+context: {ContextName}
+bundleId: {BundleId}
+generated: {GeneratedDate}
+generator: Genesis v{GenesisVersion}
+---
+# Errors — {Aggregate}
+
+Domain error catalog (D17). **No HTTP status here** — transport-level error mapping lives in `api.md`.
+
+{ErrorBlocks}

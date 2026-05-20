@@ -1,0 +1,15 @@
+import DDDKit
+import Foundation
+{SharedImport}
+extension {Aggregate} {
+    package func {useCaseCamelCase}({CommandParams}) throws {
+        // GENESIS-STUB: 1) call ensureInvariant() preconditions 2) build {EventTypeName} 3) try self.apply(event: ...)
+        fatalError("not implemented")
+    }
+
+    // Called by the plugin-generated when(happened:) dispatch when event matches {EventTypeName}.
+    package func when(event: {EventTypeName}) throws {
+        // GENESIS-STUB: mutate state from event.<payload-fields>, e.g. `self.foo = event.foo`.
+        // ⚠️ this is the file where state actually changes during replay; do NOT mutate in {useCaseCamelCase}().
+    }
+}

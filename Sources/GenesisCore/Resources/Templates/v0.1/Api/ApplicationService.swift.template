@@ -1,0 +1,38 @@
+import Foundation
+{SharedImport}
+
+package struct {UC}ApplicationServiceInput {
+    package let {AGG_ID_NAME}: String
+{INPUT_FIELDS}
+    package let operatorId: String
+
+    package init(
+        {AGG_ID_NAME}: String{INIT_PARAMS_MID},
+        operatorId: String
+    ) {
+        self.{AGG_ID_NAME} = {AGG_ID_NAME}
+{INIT_ASSIGNMENTS}
+        self.operatorId = operatorId
+    }
+}
+
+package struct {UC}ApplicationServiceOutput {
+    package let {AGG_ID_NAME}: String
+}
+
+package struct {UC}ApplicationService: ApplicationService {
+    package typealias Input = {UC}ApplicationServiceInput
+    package typealias Output = {UC}ApplicationServiceOutput
+
+    private let repository: {A}Repository
+
+    package init(repository: {A}Repository) {
+        self.repository = repository
+    }
+
+    package func execute(input: Input) async throws -> Output {
+        // TODO(/api skill): construct {UC}Service Input from `input` and call service.execute
+        // Service Input fields are at Sources/{A}Aggregate/Usecase/Service/{UC}Service.swift
+        fatalError("TODO(/api skill): execute body for {UC}ApplicationService")
+    }
+}

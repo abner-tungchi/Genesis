@@ -1,0 +1,18 @@
+    package func {ucCamel}(_ input: Operations.{ucCamel}.Input) async throws -> Operations.{ucCamel}.Output {
+        let {pathParamName} = input.path.{pathParamName}
+        _ = {pathParamName}
+
+        let service = {Name}ApplicationService(kdbClient: kdbClient)
+        let asInput = {Name}ApplicationServiceInput(
+            {pathParamName}: {pathParamName}
+        )
+        do {
+            let output = try await service.execute(input: asInput)
+            return .ok(.init(body: .json(output)))
+        } catch {
+            if let apiError = mapToApiError(error) {
+                return .unprocessableContent(.init(body: .json(.init(error: apiError))))
+            }
+            return .serviceUnavailable(.init(body: .json(.init(error: .serviceUnavailable))))
+        }
+    }

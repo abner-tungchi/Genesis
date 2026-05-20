@@ -1,0 +1,9 @@
+import DDDKit
+
+package final class {UC}Service: {UC}Usecase {
+    package let repository: {Aggregate}Repository
+
+    package init(repository: {Aggregate}Repository) {
+        self.repository = repository
+    }
+}

@@ -1,0 +1,17 @@
+{SharedImport}
+
+extension {DtoTypeName} {
+    package init(from domain: {DomainTypeName}) {
+        switch domain {
+{ENUM_FROM_DOMAIN_CASES}
+        }
+    }
+}
+
+extension {DomainTypeName} {
+    package init(from dto: {DtoTypeName}) {
+        switch dto {
+{ENUM_TO_DOMAIN_CASES}
+        }
+    }
+}

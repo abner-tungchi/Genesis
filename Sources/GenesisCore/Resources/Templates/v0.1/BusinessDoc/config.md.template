@@ -1,0 +1,17 @@
+---
+aggregate: {Aggregate}
+context: {ContextName}
+bundleId: {BundleId}
+generated: {GeneratedDate}
+generator: Genesis v{GenesisVersion}
+---
+# Config — {Aggregate}
+
+| Field | Value |
+|-------|-------|
+| Aggregate | `{Aggregate}` |
+| Identity field | `{IdentityName}` |
+| ID type | `{IDType}` |
+| Target | `Sources/{Aggregate}Aggregate/` |
+| Use cases | {UseCaseCount} |
+| Spec ID | `{AggregateSpecId}` |

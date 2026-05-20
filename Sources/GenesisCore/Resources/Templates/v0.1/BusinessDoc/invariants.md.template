@@ -1,0 +1,12 @@
+---
+aggregate: {Aggregate}
+context: {ContextName}
+bundleId: {BundleId}
+generated: {GeneratedDate}
+generator: Genesis v{GenesisVersion}
+---
+# Invariants — {Aggregate}
+
+Master file for aggregate invariants (D15). Edit here; downstream `docs/tasks/<UC>.md` views transclude.
+
+{InvariantBlocks}

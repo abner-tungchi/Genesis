@@ -1,0 +1,13 @@
+fromStreams([{SourceStreamList}])
+.when({
+    $init: function(){
+        return {}
+    },
+{HandlerLines}
+});
+
+function handleEvent(state, event) {
+    if (event.isJson) {
+        linkTo("{ProjectionStreamPrefix}{Name}-" + event.body["{FromEventPayload}"], event);
+    }
+}

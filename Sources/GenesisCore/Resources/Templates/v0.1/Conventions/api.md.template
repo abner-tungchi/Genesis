@@ -1,0 +1,7 @@
+# API conventions — {ContextName}
+
+Cross-aggregate transport conventions. Per-aggregate transport rules + error→HTTP maps live in `.ai/contexts/{ContextName}/{Aggregate}/api.md`.
+
+_(placeholder — populate as the API surface stabilises)_
+
+Bundle ID: `{BundleId}`

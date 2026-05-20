@@ -1,0 +1,7 @@
+import XCTest
+
+final class PlaceholderTests: XCTestCase {
+    func testPlaceholder() {
+        XCTAssertTrue(true, "{ContextName}Tests: replace this placeholder when the /usecase skill fills business logic.")
+    }
+}

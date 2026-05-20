@@ -1,0 +1,29 @@
+    package func {ucCamel}(_ input: Operations.{ucCamel}.Input) async throws -> Operations.{ucCamel}.Output {
+        guard case let .json(payload) = input.body else {
+            return .unprocessableContent(.init(body: .json(.init(error: .invalidPayload))))
+        }
+        let {aggIdName} = input.path.{aggIdName}
+        let operatorId = input.headers.operatorId
+        _ = payload   // TODO(/api skill): unpack payload fields below
+        _ = {aggIdName}
+        _ = operatorId
+
+        // TODO(/api skill): construct AS Input from `payload`, `{aggIdName}`, `operatorId`.
+        // Required init args are at Sources/{A}Aggregate/Adapter/{UC}/{UC}ApplicationService.swift.
+        let asInput: {UC}ApplicationServiceInput = { () -> {UC}ApplicationServiceInput in
+            fatalError("TODO(/api skill): construct {UC}ApplicationServiceInput from payload")
+        }()
+
+        let service = {UC}ApplicationService(repository: repository)
+        do {
+            let output = try await service.execute(input: asInput)
+            return .ok(.init(body: .json(.init({aggIdName}: output.{aggIdName}))))
+        } catch let error as DDDError where error.code == .aggregateNotFound {
+            return .notFound(.init(body: .json(.init(error: .aggregateNotFound))))
+        } catch {
+            if let apiError = mapToApiError(error) {
+                return .unprocessableContent(.init(body: .json(.init(error: apiError))))
+            }
+            return .serviceUnavailable(.init(body: .json(.init(error: .serviceUnavailable))))
+        }
+    }

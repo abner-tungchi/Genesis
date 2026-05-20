@@ -1,0 +1,31 @@
+import DDDCore
+import EventSourcing
+import KurrentSupport
+{SharedImport}
+{AggregateImports}
+
+package struct {Name}Input: CQRSProjectorInput {
+    package let id: {KeyType}
+
+    package init({KeyField}: {KeyType}) {
+        self.id = {KeyField}
+    }
+}
+
+package struct {PresenterTypeName}: {Name}ProjectorProtocol {
+    package typealias Input = {Name}Input
+    package typealias StorageCoordinator = KurrentStorageCoordinator<Self>
+    package typealias ReadModelType = {ReadModelTypeName}
+    package static var categoryRule: StreamCategoryRule { .fromClass(withPrefix: "{ProjectionStreamPrefix}") }
+
+    package var coordinator: KurrentStorageCoordinator<{PresenterTypeName}>
+
+    package init(coordinator: KurrentStorageCoordinator<{PresenterTypeName}>) {
+        self.coordinator = coordinator
+    }
+
+    package func buildReadModel(input: Input) throws -> {ReadModelTypeName}? {
+        return .init({KeyField}: input.id)
+    }
+{WhenMethods}
+}

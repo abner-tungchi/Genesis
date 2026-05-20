@@ -1,0 +1,9 @@
+import Foundation
+
+package struct {Name}: Hashable, Sendable, Codable {
+    package let underlying: {Underlying}
+
+    package init(_ underlying: {Underlying}) {
+        self.underlying = underlying
+    }
+}

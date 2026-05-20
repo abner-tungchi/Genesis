@@ -1,0 +1,15 @@
+{SharedImport}
+
+
+extension Components.Schemas.{A}ApiError {
+    // TODO: log unmapped domain error when project-wide logging is introduced.
+    package init(from error: ContextError<{A}Error>) {
+        self = .init(from: error.error) ?? .undefinedDomainError
+    }
+
+    package init?(from error: {A}Error) {
+        switch error {
+{ERROR_CASES_EXHAUSTIVE}
+        }
+    }
+}

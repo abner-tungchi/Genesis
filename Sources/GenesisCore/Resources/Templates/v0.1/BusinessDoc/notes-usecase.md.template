@@ -1,0 +1,14 @@
+---
+aggregate: {Aggregate}
+useCase: {UseCase}
+emittedEvent: {EmittedEvent}
+context: {ContextName}
+bundleId: {BundleId}
+generated: {GeneratedDate}
+generator: Genesis v{GenesisVersion}
+---
+# Notes — {UseCase}
+
+Working notes for the `{UseCase}` use case. The `/usecase` skill updates this file as it iterates.
+
+_(placeholder)_

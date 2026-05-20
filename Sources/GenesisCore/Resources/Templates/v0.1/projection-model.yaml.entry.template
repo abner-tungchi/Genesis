@@ -1,0 +1,4 @@
+{ReadModelName}:
+  model: readModel
+  events:
+{EventList}

@@ -1,0 +1,6 @@
+{EventName}:
+  kind: {EventKind}
+  aggregateRootId:
+    alias: {AggregateRootIdAlias}
+  properties:
+{PropertiesList}

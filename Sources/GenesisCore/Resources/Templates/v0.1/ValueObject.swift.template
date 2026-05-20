@@ -1,0 +1,10 @@
+import Foundation
+
+package struct {Name}: Hashable, Sendable, Codable {
+    package let underlying: {Underlying}
+
+    package init(_ underlying: {Underlying}) {
+        // GENESIS-STUB: add validation logic before assigning.
+        self.underlying = underlying
+    }
+}

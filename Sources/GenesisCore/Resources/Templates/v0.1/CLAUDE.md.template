@@ -1,0 +1,31 @@
+# Claude Code project guide — {ContextName}
+
+This project was bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`. The generated code has stubs (`fatalError("not implemented")`); business logic lives in `.ai/contexts/{ContextName}/<Aggregate>/`.
+
+## How to fill in business logic
+
+Use Claude Code skills to materialise stubs:
+
+- `/usecase <UseCase>` — fill the body of `{UC}Service.execute(input:)` and the matching `{Aggregate}+{UC}.swift` command + `when(event:)` overloads.
+- `/readmodel <ReadModel>` — generate read-model projector files (not yet supported by this scaffold; Phase 1.c does not write `projection-model.yaml`).
+- `/api` — emit transport adapter from `.ai/contexts/{ContextName}/<Aggregate>/api.md`.
+
+## SSOT discipline
+
+| Master file | Who edits |
+|-------------|-----------|
+| `.ai/contexts/{ContextName}/<Aggregate>/commands.md` | `/usecase` skill + human |
+| `.ai/contexts/{ContextName}/<Aggregate>/invariants.md` | `/usecase` skill + human |
+| `.ai/contexts/{ContextName}/<Aggregate>/errors.md` | human |
+| `.ai/contexts/{ContextName}/<Aggregate>/api.md` | `/api` skill + human |
+| `.ai/contexts/{ContextName}/<Aggregate>/test-scenarios.md` | human (Gherkin master) |
+
+`docs/tasks/<UC>.md` (when present) is **100% machine-rendered, hand-edits forbidden** (D15 Option D).
+
+## Adapter
+
+`./.ai/contexts/{ContextName}/swift-adapter.yaml` controls Genesis behaviour on re-generation (type mapping, custom types, ID strategy, etc.). Schema: see Genesis's `architecture.md §6.2`.
+
+## Manifest
+
+`./.ai/contexts/{ContextName}/.scaffold-manifest.json` records the sha256 of every file Genesis generated. Used by `genesis diff` (Phase 3) to detect human edits and decide which changes are safe to auto-apply.

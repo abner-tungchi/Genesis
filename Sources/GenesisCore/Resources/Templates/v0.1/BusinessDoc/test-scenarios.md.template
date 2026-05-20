@@ -1,0 +1,16 @@
+---
+aggregate: {Aggregate}
+context: {ContextName}
+bundleId: {BundleId}
+generated: {GeneratedDate}
+generator: Genesis v{GenesisVersion}
+---
+# Test scenarios — {Aggregate}
+
+Gherkin master (D16). Each `Scenario` is a starter placeholder; flesh out Given/When/Then as business rules clarify.
+
+```gherkin
+Feature: {Aggregate}
+
+{ScenarioBlocks}
+```

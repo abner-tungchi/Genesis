@@ -1,0 +1,5 @@
+import Foundation
+
+package enum {Aggregate}Error: Error, Equatable {
+{ErrorCases}
+}

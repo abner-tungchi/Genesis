@@ -1,0 +1,10 @@
+---
+aggregate: {Aggregate}
+context: {ContextName}
+bundleId: {BundleId}
+generated: {GeneratedDate}
+generator: Genesis v{GenesisVersion}
+---
+# Notes — {Aggregate}
+
+This directory holds per-use-case notes (`{useCase}.md`). The `/usecase` Claude Code skill reads and updates these to track its working state for each use case.

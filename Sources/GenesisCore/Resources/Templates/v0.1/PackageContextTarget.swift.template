@@ -1,0 +1,14 @@
+        .target(name: "{ContextName}",
+                dependencies: [
+{AggregateDepLines}
+                    .target(name: "{ContextName}Shared"),
+                    .product(name: "DDDKit", package: "swift-ddd-kit"),
+                ],
+                resources: [
+                    .process("event.yaml"),
+                    .process("projection-model.yaml"),
+                    .process("event-generator-config.yaml"),
+                ],
+                plugins: [
+                    .plugin(name: "ModelGeneratorPlugin", package: "swift-ddd-kit"),
+                ]),

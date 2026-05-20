@@ -1,0 +1,26 @@
+import DDDCore
+import Foundation
+import KurrentDB
+{SharedImport}
+
+
+package struct ApiHandler: APIProtocol {
+
+    private let kdbClient: KurrentDBClient
+    private var repository: {A}Repository {
+        return .init(coordinator: .init(client: kdbClient, eventMapper: {A}AggregateEventMapper()))
+    }
+
+    package init(kdbClient: KurrentDBClient) {
+        self.kdbClient = kdbClient
+    }
+
+    private func mapToApiError(_ error: Error) -> Components.Schemas.{A}ApiError? {
+        if let contextError = error as? ContextError<{A}Error> {
+            return .init(from: contextError)
+        }
+        return nil
+    }
+
+{UC_HANDLER_METHODS}
+}

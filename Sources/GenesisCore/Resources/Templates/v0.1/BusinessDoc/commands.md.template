@@ -1,0 +1,13 @@
+---
+aggregate: {Aggregate}
+context: {ContextName}
+bundleId: {BundleId}
+generated: {GeneratedDate}
+generator: Genesis v{GenesisVersion}
+---
+# Commands — {Aggregate}
+
+Master file for command guards and state transitions (D15).
+Consumed by the `/usecase` Claude Code skill.
+
+{CommandBlocks}

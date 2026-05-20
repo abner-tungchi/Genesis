@@ -1,0 +1,14 @@
+{SharedImport}
+
+extension {DtoTypeName} {
+    package init(from domain: {DomainTypeName}) {
+{STRUCT_FROM_DOMAIN_FIELDS}
+    }
+}
+
+extension {DomainTypeName} {
+    package init(from dto: {DtoTypeName}) throws {
+        // TODO(/api skill): map fields with type conversion (Date/Decimal/nested DTO)
+        fatalError("TODO(/api skill): struct DTO toDomain for {DomainTypeName}")
+    }
+}

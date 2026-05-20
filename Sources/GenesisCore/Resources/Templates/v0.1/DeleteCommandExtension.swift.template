@@ -1,0 +1,7 @@
+import DDDKit
+{SharedImport}
+extension {Aggregate} {
+    package func when(event: {Aggregate}Deleted) throws {
+        self.metadata.delete()
+    }
+}
