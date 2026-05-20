@@ -1,0 +1,72 @@
+{
+  "id": "phase-1f-context-shared-infra",
+  "file": "docs/tasks/phase-1f-context-shared-infra.md",
+  "title": "Phase 1.f — Genesis bootstrap ContextShared infra",
+  "status": "done",
+  "completed": "2026-05-18",
+  "created": "2026-05-18",
+  "depends_on": ["phase-1e-aggregate-alignment"],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-18-phase-1f-context-shared-infra.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/SharedTargetRenderer.swift",
+    "file:Sources/GenesisCore/PackageRenderer.swift",
+    "file:Sources/Genesis/Commands/NewCommand.swift",
+    "file:Sources/GenesisCore/Version.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/",
+    "file:docs/decisions.md",
+    "file:docs/architecture.md"
+  ],
+  "verification": [
+    "swift build -c release --product genesis",
+    "swift test",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Shared/ApplicationService.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Shared/ContextError.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Shared/Iso8601.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Shared/InvalidDecimalStringError.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Shared/ProjectionReadInconsistency.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Shared/String+IsBlank.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Shared/String+PascalCase.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Shared/String+StrippingPrefix.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Shared/README.md.template",
+    "grep -F 'package protocol ApplicationService' Sources/GenesisCore/Resources/Templates/v0.1/Shared/ApplicationService.swift.template",
+    "grep -F 'package struct ContextError<ErrorType: Error & Equatable>' Sources/GenesisCore/Resources/Templates/v0.1/Shared/ContextError.swift.template",
+    "! grep -F 'TimeZoneConstants' Sources/GenesisCore/Resources/Templates/v0.1/Shared/Iso8601.swift.template",
+    "! grep -F 'Asia/Taipei' Sources/GenesisCore/Resources/Templates/v0.1/Shared/Iso8601.swift.template",
+    "grep -F '.gmt' Sources/GenesisCore/Resources/Templates/v0.1/Shared/Iso8601.swift.template",
+    "grep -F '{ContextName}' Sources/GenesisCore/Resources/Templates/v0.1/Shared/README.md.template",
+    "grep -F '{GenesisVersion}' Sources/GenesisCore/Resources/Templates/v0.1/Shared/README.md.template",
+    "grep -F '{Date}' Sources/GenesisCore/Resources/Templates/v0.1/Shared/README.md.template",
+    "grep -F 'renderInfraFiles' Sources/GenesisCore/SharedTargetRenderer.swift",
+    "grep -F 'renderBundleDtosAndCustomTypes' Sources/GenesisCore/SharedTargetRenderer.swift",
+    "grep -F 'let needsShared = true' Sources/GenesisCore/PackageRenderer.swift",
+    "grep -F '0.1.0-phase1f' Sources/GenesisCore/Version.swift",
+    "! grep -F '0.1.0-phase1e' Sources/GenesisCore/Version.swift",
+    "grep -F 'Phase 1.f' docs/decisions.md",
+    "grep -F 'ApplicationService.swift' docs/architecture.md"
+  ],
+  "tags": ["feature", "phase-1", "infra", "shared", "bootstrap", "unblocks-api-skill"],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-18T11:00:00Z",
+      "note": "write-spec initial output (451 lines). 4b 通用規則 全 PASS（無 line 錨點、Goals/Non-goals 互斥、Agent/Human 分段、無 ≥N counts）。5b 內部一致性 全 PASS（依賴關係 phase-1e == done）。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-18T11:30:00Z",
+      "note": "audit-spec PASS。5c Codex 外部審回 1 高 + 2 中 + 3 低，**全部已修**：(高) testTypedStructDoesNotForceSharedTarget Phase 1.e 既有 test 在 needsShared=true 後會 fail → 改動檔案加 PackageRendererTests + Step 5 invert test；(中 1) SourceWriter.checkNoConflicts 只看 existing file 不看 same-run planned duplicate → 加 Step 6 + 改動檔案 SourceWriter；(中 2) README {Date} placeholder vars dict 不一致 + 無 acceptance check → spec Step 2 + A6 + A11 同步加 {Date}；(低 1) checkExistingManifestVersion 錯誤訊息 phase1e-specific → 加 Step 7 改 version-generic；(低 2) registry entry 待 step 7d 創建（此檔即是）；(低 3) `.gmt` Linux 相容性 → 已加進已知限制 #11 + fallback hint。Spec 451 → 482 行。"
+    },
+    {
+      "status": "in-progress",
+      "at": "2026-05-18T12:00:00Z",
+      "note": "/pickup 啟動實作。User 選一口氣跑完。Step 1-8 mechanical edits 為主（9 個 template verbatim/minor edit + renderer refactor + version bump + tests + docs）。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-18T13:00:00Z",
+      "completed": "2026-05-18",
+      "note": "**Phase 1.f DONE**。實作摘要：(1) 9 個 template 檔在 `Sources/GenesisCore/Resources/Templates/v0.1/Shared/`（ApplicationService + ContextError + Iso8601 + InvalidDecimalStringError + ProjectionReadInconsistency + 3 個 String extensions + README）。(2) `SharedTargetRenderer` refactor：拆 `renderBundleDtosAndCustomTypes` private helper + 新增 `renderInfraFiles(contextName:)` 永遠 emit。(3) `PackageRenderer.needsShared` + `NewCommand.needShared` 改 `true` always。(4) `GenesisCoreVersion.current` → `0.1.0-phase1f`。(5) `SourceWriter.plan` 改 throwing + 同-run duplicate planned path detection（防 infra 撞名 silent overwrite）；更新 NewCommand 所有 callers + SourceWriterTests。(6) `checkExistingManifestVersion` 錯誤訊息改 version-generic。(7) 新增 9 個 SharedTargetRendererTests + 1 個 SourceWriterTests + 1 個 NewCommandTests infra-presence + 1 個 PackageRendererTests invert (testTypedStructDoesNotForceSharedTarget → testSharedTargetEmittedEvenWithoutDtosOrCustomTypes)。(8) docs/decisions.md + docs/architecture.md §3 + §10.1 footer + new §10.3 ContextShared infra bootstrap entry。**測試結果**：137/137 PASS (1 env-gated build skipped)，184s。**真 e2e build**：`cd /tmp/phase1f-test && swift build` exit 0，58.10s — 2406 targets 全 compile (含 Phase 1.e aggregate + Phase 1.f infra)，warm cache after Phase 1.e e2e。**解除 /api skill v1 spec 的 H3 + H5 blocker** — `ApplicationService` 協議 + `Iso8601ParsingError` 現在 bootstrap 在 `{Ctx}Shared/`。下一步：revise /api spec 修剩 H1/H2/H4 + M1/M2 + L1 audit findings → ready → /pickup。"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "id": "phase-1a-package-swift-scaffold",
+  "file": "docs/tasks/phase-1a-package-swift-scaffold.md",
+  "title": "Phase 1.a — Genesis CLI 骨架 + `genesis new` 最小可行 Package.swift 渲染",
+  "status": "done",
+  "created": "2026-05-14",
+  "depends_on": [],
+  "supersedes": [],
+  "discussion": "/Users/abnertsai/.claude/plans/tool-tool-lexical-hamming.md",
+  "preconditions": [
+    "file:docs/architecture.md",
+    "file:docs/decisions.md"
+  ],
+  "verification": [
+    "swift build -c release --product genesis",
+    "swift test",
+    "grep -F 'from: \"1.12.4\"' Sources/GenesisCore/Resources/Templates/v0.1/Package.swift.template",
+    "grep -F 'swift-tools-version: 6.0' Sources/GenesisCore/Resources/Templates/v0.1/Package.swift.template",
+    "! grep -RE 'swift\\s+run\\s+genesis' Tests/GenesisIntegrationTests/"
+  ],
+  "tags": ["feature", "phase-1", "cli", "bootstrap"],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-14T00:00:00Z",
+      "note": "write-spec initial output"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-14T00:01:00Z",
+      "note": "audit-spec PASS / Codex 外部審查回報 3 高 + 4 中 全部已修：(1) Step 6 重排序解決 createDirectory partial state；(2) integration tests 明確要求 Process+binary 並禁用 swift run/直呼 NewCommand；(3) validate() 改 throw ValidationError 並要求 override main()；(4) BundleParser 區分 not-found/is-directory/IO；(5) GitPreflight 限制 scope 到 output dir；(6) 移除 TemplateRenderer 雙 pseudocode；(7) A5 grep 補 fileSystemFailed。Phase 0 釐清結果經 empirical 驗證（swift package resolve / build 在 empty targets[] exit 0）。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-14T01:00:00Z",
+      "note": "實作完成。28/28 tests 通過（19 unit + 9 integration）。Agent acceptance grep A1-A10 全 PASS。Real-world e2e: 用真實 IAM Context Bundle.json 跑 `genesis new IAMContext --output /tmp/genesis-e2e` 成功產出正確 Package.swift。實作期間發現一個 spec 偏差已回填 spec：ArgumentParser 把 validate() 拋的 ValidationError 包進 internal CommandError，無法 pattern match，所以 args sanity check 改放 run() 開頭並 throw GenesisError 而非 ValidationError。另補 cross-platform `genesisExit` wrapper（Darwin/Glibc/Musl/WinSDK）解決 Linux 相容性。"
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "id": "phase-1e-aggregate-alignment",
+  "file": "docs/tasks/phase-1e-aggregate-alignment.md",
+  "title": "Phase 1.e — Aggregate template 對齊 gradyzhuo/swift-ddd-kit 0.3.0 的 AggregateRoot 結構",
+  "status": "done",
+  "completed": "2026-05-18",
+  "created": "2026-05-15",
+  "depends_on": ["dddkit-correction"],
+  "supersedes": [],
+  "partial_supersedes": [
+    {
+      "task_id": "phase-1b-aggregate-extraction",
+      "reason": "aggregate template / paths (Entity, Usecase/Port/Out) / when(happened:) switch removal / repository placement / deletedEvent yaml shape"
+    },
+    {
+      "task_id": "phase-1c-adapter-and-manifest",
+      "reason": "typedStruct ID strategy deprecation (kit enforces Entity where ID == String)"
+    }
+  ],
+  "discussion": "docs/discussions/2026-05-15-phase-1e-aggregate-alignment.md",
+  "preconditions": [
+    "file:docs/tasks/dddkit-correction.md",
+    "file:docs/tasks/phase-1b-aggregate-extraction.md",
+    "file:docs/tasks/phase-1c-adapter-and-manifest.md",
+    "file:docs/architecture.md",
+    "file:docs/decisions.md",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Aggregate.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/CommandExtension.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/AggregateError.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/PackageTarget.swift.template",
+    "file:Sources/GenesisCore/AggregateRenderer.swift",
+    "file:Sources/GenesisCore/BundleParser.swift",
+    "file:Sources/GenesisCore/FullBundle.swift",
+    "file:Sources/GenesisCore/AdapterApplier.swift",
+    "file:Sources/GenesisCore/SharedTargetRenderer.swift",
+    "file:Sources/GenesisCore/PackageRenderer.swift",
+    "file:Sources/GenesisCore/BusinessDocRenderer.swift",
+    "file:Sources/GenesisCore/ProcessRunner.swift",
+    "file:Sources/Genesis/Commands/NewCommand.swift",
+    "file:Tests/GenesisIntegrationTests/Fixtures/iam-bundle.json"
+  ],
+  "verification": [
+    "swift build -c release --product genesis",
+    "swift test",
+    "grep -F '{Aggregate}AggregateProtocol' Sources/GenesisCore/Resources/Templates/v0.1/Aggregate.swift.template",
+    "grep -F 'package let id: String' Sources/GenesisCore/Resources/Templates/v0.1/Aggregate.swift.template",
+    "! grep -F 'typealias CreatedEventType' Sources/GenesisCore/Resources/Templates/v0.1/Aggregate.swift.template",
+    "! grep -F 'when(happened' Sources/GenesisCore/Resources/Templates/v0.1/Aggregate.swift.template",
+    "grep -F 'Error, Equatable' Sources/GenesisCore/Resources/Templates/v0.1/AggregateError.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/projection-model.yaml.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/DeleteCommandExtension.swift.template",
+    "grep -F 'ModelGeneratorPlugin' Sources/GenesisCore/Resources/Templates/v0.1/PackageTarget.swift.template",
+    "grep -F 'public enum ProjectionModelRenderer' Sources/GenesisCore/ProjectionModelRenderer.swift",
+    "grep -F 'public struct ReadModelSpec' Sources/GenesisCore/FullBundle.swift",
+    "! grep -F 'readModels are not supported' Sources/GenesisCore/BundleParser.swift",
+    "grep -F 'idStrategy.typedStruct is deprecated' Sources/GenesisCore/AdapterApplier.swift",
+    "grep -F 'timeout: TimeInterval?' Sources/GenesisCore/ProcessRunner.swift",
+    "grep -F 'GenesisError.swiftBuildFailed' Sources/Genesis/Commands/NewCommand.swift",
+    "grep -F 'package\", \"resolve\"' Sources/Genesis/Commands/NewCommand.swift",
+    "grep -F 'phase-1e' docs/tasks/phase-1b-aggregate-extraction.md",
+    "grep -F 'phase-1e' docs/tasks/phase-1c-adapter-and-manifest.md",
+    "grep -F 'Phase 1.e' docs/decisions.md",
+    "grep -F 'ModelGeneratorPlugin' docs/architecture.md"
+  ],
+  "tags": ["feature", "phase-1", "cli", "codegen", "ddd", "partial-supersede"],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-15T07:00:00Z",
+      "note": "write-spec 初稿。 inline brief 起始（無多 agent discussion round）→ materialize 為 discussion MD docs/discussions/2026-05-15-phase-1e-aggregate-alignment.md。Gemini facts report (background agent) 跨讀 gradyzhuo 0.3.0 + OC AuditQuotingAggregate + Genesis renderer 揭示 12 個 scope-defining 決策點：user 拍板 3 個（typedStruct deprecate、projection-model 從 bundle 推斷、category prefix = contextName 大寫縮寫）；其餘 6 個 reasonable defaults（class 非 final、Error+Equatable、deletedEvent yaml 省略、Repository 移 Usecase/Port/Out/、移除 when(happened:)、init 帶 createdEvent payload）。Spec 716 行 -> audit 修正後 873 行。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-15T08:30:00Z",
+      "note": "audit-spec pass 1 PASS。4b 通用規則 5/5 PASS。5b 內部一致性 7/7 PASS。5c Codex 4 高 + 4 中 + 1 低 全部已修。spec 716 → 873 行（13 steps、22 改動檔案）。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-15T09:30:00Z",
+      "note": "audit-spec pass 2（user-triggered re-audit）。4b/5b 全 PASS。5c Codex 2nd-pass 揭示 pass 1 修正不徹底 + 新發現 — 4 個 PASS / 4 個 FAIL（pass 1 應修但沒修徹底）+ 2 個新高 + 2 個新中 + 4 個漏抓 + 5 個 cross-section drift + 2 個 high test gap。**全部已修** (15 個 spec edits)：(H2 二修) {CreatedEventStateAssignments} 改為 fail-fast 當 payload ⊄ state（IAM bundle 實證 initialPermissions/initialRoles 不在 state 會 silently 生成不存在 property）；(H4 二修) Step 2 heading 4→5 + A10 grep 補 BusinessDocRenderer；(新高 1) {CreatedEventInvocationList} 加 alias-first 排序（對齊 OC AuditQuotingCreated 慣例）；(新高 2) {CreatedEventReplayList} 對齊；(M1 二修) ProcessRunner timeout 改 SIGTERM grace + SIGKILL fallback；(M2 二修) 移除「swift build 內部自動 resolve」stale 段落；(新中 1) Step 9 rollback 改用 NewCommand 既有 outer-catch（不引入不存在的 rollbackAll helper）；(漏中 1) `swiftBuildFailed(message: stderr)` → `(stderr:)`；(drift) 不改動的部分 list 撤下 BusinessDocRenderer / PackageRenderer 標註 / 澄清 manifest schema vs preflight；(漏低 1) Projection fallback「第一個 aggregate」→「每個 aggregate」；(漏低 2) alias 用 spec.identityName 不轉 case；補 6 個 high-priority tests：testCreatedEventStateAssignmentsSkipNonStatePayload / testCreatedEventInvocationIncludesAliasFirst / testTypedStructFallsBackToString / testTimeoutKillsStubbornChild (deterministic ignore-SIGTERM child) / testResolveFailureThrowsSwiftPackageResolveFailed / testRenderNonEmptyReadModelsScopedToAggregate。spec 873 → 915 行。所有 9 個 pass-2 findings 重新 grep 驗證 0 殘留。"
+    },
+    {
+      "status": "in-progress",
+      "at": "2026-05-17T00:00:00Z",
+      "note": "/pickup 啟動實作。User 選分階段（4 phases）：Phase 1 (Steps 1,2,5,6,8) Foundation → Phase 2 (Steps 3,4,7,10) Renderer rewrite → Phase 3 (Steps 9,11) NewCommand integration → Phase 4 (Steps 12,13 + Gemini review + e2e) Tests+Docs。每 phase 間 checkpoint pause。"
+    },
+    {
+      "status": "in-progress",
+      "at": "2026-05-18T00:00:00Z",
+      "note": "Phase 4 大部分完成。Steps 12 (tests 全補完，4 個新 test 檔含 ProcessRunnerTests/ProjectionModelRendererTests/SharedTargetRendererTests/BusinessDocRendererTests + 既有 5 個檔擴充；129/129 unit+integration test pass, 1 skipped 為 env-gated build) + 13 (decisions.md Phase 1.e ratification entry; architecture.md §10.1 + §10.2 ModelGeneratorPlugin; phase-1b/1c partial-supersede banner) + Gemini Review (PASS with 1 medium + 3 low; 全修) 已完成。真 e2e build (testEndToEndSwiftPackageResolveAndBuild with GENESIS_RUN_E2E_BUILD=1) 首次跑 timeout 15min 太短（generated project cold build 60-120min），改為手動跑 `swift build` 無 timeout — **揭露 3 個 spec 未涵蓋的 compile error**：(a/b) `UsecaseInput/Output.swift.template` 用了不存在的 `Input/Output` 協議名（Phase 1.b latent bug），改為 `UseCaseInput/UseCaseOutput`；(c) plugin-generated event Swift + hand-written aggregate template 都缺 `import {Ctx}Shared`（DTO/customType 在 Shared target），修補 `event-generator-config.yaml.template` 加 `dependencies: - {Ctx}Shared` 區塊 + 多 template 加 `{SharedImport}` placeholder + AggregateRenderer/UseCaseRenderer 注入。Real e2e build retry running。Spec § 已知限制 + Step 13 補完紀錄這 3 個發現。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-18T01:30:00Z",
+      "completed": "2026-05-18",
+      "note": "**Phase 1.e DONE**。最終驗證：(1) 129/129 unit+integration tests pass (1 env-gated build skip)，184s。(2) 真 e2e `swift build` against generated IAM project 成功 — `Build complete! (45.54s)`（warm cache; cold ~60-90min）。Phase 1.e 的核心目標「`genesis new` 產出的專案能 `swift build` 過」**達成**。實作期間發現的 4 個 compile error 全部修補：Error 1+2 (`UsecaseInput/Output` 用 `Input/Output` 而非 `UseCaseInput/UseCaseOutput`)，Error 3 (`event-generator-config.yaml` 缺 dependencies 區塊 + 多 hand-written Swift template 缺 `import {Ctx}Shared`)，Error 4 (`Dto.swift.template` enum 缺 `: String, Codable` / struct 缺 `: Codable, Sendable`)。多模型協作流程跑完全 lifecycle：Claude orchestrate + spec authoring + audit fixes、Gemini facts report + spec compliance review、Codex audit-spec 2 輪 + step implementation。最大教訓：spec compliance ≠ build correctness — codegen tool 的最終驗證必須是真 build。Phase 1.e 完整 spec 含 13 個已知限制與 4 個實作期發現。Brain log：2026-05-17 + 2026-05-18。"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "id": "phase-1b-aggregate-extraction",
+  "file": "docs/tasks/phase-1b-aggregate-extraction.md",
+  "title": "Phase 1.b — Bundle 全萃取 + Sources/{Aggregate}Aggregate/ 樹生成 + Package.swift 升級",
+  "status": "done",
+  "created": "2026-05-14",
+  "depends_on": ["phase-1a-package-swift-scaffold"],
+  "supersedes": [],
+  "discussion": "/Users/abnertsai/.claude/plans/tool-tool-lexical-hamming.md",
+  "preconditions": [
+    "file:docs/tasks/phase-1a-package-swift-scaffold.md",
+    "file:docs/architecture.md",
+    "file:docs/decisions.md",
+    "file:Tests/GenesisIntegrationTests/Fixtures/iam-bundle.json",
+    "file:Sources/GenesisCore/BundleParser.swift",
+    "file:Sources/GenesisCore/TemplateRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Package.swift.template"
+  ],
+  "verification": [
+    "swift build -c release --product genesis",
+    "swift test --filter GenesisCoreTests",
+    "swift test --filter BundleParserFullTests",
+    "swift test --filter SwiftTypeResolverTests",
+    "swift test --filter SourceWriterTests",
+    "swift test --filter testFullBundleEndToEnd",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Aggregate.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/event.yaml.event.template",
+    "grep -F 'BundleParser.parseFull' Sources/Genesis/Commands/NewCommand.swift",
+    "grep -F 'case swiftBuildFailed' Sources/GenesisCore/GenesisError.swift"
+  ],
+  "tags": ["feature", "phase-1", "cli", "codegen", "ddd"],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-14T02:00:00Z",
+      "note": "write-spec initial output. Spec 約 1090 行，含 21+ 個新檔案、6 個 renderer/extractor module、14 個 templates、SourceWriter plan/commit/rollback API、SwiftTypeResolver 型別系統、CaseTransformer、event.yaml + event-generator-config.yaml 格式（依 DDDKit README 1.12.4 確認）、AggregateRoot 真實協議簽章（依 DDDKit Sources/ 實讀確認）。已知 [VERIFY-IN-IMPL] 標記在 Repository.swift.template 的 KurrentStorageCoordinator import 路徑 — 需實作期驗證或降級為 ESDB fallback。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-14T03:00:00Z",
+      "note": "audit-spec PASS / Codex 外部審查回報 3 高 + 3 中 + 1 低，**全部已修**：(H1) Aggregate.swift template 加 `when(happened:)` switch dispatch 到 typed `when(event:)` overload（不再 fatalError 死路）；(H2) UseCase protocol 名稱修正為 DDDKit 真實名 `Input` / `Output` / `Usecase<I, O>`（Phase 0 Q3 摘要錯誤，已實證 Sources/DDDCore/UseCase/{Input,Output,Usecase}.swift）；(H3) Repository 鎖定 ESDB（codex 確認 KurrentStorageCoordinator 不存在於 DDDKit 1.12.4，唯一 ESDBStorageCoordinator）+ Repository 改為 `final class`（Repository: AnyObject 強制）；(M4) DTO 跨 aggregate cross-ref 失敗情境明列 known limitation；(M5) Aggregate.swift 採 canonical TestAggregateRoot 模式：`init(id:)` only + state 一律 Optional + `init?(first:other:)` 直接 re-apply `[firstEvent] + events`；(M6) CreatedEvent heuristic 加三層 fallback 鏈（create-prefix → *Created suffix → register/bootstrap/open/init prefix）；(L7) SourceWriter 加 intermediate parent dir 逐層追蹤的 pseudocode。額外修正：所有 generated Swift template 改 import DDDKit only（@_exported 帶來 DDDCore + ESDBSupport + EventSourcing + JBEventBus）；B7 acceptance wording 修為 `Genesis 一律輸出 kind` 而非 `kind required`；B9 acceptance 加 grep ensuring legacy `UseCaseInput/UseCaseOutput` 名稱不在 template 內。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-14T05:00:00Z",
+      "note": "實作完成。56/56 tests 通過（28 Phase 1.a + 28 Phase 1.b 新增）。Real-world e2e: 用 IAM Context Bundle 跑 `genesis new IAMContext` 成功產出 42 個檔案（1 aggregate / 7 use cases），exit 0。所有 acceptance grep（B1-B13）PASS。實作期間發現兩個 spec 偏差已回填 spec：(1) **驗證從 `swift build` 改為 `swift package resolve`** — KurrentDB-Swift 透過 gRPC+NIO+Protobuf 帶來巨型依賴鏈，冷編譯 5-10 分鐘，每個 integration test 都跑會卡死 CI / 本機開發。`swift package resolve` 只驗 Package.swift 合法 + dep 拉得下來，是 Phase 1.b 實際可達的自動驗證上限；完整 `swift build` 留給 user 端 `genesis new` 之後手動或 Phase 1.c 統一處理。GenesisError.swiftBuildFailed enum case 保留供未來升級。(2) **event.yaml 的 type 欄位必須 quote**（`type: \"[String]\"` 不是 `type: [String]`）— 否則 YAML 把 `[String]` 解析為 flow sequence，DDDKit plugin decode 失敗 `typeMismatch(Yams.Node.Mapping)`。AggregateRenderer.renderEventBlock 已加 quote 邏輯。"
+    }
+  ]
+}

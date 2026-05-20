@@ -1,0 +1,57 @@
+{
+  "id": "phase-1k-presenter-renderer",
+  "file": "docs/tasks/phase-1k-presenter-renderer.md",
+  "title": "Phase 1.k — Genesis PresenterRenderer + read-side codegen",
+  "status": "done",
+  "created": "2026-05-19",
+  "depends_on": [
+    "2026-05-19-presenter-skill",
+    "phase-1h-api-renderer",
+    "phase-1i-api-handler"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-19-phase-1k-presenter-renderer.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/PresenterRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/PresenterApplicationService.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiHandlerReadMethod.swift.template",
+    "file:Sources/GenesisCore/Version.swift"
+  ],
+  "verification": [
+    "test -f Sources/GenesisCore/PresenterRenderer.swift",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/PresenterApplicationService.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiHandlerReadMethod.swift.template",
+    "grep -F '0.1.0-phase1k' Sources/GenesisCore/Version.swift",
+    "swift test --filter PresenterRendererTests",
+    "swift test",
+    "grep -F 'Phase 1.k' docs/decisions.md",
+    "grep -F 'PresenterRenderer' docs/architecture.md"
+  ],
+  "tags": [
+    "feature",
+    "phase-1",
+    "codegen",
+    "renderer",
+    "presenter",
+    "read-side"
+  ],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-19T19:30:00Z",
+      "note": "write-spec initial output (~420 lines). Scope: per-aggregate presenters with 3 output kinds. Defer cross-aggregate + query-error to Phase 1.k.2. 下一步 audit-spec."
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-19T20:00:00Z",
+      "note": "Codex audit clean (3 MED + 2 LOW, no HIGH). Findings: Q1 MED — single/scalar plugin invariant not verified by listed files (mandatory real e2e build is the only safety net); Q2 LOW — operatorId omission matches OC handler behavior; Q3 MED — query-error mapping lossy (defer Phase 1.k.2 explicit); Q4 MED — missing schema  behavior unverified (real e2e build is fail-loud check); Q5 LOW — fatalError compile OK for all Output kinds (Never returns satisfies any type). 所有 findings 都是 spec 已 acknowledged deferred-scope items；no spec changes needed. Status: draft → ready. 下一步 /pickup."
+    },
+    {
+      "status": "done",
+      "at": "2026-05-20T00:50:00Z",
+      "completed": "2026-05-20",
+      "note": "**Phase 1.k DONE**. 實作摘要: (1) PresenterRenderer.swift (~85 lines, pure-function-of-bundle, 3 output kinds derivation); (2) 2 templates (PresenterApplicationService + ApiHandlerReadMethod); (3) ApiHandlerRenderer extension: presenters loop emit read methods + aggregate filter accepts presenters-only aggregates; (4) OpenApiYamlRenderer extension: GET endpoints + dynamic parameters block (collect unique path params from useCases + presenters); (5) BundleParser: Envelope.presenters + parseFull 呼叫 decodePresenterSpec + pass to FullBundle (修補 /presenter skill v1 pickup 時的遺漏); (6) NewCommand: 加 PresenterRenderer step + 擴 scanExistingApiPaths; (7) Version 0.1.0-phase1k; (8) `import KurrentDB` 加入 read-side AS template. **Tests**: 212/212 full suite PASS in 253s; 12 new PresenterRendererTests. **Real e2e swift build**: /tmp/phase1k-e2e (IAM bundle 加 1 scalar presenter `GetUserAccessSummary`) → Build complete 62.70s — OpenAPIGenerator plugin generated Operations.getUserAccessSummary.* + ApiHandler conform APIProtocol + read-side AS fatalError body 滿足 type 全 compile pass. **Pickup 中踩到 3 個坑**: (i) BundleParser 漏實作 — /presenter skill v1 spec D6 沒有 spec'd 而 implementation 漏；(ii) openapi `$ref` 對 path param 缺 component declaration — 改 dynamic parameters block; (iii) 缺 import KurrentDB 在 read-side AS template; (iv) scalar isOptional=true vs openapi non-nullable response 不匹配 — fixture 改 isOptional=false。 **Codex audit clean**: 3 MED + 2 LOW (all deferred-scope items)。**下一步候選**: Phase 1.k.2 (cross-agg presenter + query-error mapping)、/readmodel-mutation v2 skill、Phase 1.j (Variant B init-from-payload emission)、Author /api skill v3 SKILL.md content。"
+    }
+  ],
+  "completed": "2026-05-20"
+}

@@ -1,0 +1,50 @@
+{
+  "id": "phase-1c-adapter-and-manifest",
+  "file": "docs/tasks/phase-1c-adapter-and-manifest.md",
+  "title": "Phase 1.c — swift-adapter.yaml + .scaffold-manifest.json + .ai/contexts/ 業務文件骨架 + Sources/{Context}Shared/ + README/CLAUDE 樣板",
+  "status": "done",
+  "created": "2026-05-14",
+  "depends_on": ["phase-1b-aggregate-extraction"],
+  "supersedes": [],
+  "discussion": "/Users/abnertsai/.claude/plans/tool-tool-lexical-hamming.md",
+  "preconditions": [
+    "file:docs/architecture.md",
+    "file:docs/decisions.md",
+    "file:docs/tasks/phase-1b-aggregate-extraction.md",
+    "file:Sources/GenesisCore/BundleParser.swift",
+    "file:Sources/GenesisCore/AggregateRenderer.swift",
+    "file:Sources/GenesisCore/PackageRenderer.swift",
+    "file:Sources/GenesisCore/SourceWriter.swift",
+    "file:Tests/GenesisIntegrationTests/Fixtures/iam-bundle.json"
+  ],
+  "verification": [
+    "swift build -c release --product genesis",
+    "swift test --filter GenesisCoreTests",
+    "swift test --filter AdapterYamlParserTests",
+    "swift test --filter AdapterApplierTests",
+    "swift test --filter testWithAdapterTypedStruct",
+    "swift test --filter testManifestWritten",
+    "grep -F 'AdapterApplier.resolveCreatedUseCase' Sources/GenesisCore/AggregateRenderer.swift",
+    "grep -F 'import CryptoKit' Sources/GenesisCore/ManifestRenderer.swift",
+    "grep -F 'jpsim/Yams' Package.swift",
+    "grep -F '--adapter' Sources/Genesis/Commands/NewCommand.swift"
+  ],
+  "tags": ["feature", "phase-1", "cli", "adapter", "manifest", "business-docs"],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-14T11:30:00Z",
+      "note": "write-spec initial output. ~1047 行 spec，含 8 個新 module（Adapter, AdapterYamlParser, AdapterApplier, SharedTargetRenderer, BusinessDocRenderer, ContextLevelRenderer, ManifestRenderer, ReadmeRenderer）、14 個新 templates、Aggregate.swift + Package.swift template 修改（IDType placeholder + Shared/Test target placeholder）、NewCommand 加 --adapter flag。最關鍵 backward-incompat：Phase 1.b 把 DTO 放在第一個 aggregate target，Phase 1.c 改放 Sources/{Ctx}Shared/。等 audit-spec 跑外部審查找盲點。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-14T12:00:00Z",
+      "note": "audit-spec PASS / Codex 外部審查 2 高 + 4 中 + 1 低 全部已修。(H1) idStrategy.typedStruct 沒 customTypes entry 時自動補 minimal identifier wrapper（underlying default UUID）；SharedTargetRenderer 改為「若需要 wrapper 就掛 Shared target」；(H2) fs conflict check 統一改為 SourceWriter.checkNoConflicts() 一個入口，掃描全部 planned paths（涵蓋 README/CLAUDE/Tests/.ai/conventions/.ai/contexts/）；(M3) 所有 renderer 改回 (path, content, role) tuple，刪除 roleFromPath 字串推斷；(M4) `.ai/contexts/` 結構改 nested `{ContextName}/{Aggregate}/` 避免 namespace 碰撞；(M5) AdapterYamlParser 對 stderr 寫 warning 當偵測到 payloadConventions/testingConventions/imports/skip；(M6) BusinessDocRenderer 新增 per-UC notes/{UC}.md（對齊 architecture §4 SSOT 表）；(L7) 修措辭，starter adapter yaml 明確為「無註解」（Yams 限制）。額外更新：acceptance check C16 path 對齊新 nested layout，新增 C18-C20。spec 1134 行。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-14T13:00:00Z",
+      "note": "實作完成。84/84 tests 通過（56 Phase 1.a+1.b 既有 + 28 Phase 1.c 新增）。Real-world e2e：IAM bundle 不傳 --adapter → 63 個檔案（含 .ai/contexts/IAMContext/{starter swift-adapter.yaml, .scaffold-manifest.json, UserAccessProfile/...}, .ai/conventions/api.md, Sources/IAMContextShared/EmployeeStatus.swift, README.md, CLAUDE.md, Tests/IAMContextTests/PlaceholderTests.swift），exit 0。IAM bundle + swift-adapter.iam.yaml → 62 個檔案，exit 0。IAM bundle + swift-adapter-typedstruct.yaml → auto-generated UserAccessProfileID wrapper 在 Shared target，Aggregate.swift 用 typealias ID = UserAccessProfileID。所有 acceptance grep（C1-C20）PASS。實作期間發現 Phase 1.b 的 TemplateRendererTests.testRenderActualPackageSwiftTemplate 需要補充新 placeholder（SharedProductsList / SharedTargetsList / TestTargetBlock）才能維持綠（已更新）。"
+    }
+  ]
+}

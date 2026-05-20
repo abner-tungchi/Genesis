@@ -1,0 +1,186 @@
+{
+  "id": "2026-05-18-readmodel-skill",
+  "file": "docs/tasks/2026-05-18-readmodel-skill.md",
+  "title": "/readmodel skill v1 — bundle-writing skill for ReadModel design (post-audit v2)",
+  "status": "done",
+  "created": "2026-05-18",
+  "depends_on": [
+    "phase-1d-install-skills"
+  ],
+  "soft_depends_on": [
+    "phase-1g-readmodel-renderer"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-18-readmodel-skill.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md",
+    "file:Sources/GenesisCore/ReadModelBundleAppender.swift",
+    "file:Tests/GenesisCoreTests/Fixtures/readmodel-skill-input-bundle.json",
+    "file:Tests/GenesisCoreTests/Fixtures/readmodel-skill-answers.json",
+    "file:Tests/GenesisCoreTests/Fixtures/readmodel-skill-expected-output-bundle.json",
+    "file:Tests/GenesisCoreTests/ReadModelBundleAppenderTests.swift",
+    "file:docs/decisions.md",
+    "file:docs/architecture.md"
+  ],
+  "verification": [
+    "test -f Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md",
+    "[ $(wc -l < Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md) -le 300 ]",
+    "head -10 Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md | grep -F 'name: readmodel'",
+    "head -10 Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md | grep -F 'disable-model-invocation: true'",
+    "head -10 Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md | grep -F 'AskUserQuestion'",
+    "[ $(grep -cE '^## (Step [1-6]|步驟 [1-6])' Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md) -eq 6 ]",
+    "grep -F 'readModels' Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md",
+    "grep -F 'multiSelect' Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md",
+    "grep -F 'fromEventPayload' Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md",
+    "grep -F 'aggregateRef' Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md",
+    "grep -F '<context-level>' Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md",
+    "grep -F 'sourceAggregate' Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md",
+    "grep -F 'resolvePayload' Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md",
+    "test -f Tests/GenesisCoreTests/Fixtures/readmodel-skill-input-bundle.json",
+    "test -f Tests/GenesisCoreTests/Fixtures/readmodel-skill-answers.json",
+    "test -f Tests/GenesisCoreTests/Fixtures/readmodel-skill-expected-output-bundle.json",
+    "swift test --filter ReadModelBundleAppenderTests",
+    "grep -F '/readmodel skill v1' docs/decisions.md",
+    "grep -F 'readModels[]' docs/architecture.md",
+    "grep -F 'resolvePayload' docs/architecture.md"
+  ],
+  "tags": [
+    "feature",
+    "phase-2",
+    "skill",
+    "readmodel",
+    "bundle-writer",
+    "post-audit"
+  ],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-18T14:00:00Z",
+      "note": "write-spec v1 initial output (392 lines spec MD). 4b 通用規則 全 PASS。5b 內部一致性 自查 PASS。下一步 audit-spec (5c Codex 外部審回)。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-18T15:00:00Z",
+      "note": "audit-spec PASS。5c Codex 外部審回 6 高 + 4 中 + 2 低，**全部已修** → spec v2 (542 lines)：(H1) scope narrow — bundle 只存 structural shape，mutation 留 user/v2 skill；(H2) key 不在 storedFields[]，是頂層 object {field,type,fromEventPayload}；(H3) 新 resolvePayload 演算法 (Pass-1 direct payload → Pass-2 via useCases join → Pass-3 empty)；(H4) A10 改測 ReadModelBundleAppender.append Swift fn，prompt-side 走 A11 manual E2E sign-off；(H5) A14 改 whitelist-aware awk imperative-phrase lint，與 A7 字串並存；(H6) atomicity 弱化 single-Write best-effort，SIGKILL 為 known risk；(M1) strict v1 要求 events 共用同一 fromEventPayload；(M2) events[].sourceAggregate 強制；(M3) success message 加 Phase 1.g 狀態聲明；(M4) streamPrefix resolution precedence + alias map (Opportunity→OC, fallback upper-snake)；(L1) line budget 提至 300 advisory；(L2) zero events 加失敗路徑；(M6 新) global vs project-local skill 加 manual E2E A15 驗證。Status: draft → ready。下一步 /pickup 實作（含 schema migration + appender + tests + docs + manual E2E sign-off）。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-18T17:00:00Z",
+      "completed": "2026-05-18",
+      "note": "**/readmodel skill v1 DONE**。實作摘要：(1) `FullBundle.swift` 擴 ReadModelSpec + 新增 ReadModelKey / ReadModelStoredField / ReadModelEventRef 3 個 types。(2) `BundleParser.swift` 支援新 events 三種 schema (`[{name,sourceAggregate}]` / `[{name}]` / `[String]`)，readModelSpecId 改 optional auto-derived (`rm-{name}`)，向後相容 minimal `{name}` shape。(3) `ReadModelBundleAppender.swift` (290 lines) — 純 transform fn + 9 validation paths + `resolvePayload` algorithm (Pass-1 aggregate.events[].payload future / Pass-2 useCases[].eventPayload join / Pass-3 empty fallback) + `ReadModelAnswers` Codable struct。(4) `Sources/GenesisCore/Resources/Templates/skills/readmodel/SKILL.md` (259 lines, ≤300) — 6-step interactive flow，full AskUserQuestion multiSelect:true 用法，streamPrefix resolution precedence + alias map。(5) 3 fixtures (`readmodel-skill-input-bundle.json` 2 aggregates 6 useCases / `readmodel-skill-answers.json` Codable / `readmodel-skill-expected-output-bundle.json`)。(6) `ReadModelBundleAppenderTests.swift` 15 tests (happy + 9 validations + 2 cross-aggregate + 3 resolvePayload)。(7) Test 修補：`testReadModelMissingRequiredField` 改名為 `testReadModelMissingNameRejected`（assertion 改測 name 缺失）+ 新增 `testReadModelMinimalNameOnlyAccepted`；NewCommandTests `testInvalidReadModelSchemaRejected` 刪除（CLI-level 測試在 schema migration 下無意義；parser-level 測試已 cover）。(8) `docs/decisions.md` 新增 /readmodel skill v1 ratification 條目；`docs/architecture.md` 新增 §10.4 ReadModel skill flow（含 6-step / schema / resolvePayload / streamPrefix）。**測試結果**：152/152 PASS (1 env-gated skipped) in 183s；ReadModelBundleAppenderTests 15/15 PASS。**Acceptance gates A1-A14**：A1✓ A2✓(259/300) A3✓ A4✓ A5✓(6) A6✓(8 keywords) A7✓ A8✓ (install-skills mirror byte-equal) A9✓ A10✓(15/15) A12✓ A13✓ A14✓(whitelist-aware)。**A11 deferred**: manual E2E sign-off 需在真實 Claude Code session 內跑 `/readmodel`，不在 bg pickup 範圍。**下一步**: Phase 1.g `ReadModelRenderer`（待開）—bundle.readModels[] → 產 4 個 human-written Swift/YAML/JS files。"
+    }
+  ],
+  "audit_findings": {
+    "high": [
+      {
+        "id": "H1",
+        "severity": "high",
+        "anchor": "§Generated bundle entry shape (D2)",
+        "issue": "D2 schema lacks event→readmodel mutation mapping; OC presenters do typed transforms not capturable by name+payloadKeyField alone.",
+        "fix": "Scope narrow: bundle stores structural shape only; Phase 1.g renderer emits empty when() bodies with TODO; user fills mutation by hand or via v2 /readmodel-mutation skill.",
+        "resolved": true
+      },
+      {
+        "id": "H2",
+        "severity": "high",
+        "anchor": "§Generated bundle entry shape / fields default semantics",
+        "issue": "Sample puts key in fields[] with default:null contradicting OC's non-optional constructor-init key field.",
+        "fix": "key is top-level object {field,type,fromEventPayload}; storedFields[] excludes key; explicit field validation.",
+        "resolved": true
+      },
+      {
+        "id": "H3",
+        "severity": "high",
+        "anchor": "§Skill 6 steps, Step 5/6",
+        "issue": "Payload field discovery under-specified; iam-bundle has payloads under useCases[].eventPayload not aggregate.events[].payload.",
+        "fix": "New §resolvePayload algorithm: Pass-1 aggregate.events[].payload → Pass-2 useCases[] join via emittedEvent → Pass-3 empty fallback.",
+        "resolved": true
+      },
+      {
+        "id": "H4",
+        "severity": "high",
+        "anchor": "§Acceptance Criteria A10 / A9",
+        "issue": "swift test --filter cannot test a Claude Code skill prompt + AskUserQuestion tool calls.",
+        "fix": "A10 tests ReadModelBundleAppender.append(bundle, answers) Swift fn that mirrors skill logic; A11 added for manual E2E sign-off (not in CI).",
+        "resolved": true
+      },
+      {
+        "id": "H5",
+        "severity": "high",
+        "anchor": "§Acceptance Criteria A13 vs A7",
+        "issue": "A13 ban Sources/ contradicts A7 requirement that SKILL.md must contain literal 不寫 Sources/.",
+        "fix": "A7 keeps string-presence checks; A14 replaces A13 with whitelist-aware awk imperative-phrase lint (only fails on generate|emit|produce|write|create + .swift|.js|.yaml).",
+        "resolved": true
+      },
+      {
+        "id": "H6",
+        "severity": "high",
+        "anchor": "§Outputs / Failure Modes",
+        "issue": "'no partial writes' guarantee vs OVERWRITE in-place without atomic-rename — broken by SIGKILL during Write tool call.",
+        "fix": "Atomicity weakened to single-Write best-effort; SIGKILL during Write listed as known unmitigated v1 risk #13.",
+        "resolved": true
+      }
+    ],
+    "medium": [
+      {
+        "id": "M1",
+        "severity": "medium",
+        "anchor": "§Known Limitations #11 / payloadKeyField",
+        "issue": "Inconsistent payloadKeyField across events permitted with warn-only; OC's JS uses single shared handleEvent with single key.",
+        "fix": "strict v1: all selected events must share fromEventPayload; manual-entry path violates → warn but still write (limit #11).",
+        "resolved": true
+      },
+      {
+        "id": "M2",
+        "severity": "medium",
+        "anchor": "§Cross-aggregate readmodels / D7",
+        "issue": "Cross-aggregate entries lose event provenance — same event name in 2 aggregates cannot roundtrip.",
+        "fix": "events[].sourceAggregate is required (not optional); sourceAggregates[] removed from D2 (derive from events[]).",
+        "resolved": true
+      },
+      {
+        "id": "M3",
+        "severity": "medium",
+        "anchor": "§Known Limitations #10",
+        "issue": "Success message tells user to run genesis new but Phase 1.g (renderer) not shipped — product footgun.",
+        "fix": "Success message includes Phase 1.g status declaration + registry pointer.",
+        "resolved": true
+      },
+      {
+        "id": "M4",
+        "severity": "medium",
+        "anchor": "§Known Limitations #8 / D10 streamPrefix",
+        "issue": "Formula 'strip Context suffix → upper-snake' inconsistent: OpportunityContext → OPPORTUNITY_ not OC_; also bundle.context type ambiguity.",
+        "fix": "New §streamPrefix-resolution: precedence (adapter override > bundle.context.streamPrefix > deterministic fallback); alias map (Opportunity→OC); examples table.",
+        "resolved": true
+      },
+      {
+        "id": "M6",
+        "severity": "medium",
+        "anchor": "§Known Limitations #6",
+        "issue": "global vs project-local skill precedence unverified; if precedence differs, /readmodel may invoke destructive personal skill.",
+        "fix": "Added A11 manual E2E sign-off checks resolved skill description = Genesis bundle-writing skill; SKILL.md description must self-identify.",
+        "resolved": true
+      }
+    ],
+    "low": [
+      {
+        "id": "L1",
+        "severity": "low",
+        "anchor": "§A2 Length budget",
+        "issue": "250-line cap may incentivize underspec; spec also incorrectly says personal skill is 160 lines (actually ~180).",
+        "fix": "A2 raised to 300 (advisory); §來源 ref corrected to '~180 lines'.",
+        "resolved": true
+      },
+      {
+        "id": "L2",
+        "severity": "low",
+        "anchor": "§Known Limitations #1",
+        "issue": "zero-events aggregate would block step 3 require ≥1 event, but spec doesn't define failure path.",
+        "fix": "Failure modes adds 'Chosen aggregate has 0 events → exit 1' with hint.",
+        "resolved": true
+      }
+    ]
+  },
+  "completed": "2026-05-18"
+}

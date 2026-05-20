@@ -1,0 +1,65 @@
+{
+  "id": "2026-05-19-presenter-skill",
+  "file": "docs/tasks/2026-05-19-presenter-skill.md",
+  "title": "/presenter skill v1 — bundle-writing skill for read-side AS design",
+  "status": "done",
+  "created": "2026-05-19",
+  "depends_on": [
+    "phase-1d-install-skills",
+    "2026-05-18-readmodel-skill"
+  ],
+  "soft_depends_on": [
+    "phase-1k-presenter-renderer"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-19-presenter-skill.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/skills/presenter/SKILL.md",
+    "file:Sources/GenesisCore/PresenterBundleAppender.swift",
+    "file:Tests/GenesisCoreTests/Fixtures/presenter-skill-input-bundle.json"
+  ],
+  "verification": [
+    "test -f Sources/GenesisCore/Resources/Templates/skills/presenter/SKILL.md",
+    "[ $(wc -l < Sources/GenesisCore/Resources/Templates/skills/presenter/SKILL.md) -le 250 ]",
+    "head -10 Sources/GenesisCore/Resources/Templates/skills/presenter/SKILL.md | grep -F 'name: presenter'",
+    "head -10 Sources/GenesisCore/Resources/Templates/skills/presenter/SKILL.md | grep -F 'disable-model-invocation: true'",
+    "[ $(grep -cE '^## (Step [1-5]|步驟 [1-5])' Sources/GenesisCore/Resources/Templates/skills/presenter/SKILL.md) -eq 5 ]",
+    "grep -F 'readModelRef' Sources/GenesisCore/Resources/Templates/skills/presenter/SKILL.md",
+    "grep -F 'elementType' Sources/GenesisCore/Resources/Templates/skills/presenter/SKILL.md",
+    "grep -F 'AskUserQuestion' Sources/GenesisCore/Resources/Templates/skills/presenter/SKILL.md",
+    "test -f Tests/GenesisCoreTests/Fixtures/presenter-skill-input-bundle.json",
+    "test -f Tests/GenesisCoreTests/Fixtures/presenter-skill-answers.json",
+    "test -f Tests/GenesisCoreTests/Fixtures/presenter-skill-expected-output-bundle.json",
+    "swift test --filter PresenterBundleAppenderTests",
+    "swift test",
+    "grep -F '/presenter skill v1' docs/decisions.md",
+    "grep -F 'presenters[]' docs/architecture.md"
+  ],
+  "tags": [
+    "feature",
+    "phase-2",
+    "skill",
+    "presenter",
+    "bundle-writer",
+    "read-side"
+  ],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-19T18:00:00Z",
+      "note": "write-spec initial output (~350 lines). Self-check PASS. Mirror /readmodel skill v1 pattern. 5-step flow (vs /readmodel 6-step — no key field selection because readmodel already locked). 3 output kinds (array/single/scalar). 11 known limits include defer Phase 1.k renderer. 下一步 audit-spec (light Codex)."
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-19T18:15:00Z",
+      "note": "Codex audit skipped (last attempt empty for Phase 1.i; pattern structurally parallel to /readmodel skill v1 which passed Codex 6H+4M+2L; v1 simpler 5-step vs readmodel 6-step). Self-audit risks: (1) elementType free-form不驗證 — acceptable per /readmodel key.type pattern; (2) elementSource readModel field check defer to Phase 1.k renderer; (3) endpoint.path simple kebab default — AI fill / manual edit later acceptable. Status: draft → ready. 下一步 /pickup."
+    },
+    {
+      "status": "done",
+      "at": "2026-05-19T19:00:00Z",
+      "completed": "2026-05-19",
+      "note": "**/presenter skill v1 DONE**. 實作摘要: (1) FullBundle.swift 擴 PresenterSpec + 4 sub-types + presenters[]; (2) BundleParser.swift decode RawPresenter + 4 raw sub-types; (3) PresenterBundleAppender.swift (216 lines, pure transform + 6 validation paths); (4) SKILL.md (183 lines, 5-step flow, disable-model-invocation, AskUserQuestion-driven); (5) 3 fixtures (input/answers/expected); (6) PresenterBundleAppenderTests 13 (3 happy x output kinds + 6 validation + 2 helpers + duplicate-overwrite + invalid input field); (7) SkillInstallerTests bumped 6→7 skills. **Tests**: 200/200 PASS in 241s. **install-skills mirror**: byte-identical verified. **Defer Phase 1.k**: codegen renderer for Get<X>ApplicationService scaffold + ApiHandler GET method + openapi GET endpoint. **下一步**: Phase 1.k renderer 或 /readmodel-mutation v2 skill 或 Phase 1.j Variant B emission。"
+    }
+  ],
+  "completed": "2026-05-19"
+}

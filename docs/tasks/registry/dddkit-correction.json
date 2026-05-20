@@ -1,0 +1,57 @@
+{
+  "id": "dddkit-correction",
+  "file": "docs/tasks/dddkit-correction.md",
+  "title": "DDDKit 依賴修正 — Mendesky/DDDKit 1.12.4 → gradyzhuo/swift-ddd-kit 0.3.0",
+  "status": "done",
+  "completed": "2026-05-15",
+  "created": "2026-05-14",
+  "depends_on": [],
+  "supersedes": [],
+  "discussion": "/Users/abnertsai/.claude/plans/tool-tool-lexical-hamming.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Package.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/PackageTarget.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Repository.swift.template",
+    "file:Tests/GenesisCoreTests/TemplateRendererTests.swift",
+    "file:Tests/GenesisCoreTests/PackageRendererTests.swift",
+    "file:Tests/GenesisIntegrationTests/NewCommandTests.swift",
+    "file:docs/tasks/phase-1a-package-swift-scaffold.md",
+    "file:docs/tasks/phase-1b-aggregate-extraction.md",
+    "file:docs/decisions.md",
+    "file:docs/architecture.md"
+  ],
+  "verification": [
+    "grep -F 'gradyzhuo/swift-ddd-kit.git' Sources/GenesisCore/Resources/Templates/v0.1/Package.swift.template",
+    "grep -F 'from: \"0.3.0\"' Sources/GenesisCore/Resources/Templates/v0.1/Package.swift.template",
+    "grep -F 'package: \"swift-ddd-kit\"' Sources/GenesisCore/Resources/Templates/v0.1/PackageTarget.swift.template",
+    "grep -F 'struct {Aggregate}Repository' Sources/GenesisCore/Resources/Templates/v0.1/Repository.swift.template",
+    "grep -F 'KurrentStorageCoordinator<{Aggregate}>' Sources/GenesisCore/Resources/Templates/v0.1/Repository.swift.template",
+    "! grep -RF '1.12.4' Sources/GenesisCore/Resources/Templates/ Tests/",
+    "! grep -RF 'Mendesky/DDDKit' Sources/GenesisCore/Resources/Templates/ Tests/",
+    "! grep -RF 'ESDBStorageCoordinator' Sources/GenesisCore/Resources/Templates/ Tests/",
+    "swift test"
+  ],
+  "tags": ["bugfix", "dependency", "infra", "phase-0"],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-14T16:10:00Z",
+      "note": "write-spec initial output。219 行 spec。修訂對象：Phase 0 Q1（DDDKit kit 鎖錯）+ phase-1a（Package.swift / PackageTarget template）+ phase-1b（Repository template）。本 task 不更動 phase-1a / phase-1b registry 的 status（仍 done），僅以 superseded banner + inline 標記修訂其 spec 文件。範圍嚴格限定依賴修正；aggregate 結構對齊留 Phase 1.e（後者 depends_on dddkit-correction）。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-14T16:45:00Z",
+      "note": "audit-spec PASS。4b 通用規則 5/5 PASS（無 line 錨點、code sample 對齊 OC/gradyzhuo ground truth、Non-goals 與目標互斥、Agent/Human 驗收分段）。5b 內部一致性 7/7 PASS。5c 外部審查（codex）回報 1 高 + 4 中，全部已修：(高) 漏列 TemplateRendererTests.swift（含 from:1.12.4 / .iOS(.v16) 斷言）→ 補進改動檔案 + Step 4 + 驗收；(中) OC 版本證據釐清（OC manifest 是 from:0.1.0，0.3.0 是 Genesis 政策選擇）；(中) phase-1b stale claims 不只一處 → 改為 banner + 具體段落 inline 標記、不整檔重寫；(中) 驗收漏掃 in-scope 檔 → 補 docs banner 存在性檢查 + .iOS(.v16) 納入 Tests/ 掃描；(中) swift build 不該在 Human 補做 checklist → 改為「明確不在本 task 驗收範圍」的 deferral 註記。"
+    },
+    {
+      "status": "in-progress",
+      "at": "2026-05-15T00:00:00Z",
+      "note": "/pickup 啟動實作。Steps 1-5 純文字替換（templates + tests + docs）；Step 6 跑 acceptance grep + swift test + e2e swift package resolve。Aggregate 對齊 / swift build 留 Phase 1.e（spec Non-goals 已明示）。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-15T06:00:00Z",
+      "note": "實作完成。97/97 tests 通過（無新增測試，全 Phase 1.a-1.d 既有測試在新 template 下仍綠）。Agent acceptance A1-A5 全 PASS。e2e: `genesis new IAMContext --from-bundle <IAM bundle> --output /tmp/dddkit-fix-e2e` exit 0，產出 63 檔；`swift package resolve` exit 0，Package.resolved 顯示 `swift-ddd-kit` 0.3.0 (gradyzhuo) + `swift-kurrentdb` 2.0.3 transitively resolved（27 個 transitive deps 含 grpc/nio/postgres-nio 全部成功）。Generated Repository 為 `package struct UserAccessProfileRepository: EventSourcingRepository` + `KurrentStorageCoordinator<UserAccessProfile>` + `package let coordinator`（對齊 OC AuditQuotingRepository ground truth）。Gemini independent review PASS（無 issues、無 out-of-scope leakage）。實作期間發現 1 個 spec 偏差：spec §改動檔案 行 124 要求補 `XCTAssertFalse(...Mendesky/DDDKit)` 與 spec §驗收 A4 `! grep -RF 'Mendesky/DDDKit' Tests/` 自相矛盾（任何 XCTAssertFalse 字面量都會讓 grep fail）。採用驗收 grep 作為 binding contract、丟棄 negative assertion；XCTAssertTrue(gradyzhuo) 已足夠證明 URL 替換。plan 檔 §2.3 代碼 sample 未更新（auto-mode classifier 阻擋 ~/.claude/plans/ 第二次編輯）；plan §5 Q1 table 已更新並 inline 指向 dddkit-correction，spec 允許「更新或加 superseded 註記」。Phase 1.e（aggregate 對齊 gradyzhuo AggregateRoot）unblocked。"
+    }
+  ]
+}

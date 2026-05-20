@@ -1,0 +1,145 @@
+{
+  "id": "phase-1g-readmodel-renderer",
+  "file": "docs/tasks/phase-1g-readmodel-renderer.md",
+  "title": "Phase 1.g — Genesis ReadModel renderer (codegen side)",
+  "status": "done",
+  "created": "2026-05-18",
+  "depends_on": [
+    "phase-1f-context-shared-infra",
+    "2026-05-18-readmodel-skill"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-18-phase-1g-readmodel-renderer.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/ReadModelRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Projector/",
+    "file:Sources/GenesisCore/Version.swift",
+    "file:docs/decisions.md",
+    "file:docs/architecture.md"
+  ],
+  "verification": [
+    "test -f Sources/GenesisCore/ReadModelRenderer.swift",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Projector/ReadModel.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Projector/Presenter.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Projector/Projection.js.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Projector/context-projection-model.yaml.template",
+    "grep -F '0.1.0-phase1g' Sources/GenesisCore/Version.swift",
+    "! grep -F '0.1.0-phase1f' Sources/GenesisCore/Version.swift",
+    "grep -F 'CQRSProjectorInput' Sources/GenesisCore/Resources/Templates/v0.1/Projector/Presenter.swift.template",
+    "grep -F 'KurrentStorageCoordinator' Sources/GenesisCore/Resources/Templates/v0.1/Projector/Presenter.swift.template",
+    "grep -F 'TODO(Phase 1.g)' Sources/GenesisCore/Resources/Templates/v0.1/Projector/Presenter.swift.template",
+    "grep -F 'linkTo' Sources/GenesisCore/Resources/Templates/v0.1/Projector/Projection.js.template",
+    "grep -F 'fromStreams' Sources/GenesisCore/Resources/Templates/v0.1/Projector/Projection.js.template",
+    "swift test --filter ReadModelRendererTests",
+    "swift test",
+    "grep -F 'Phase 1.g' docs/decisions.md",
+    "grep -F 'ReadModelRenderer' docs/architecture.md",
+    "grep -F 'Projector/' docs/architecture.md"
+  ],
+  "tags": [
+    "feature",
+    "phase-1",
+    "codegen",
+    "renderer",
+    "readmodel"
+  ],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-18T17:30:00Z",
+      "note": "write-spec initial output (~430 lines spec MD). 4b 通用規則 全 PASS。5b 內部一致性 自查 PASS（D1-D12 → A1-A11 + Implementation Steps 1-12 對應）。下一步 audit-spec (Codex external)。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-18T18:00:00Z",
+      "note": "audit-spec PASS。Codex external 回 6H+4M+2L，**全部已修** → spec v2 (~530 lines)：(H1) ReadModel.swift template 加 backing key field 宣告；(H2) Event names 走 CaseTransformer.upperCamel normalization（Presenter when / yaml / JS handler 三處共用）；(H3) Renderer 嚴格驗證 key non-nil + eventRefs non-empty + sourceAggregate present；(H4) Scope narrow：v1 reject cross-aggregate (Phase 1.g.2 defer)；(H5) 同 H4 defer；(H6) Presenter scaffold-once — existingPresenterPaths Set，existing 不 overwrite 保留 user mutation；(M1) 拆 ProjectionStreamPrefix（含 `_`）vs SourceCategoryPrefix（無 `_`）解 OC `$ce-OCAuditQuoting` vs `OC_GetAccountingType-` 兩 prefix；(M2) Drop adapter override v1（Adapter struct 無 streamPrefix 欄位），deterministic fallback only；(M3) Robust storedFields default heuristic (?,Optional<>,[],[:],Array<>,Dictionary<>,Set<>) + non-optional non-collection 無 default throw；(M4) 改 A8 用既有 GENESIS_RUN_E2E_BUILD env var；(L1) 新 dedicated fixture iam-readmodel-bundle.json，iam-bundle.json 不動；(L2) streamPrefix 8-row examples table 含 Context-alone throw / all-caps / MyApp upper-snake. Scope: per-aggregate readmodel v1；cross-aggregate defer Phase 1.g.2。Status: draft → ready。下一步 /pickup。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-19T00:15:00Z",
+      "completed": "2026-05-19",
+      "note": "**Phase 1.g DONE** (per-aggregate v1 scope；cross-aggregate defer Phase 1.g.2)。實作摘要：(1) `Sources/GenesisCore/ReadModelRenderer.swift` (204 lines) — public `render()` + streamPrefix derivation + storedFields default heuristic + cross-aggregate reject + scaffold-once detection。(2) 3 templates in `Sources/GenesisCore/Resources/Templates/v0.1/Projector/`：ReadModel.swift / Presenter.swift / Projection.js。(3) `Sources/GenesisCore/CaseTransformer.swift` extends `upperSnake` (PascalCase → UPPER_SNAKE)。(4) `Sources/GenesisCore/ProjectionModelRenderer.swift` 重寫 — 統一 event name normalization 用 `CaseTransformer.upperCamel` (解 audit H2 的 lower-camel-in-bundle fallback bug)；`aggregateRef` 主，`aggregateSpecId` legacy fallback；cross-aggregate entries 跳過 per-agg yaml。(5) `Sources/Genesis/Commands/NewCommand.swift` — 新 step 2.3.1 ReadModelRenderer call + `scanExistingPresenterPaths` static helper (audit H6 scaffold-once)。(6) `Sources/GenesisCore/Version.swift` → `0.1.0-phase1g`。(7) `Tests/GenesisCoreTests/ReadModelRendererTests.swift` (361 lines, 16 tests: happy + content sanity + cross-agg reject + missing key + missing eventRefs + event-name normalization + 4 streamPrefix cases + Context-only throw + scaffold-once + storedFields heuristic + non-optional throw + empty when body + unknown agg)。(8) New fixture `Tests/GenesisIntegrationTests/Fixtures/iam-readmodel-bundle.json` (per audit L1, iam-bundle 不動)。(9) `Tests/GenesisIntegrationTests/NewCommandTests.swift` 新 2 case (testReadmodelFilesGenerated + testReadmodelPresenterScaffoldOnce)。(10) Existing version-string tests bumped (`testInfraFileReadmeHasContextPlaceholder`, `testFullBundleEndToEnd`)。(11) `docs/decisions.md` Phase 1.g ratification 條目；`docs/architecture.md` 新 §10.5 ReadModel codegen flow。**測試結果**：170/170 PASS (2 skipped) in 236s；ReadModelRendererTests 16/16；NewCommandTests testReadmodelFilesGenerated PASS in 20s。**Real e2e swift build**：`/tmp/phase1g-e2e` 2408 targets compile PASS in 46.97s — 驗證 plugin generates `Get{Noun}ProjectorProtocol` + Presenter empty body 滿足 conformance + ReadModel.swift backing key field 正確。**Audit findings 全部解決**：H1 (backing key field added)、H2 (event name normalization 三處共用)、H3 (strict schema validation)、H4+H5 (cross-aggregate defer 1.g.2)、H6 (scaffold-once)、M1 (兩 prefix 拆 ProjectionStreamPrefix vs SourceCategoryPrefix)、M2 (drop adapter override v1)、M3 (robust storedFields heuristic)、M4 (env var)、L1 (dedicated fixture)、L2 (streamPrefix edge cases)。**Acceptance gates A1-A12 全 PASS**。**下一步候選**：Phase 1.g.2 (cross-aggregate)、Phase 1.h (adapter override)、`/presenter` skill、revise /api spec、`/readmodel-mutation` v2 skill。"
+    }
+  ],
+  "audit_findings": {
+    "high": [
+      {
+        "id": "H1",
+        "issue": "ReadModel template missing backing key declaration",
+        "fix": "Added package var {KeyField}: {KeyType} after computed id; A4 grep gate",
+        "resolved": true
+      },
+      {
+        "id": "H2",
+        "issue": "Event names lower-camel→UpperCamel not normalized",
+        "fix": "CaseTransformer.upperCamel uniform across Presenter / yaml / JS",
+        "resolved": true
+      },
+      {
+        "id": "H3",
+        "issue": "BundleParser fallback may leave eventRefs empty",
+        "fix": "Renderer strict validates key + eventRefs + sourceAggregate",
+        "resolved": true
+      },
+      {
+        "id": "H4",
+        "issue": "Cross-aggregate needs SwiftPM {Context} target",
+        "fix": "v1 scope narrow: reject context-level with Phase 1.g.2 hint",
+        "resolved": true
+      },
+      {
+        "id": "H5",
+        "issue": "Cross-aggregate Presenter needs aggregate imports",
+        "fix": "Defer to Phase 1.g.2",
+        "resolved": true
+      },
+      {
+        "id": "H6",
+        "issue": "Presenter regenerate destroys user-filled when()",
+        "fix": "Scaffold-once via existingPresenterPaths Set; A10 integration test",
+        "resolved": true
+      }
+    ],
+    "medium": [
+      {
+        "id": "M1",
+        "issue": "JS prefix bug $ce-OC_ should be $ce-OC",
+        "fix": "Split ProjectionStreamPrefix vs SourceCategoryPrefix",
+        "resolved": true
+      },
+      {
+        "id": "M2",
+        "issue": "Adapter has no streamPrefix field",
+        "fix": "Drop adapter override v1; deterministic fallback only; Phase 1.h follow-up",
+        "resolved": true
+      },
+      {
+        "id": "M3",
+        "issue": "storedFields default heuristic incomplete",
+        "fix": "Robust heuristic + throw on non-optional non-collection without default",
+        "resolved": true
+      },
+      {
+        "id": "M4",
+        "issue": "env var ENABLE_REAL_E2E vs existing GENESIS_RUN_E2E_BUILD",
+        "fix": "A8 uses existing env var",
+        "resolved": true
+      }
+    ],
+    "low": [
+      {
+        "id": "L1",
+        "issue": "Fixture mutation risk",
+        "fix": "New dedicated iam-readmodel-bundle.json; iam-bundle.json untouched",
+        "resolved": true
+      },
+      {
+        "id": "L2",
+        "issue": "streamPrefix edge cases under-tested",
+        "fix": "8-row examples table + A5 streamPrefix tests",
+        "resolved": true
+      }
+    ]
+  },
+  "completed": "2026-05-19"
+}

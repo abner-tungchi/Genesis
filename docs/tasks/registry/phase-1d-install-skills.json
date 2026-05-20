@@ -1,0 +1,44 @@
+{
+  "id": "phase-1d-install-skills",
+  "file": "docs/tasks/phase-1d-install-skills.md",
+  "title": "Phase 1.d — `genesis install-skills` 指令",
+  "status": "done",
+  "created": "2026-05-14",
+  "depends_on": ["phase-1c-adapter-and-manifest"],
+  "supersedes": [],
+  "discussion": "/Users/abnertsai/.claude/plans/tool-tool-lexical-hamming.md",
+  "preconditions": [
+    "file:docs/architecture.md",
+    "file:docs/decisions.md",
+    "file:Sources/Genesis/Genesis.swift",
+    "file:Sources/Genesis/Commands/NewCommand.swift",
+    "file:Sources/GenesisCore/GenesisError.swift",
+    "file:Sources/GenesisCore/TemplateLoader.swift"
+  ],
+  "verification": [
+    "swift build -c release --product genesis",
+    "swift test --filter SkillInstallerTests",
+    "swift test --filter InstallSkillsCommandTests",
+    "grep -F 'InstallSkillsCommand.self' Sources/Genesis/Genesis.swift",
+    "grep -RE 'public static func install\\(into' Sources/GenesisCore/SkillInstaller.swift",
+    "test -f Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md"
+  ],
+  "tags": ["feature", "phase-1", "cli", "skills"],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-14T13:30:00Z",
+      "note": "write-spec initial output. ~430 行 spec。新 subcommand InstallSkillsCommand + 新 module SkillInstaller + 6 個 placeholder SKILL.md + GenesisError 2 新 case。涉及寫入使用者 ~/.claude/skills/，安全邊界（--force removeItem 只刪 targetSkillsDir/<skillName>/、不碰 sibling）已在 spec 明示。等 audit-spec 跑外部審查（不 --quick，因涉及寫 home dir）。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-14T14:00:00Z",
+      "note": "audit-spec PASS / Codex 外部審查 2 高 + 4 中 + 1 低 全部已修。(H1) codex 實測 FileManager.homeDirectoryForCurrentUser 不認 $HOME override → 改用 ProcessInfo.environment[\"HOME\"]，production+test 共用同路徑，test 可安全 sandbox；(H2) --scope user 帶 --project-dir 從 silent-ignore 改為 validation error（寫 home 的指令必須 fail-fast）；(M3) SkillInstaller 加 symlink/type-confusion 防線：拒絕 symlink target root、--force 前確認 dest 是真目錄、type-confused entry 記 failed 不盲刪；(M4) banner 改為先判斷成功/失敗再印（✓ vs ⚠️），不會先印 ✓ 再補 stderr；(M5) D24 窄化從「spec 偷改決策」改為「明確 ratify」— 改動檔案加 docs/decisions.md + docs/architecture.md 更新；(M6) exit code 表釐清 --scope 非法值是 ArgumentParser exit 64 不是 GenesisError exit 1；(L7) bundledSkillNames 加整合性驗證（非 symlink + 含 SKILL.md）。額外：CLIRunner 加 environment 參數（additive），測試項從 10 條擴到 13 條，acceptance grep 從 D13 擴到 D18。spec 602 行。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-14T14:30:00Z",
+      "note": "實作完成。97/97 tests 通過（84 Phase 1.a/b/c 既有 + 13 Phase 1.d 新增：7 SkillInstallerTests + 6 InstallSkillsCommandTests）。Acceptance D1-D18 全 PASS。e2e 5 種情境驗證：project scope 裝 6 個 skill exit 0、重跑 idempotent skip、--force overwrite、invalid project-dir exit 1、--scope user 帶 --project-dir reject exit 1、$HOME override 寫進 fake home exit 0。codex 找的 H1（homeDirectoryForCurrentUser 不認 $HOME）已用 ProcessInfo.environment[\"HOME\"] 解決並經 e2e D15 驗證。docs/decisions.md D24 + docs/architecture.md §9 已更新 ratify install-skills 印 skill name。Phase 1（a+b+c+d）全部完成。"
+    }
+  ]
+}

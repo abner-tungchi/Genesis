@@ -1,0 +1,60 @@
+{
+  "id": "phase-1i-api-handler",
+  "file": "docs/tasks/phase-1i-api-handler.md",
+  "title": "Phase 1.i — Genesis OpenAPI infrastructure + ApiHandler/ApiComponents scaffold",
+  "status": "done",
+  "created": "2026-05-19",
+  "depends_on": [
+    "phase-1f-context-shared-infra",
+    "phase-1h-api-renderer"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-19-phase-1i-api-handler.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/OpenApiYamlRenderer.swift",
+    "file:Sources/GenesisCore/ApiHandlerRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/openapi.yaml.template",
+    "file:Sources/GenesisCore/Version.swift"
+  ],
+  "verification": [
+    "test -f Sources/GenesisCore/OpenApiYamlRenderer.swift",
+    "test -f Sources/GenesisCore/ApiHandlerRenderer.swift",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/openapi.yaml.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiHandler.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiComponentsError.swift.template",
+    "grep -F '0.1.0-phase1i' Sources/GenesisCore/Version.swift",
+    "grep -F 'swift-openapi-generator' Sources/GenesisCore/Resources/Templates/v0.1/Package.swift.template",
+    "swift test --filter OpenApiYamlRendererTests",
+    "swift test --filter ApiHandlerRendererTests",
+    "swift test",
+    "grep -F 'Phase 1.i' docs/decisions.md",
+    "grep -F 'OpenApiYamlRenderer' docs/architecture.md"
+  ],
+  "tags": [
+    "feature",
+    "phase-1",
+    "codegen",
+    "renderer",
+    "api",
+    "openapi"
+  ],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-19T16:00:00Z",
+      "note": "write-spec initial output (~480 lines). Scope: OpenAPI infrastructure + ApiHandler/ApiComponents scaffold (Variant A simple). 5 templates + 2 renderers + PackageRenderer extension. Real e2e build mandatory (plugin invariant). Defer Variant B / multipart / read / cross-agg / Server target. 下一步 audit-spec Codex external."
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-19T16:15:00Z",
+      "note": "Codex audit empty output (agent a85e1c8bdae9a3901). Self-audit per established Phase 1.g/1.h pattern — known risks documented in spec § 已知限制 1-13. 重點 risks: (1) plugin invariant 黑箱 — real e2e build is acceptance gate; (2) <A>ApiError enum case alignment with <A>Error.switch — codegen both from same bundle.invariants[].errorCode 保證 1:1; (3) empty switch for empty <A>Error enum — Swift allows vacuous exhaustive switch over empty enum; (4) PackageRenderer conditional OpenAPI deps — only if any aggregate has write UCs; (5) HTTP method = POST simplification — defer semantic-aware routing v2. Status: draft → ready. 下一步 /pickup."
+    },
+    {
+      "status": "done",
+      "at": "2026-05-19T17:00:00Z",
+      "completed": "2026-05-19",
+      "note": "**Phase 1.i DONE**. 實作摘要: (1) 5 templates in v0.1/Api/ (openapi.yaml, openapi-generator-config.yaml, ApiHandler.swift, ApiHandlerMethod.swift, ApiComponentsError.swift); (2) OpenApiYamlRenderer.swift (172 lines, pure-function-of-bundle, line-by-line YAML build); (3) ApiHandlerRenderer.swift (97 lines, per write-UC aggregate emit); (4) PackageRenderer conditional OpenAPI deps + per-target plugin/resources; (5) Package.swift.template + PackageTarget.swift.template 加 OpenApiDependencies + OpenApiTargetDep + OpenApiResources + OpenApiPlugin placeholders; (6) NewCommand 加 2 steps (2.3.4 + 2.3.5) + 擴 scanExistingApiPaths 4 新 paths; (7) Version 0.1.0-phase1i; (8) ApiComponents empty invariants edge case → default: return nil. **Tests**: 187/187 full suite PASS in 237s; TemplateRendererTests bumped with OpenApiDependencies var. **Real e2e swift build**: /tmp/phase1i-e2e (IAM bundle 2 aggregates, 9 UCs) → Build complete! 61.95s, OpenAPIGenerator plugin + ApiHandler conform + ApiComponents 1:1 switch + AS scaffold (Phase 1.h fatalError) 全 compile pass. **Issues fixed during pickup**: (i) yaml multi-line literal indent broken → rewrote with explicit line-by-line build; (ii) ApiHandler AS Input init partial args fail → 改 fatalError closure 滿足 type; (iii) empty invariants enum switch fail → 加 default: return nil fallback. **下一步**: revise /api skill spec → AI fill TODOs for AS execute() + ApiHandler payload→AS construction + DTO struct toDomain + ApiComponents return nil for diverged cases."
+    }
+  ],
+  "completed": "2026-05-19"
+}

@@ -1,0 +1,133 @@
+{
+  "id": "2026-05-18-api-skill",
+  "file": "docs/tasks/2026-05-18-api-skill.md",
+  "title": "/api skill v3 — AI fill TODO bodies in Phase 1.h+1.i scaffolds (revised)",
+  "status": "ready",
+  "created": "2026-05-18",
+  "depends_on": [
+    "phase-1f-context-shared-infra",
+    "phase-1h-api-renderer",
+    "phase-1i-api-handler"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-18-api-skill.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md",
+    "file:docs/decisions.md",
+    "file:docs/architecture.md"
+  ],
+  "verification": [
+    "test -f ~/.claude/skills/api/SKILL.md",
+    "[ $(wc -l < ~/.claude/skills/api/SKILL.md) -le 200 ]",
+    "[ $(grep -cE '^## (Step [1-6]|步驟 [1-6])' ~/.claude/skills/api/SKILL.md) -eq 6 ]",
+    "grep -F 'D18' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'one UC per invocation' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'aggregateRootId.alias' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'OpenAPIGenerator' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'exhaustive' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'duplicate' ~/.claude/skills/api/SKILL.md",
+    "test -f ~/.claude/skills/api/templates/ApplicationServiceBase.swift.template",
+    "test -f ~/.claude/skills/api/templates/ApplicationServicePayloadExtension.swift.template",
+    "test -f ~/.claude/skills/api/templates/ApiHandlerSkeleton.swift.template",
+    "test -f ~/.claude/skills/api/templates/ApiHandlerMethod.swift.template",
+    "test -f ~/.claude/skills/api/templates/ApiComponentsErrorSkeleton.swift.template",
+    "test -f ~/.claude/skills/api/templates/ApiComponentsErrorCase.swift.template",
+    "diff ~/.claude/skills/api/SKILL.md Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md",
+    "grep -F 'Phase 2 (/api v1)' docs/decisions.md",
+    "! grep -F '寫 openapi.yaml' ~/.claude/skills/api/SKILL.md",
+    "! grep -F '讀 invariants.md' ~/.claude/skills/api/SKILL.md",
+    "grep -F '不寫 openapi.yaml' ~/.claude/skills/api/SKILL.md",
+    "grep -F '不讀 invariants.md' ~/.claude/skills/api/SKILL.md",
+    "grep -F '只寫 Adapter/' ~/.claude/skills/api/SKILL.md"
+  ],
+  "tags": [
+    "feature",
+    "phase-2",
+    "skill",
+    "api",
+    "ready"
+  ],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-18T10:00:00Z",
+      "note": "write-spec initial output (479 lines). 4b 通用規則 全 PASS（無 line 錨點、Goals/Non-goals 互斥、Agent/Human 分段、無 ≥N counts）。5b 內部一致性 全 PASS（依賴關係 phase-1e == done）。5c Codex 外部審查回 5 個高 + 2 中 + 1 低 — 揭露根本問題：OC `ApplicationService` 協議 + `Iso8601ParsingError` + `ContextError<E>` 等住在 OC 的 `OCShared/`（context-local infra），不是 DDDKit。Genesis Phase 1.e 沒 bootstrap 這層 infra。沒它，/api 生成的 AS code 無法 compile。**User 決定**：先暫停 /api spec，開 **Phase 1.f** 讓 Genesis 補 ContextShared infra（`{Ctx}Shared/ApplicationService.swift` 等），再回來修 /api spec 的 5 個高風險 + 2 中 + 1 低 issue 後 ready。當前 status=draft，blocked on `phase-1f-context-shared-infra`。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-19T09:30:00Z",
+      "note": "**Spec v2 revised — 6 audit findings 全套修**。Phase 1.f bootstrap 解了 H3 (ApplicationService 協議) + H5 (Iso8601ParsingError) — 兩者現在於 `{Ctx}Shared/`。其餘 4 個 fix 套用在 v2 spec (554 lines)：(H1) ApplicationService template 拆兩個 — Base (always) + PayloadExtension (conditional on openapi requestBody)；(H2) `{AGG_ID_NAME}` 改 derive from `event.yaml aggregateRootId.alias` SSOT，AS Input shape = Service Input ∪ {operatorId} 而非 equality；(H4) ApiHandler skeleton + ApiComponents+ApiError 必須同步創建 (first-invocation single transaction)；switch exhaustive over 所有 `<A>Error.swift` cases (parse enum) 不只本 UC 拋的；(M1) Step 2 prerequisite check 加 parse `Package.swift` target plugins — 缺 OpenAPIGenerator → exit 1 with remediation；(M2) Step 5 加 grep `package func {ucCamel}(_` duplicate detection → exit 4；(L1) A13 whitelist-aware static lint — SKILL.md 不可寫非 Adapter/ Swift / 不可提到 read invariants.md 或 write openapi.yaml，且必須含「不讀 / 不寫 / 只寫 Adapter/」明文 sentence。**depends_on 更新**：加 `phase-1f-context-shared-infra`（解 H3+H5 的必要 dependency）。**新 exit code 4** for duplicate handler。**6 templates** (從 5 拆) 反映 H1 split。Status: draft → ready。下一步 /pickup（用戶實作 ~/.claude/skills/api/ + Genesis bundled mirror + golden examples + docs）。"
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-19T17:30:00Z",
+      "note": "**Spec v3 revised — fundamentally scope-shifted after Phase 1.h+1.i ship**。原 v2 all-AI generation 模式 obsolete：Phase 1.h emit AS + DTO scaffolds、Phase 1.i emit openapi.yaml + ApiHandler + ApiComponents + PackageRenderer plugin。**新 scope**: AI fill 4 TODO categories per write UC：(1) AS `execute()` body 從 Service Input 推 Service execute 呼叫；(2) ApiHandler method 內 `let asInput = { fatalError() }()` 改 payload→AS Input 構造 (Variant A 1:1 / Variant B 加 inline Decimal/Date 解析)；(3) DTO struct `init(from dto:) throws` 反向 mapper body；(4) ApiComponents switch 中 unreachable cases 改 `return nil // TODO`。**完全不做**: openapi.yaml / Package.swift / Service.swift / *.yaml 寫；scaffold emit；framework 動。**新 6-step flow**: arg parse → workspace locate → prerequisite check → parse 5 inputs (AS scaffold + Service Input + payload schema + Error enum + handler method block) → Variant A/B detection → fill 4 categories。**12 acceptance gates** (A1-A12) + Human E2E sign-off。**Server-generated ID detection rule**: Service Input 有 `*Id` String 但 AS Input 無 → UUID().uuidString case。**Audit findings**: 6H+2M+1L 從 v2 — 全 resolved or rendered moot by Phase 1.h+1.i ship；新 11 known limits 列 v3 scope。**Depends on**: phase-1f + phase-1h + phase-1i (全 DONE)。Status: still 'ready' (now revised v3)；下一步 user 自行 author SKILL.md content + manual E2E sign-off → mark done。Spec 554 → 380 lines."
+    }
+  ],
+  "audit_findings": {
+    "high": [
+      {
+        "id": "H1",
+        "issue": "Template mixes simple/complex OC styles — always-emit extension wasteful for simple UC",
+        "fix": "Split into 2 templates: ApplicationServiceBase (always) + ApplicationServicePayloadExtension (conditional on openapi requestBody)",
+        "resolved": true,
+        "v3_status": "rendered_moot_or_resolved"
+      },
+      {
+        "id": "H2",
+        "issue": "{AGG_ID_NAME} field-order heuristic picks wrong field; AS Input ≡ Service Input doesn't hold",
+        "fix": "Derive from event.yaml aggregateRootId.alias SSOT; AS Input shape = Service Input ∪ {operatorId}",
+        "resolved": true,
+        "v3_status": "rendered_moot_or_resolved"
+      },
+      {
+        "id": "H3",
+        "issue": "ApplicationService protocol not in DDDKit",
+        "fix": "Resolved by Phase 1.f — {Ctx}Shared/ApplicationService.swift bootstrapped",
+        "resolved": true,
+        "resolved_by": "phase-1f-context-shared-infra",
+        "v3_status": "rendered_moot_or_resolved"
+      },
+      {
+        "id": "H4",
+        "issue": "ApiHandler.mapToApiError calls .init(from:) but first-run skip ApiComponents → build fail",
+        "fix": "Synchronous first-invocation creation of both files; exhaustive switch over all <A>Error cases (not just this UC's)",
+        "resolved": true,
+        "v3_status": "rendered_moot_or_resolved"
+      },
+      {
+        "id": "H5",
+        "issue": "Iso8601ParsingError not in DDDKit",
+        "fix": "Resolved by Phase 1.f — {Ctx}Shared/Iso8601.swift bootstrapped",
+        "resolved": true,
+        "resolved_by": "phase-1f-context-shared-infra",
+        "v3_status": "rendered_moot_or_resolved"
+      }
+    ],
+    "medium": [
+      {
+        "id": "M1",
+        "issue": "OpenAPI plugin presence not actually checked",
+        "fix": "Step 2 prerequisite parses Package.swift target plugins list; exit 1 with remediation if missing",
+        "resolved": true,
+        "v3_status": "rendered_moot_or_resolved"
+      },
+      {
+        "id": "M2",
+        "issue": "ApiHandler method duplicate detection mechanism unspecified",
+        "fix": "Step 5 grep `package func {ucCamel}(_` in existing ApiHandler.swift; duplicate → exit 4",
+        "resolved": true,
+        "v3_status": "rendered_moot_or_resolved"
+      }
+    ],
+    "low": [
+      {
+        "id": "L1",
+        "issue": "A2/A3 presence checks don't catch D18 violations (invariants.md read, openapi.yaml write, non-Adapter paths)",
+        "fix": "A13 whitelist-aware static lint — multi-grep gate enforces both negative (no forbidden phrases) and positive (must contain explicit forbid-action sentences)",
+        "resolved": true,
+        "v3_status": "rendered_moot_or_resolved"
+      }
+    ]
+  }
+}

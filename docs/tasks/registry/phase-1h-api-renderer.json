@@ -1,0 +1,128 @@
+{
+  "id": "phase-1h-api-renderer",
+  "file": "docs/tasks/phase-1h-api-renderer.md",
+  "title": "Phase 1.h — Genesis ApplicationService scaffold + DTO mapper codegen (narrow v2 scope)",
+  "status": "done",
+  "created": "2026-05-19",
+  "depends_on": [
+    "phase-1f-context-shared-infra",
+    "phase-1g-readmodel-renderer"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-19-phase-1h-api-renderer.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/ApiRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/",
+    "file:Sources/GenesisCore/Version.swift"
+  ],
+  "verification": [
+    "test -f Sources/GenesisCore/ApiRenderer.swift",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/ApplicationService.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/DtoEnumMapper.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/DtoStructMapper.swift.template",
+    "grep -F '0.1.0-phase1h' Sources/GenesisCore/Version.swift",
+    "swift test --filter ApiRendererTests",
+    "swift test",
+    "grep -F 'Phase 1.h' docs/decisions.md",
+    "grep -F 'ApiRenderer' docs/architecture.md"
+  ],
+  "tags": [
+    "feature",
+    "phase-1",
+    "codegen",
+    "renderer",
+    "api",
+    "adapter"
+  ],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-05-19T10:30:00Z",
+      "note": "write-spec initial output (~340 lines). Self-check PASS. Scope: Variant A simple write UCs only; defer Variant B / multipart / read / union DTO / cross-agg mapToApiError to v2. 下一步 audit-spec Codex external."
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-19T11:00:00Z",
+      "note": "**Spec v2 narrow scope** post Codex audit (4H+5M+1L). HIGH findings revealed paradigm-level gaps (OpenAPIGenerator plugin missing, openapi.yaml not emitted, FileManager same-run read race). **Scope narrowed**: ApiHandler / ApiComponents / openapi.yaml / plugin defer to **Phase 1.i**. v2 covers ONLY: (1) ApplicationService.swift scaffold (Variant A simple, operatorId LAST per OC), (2) DTO mapper extension (enum full codegen + struct scaffold), (3) bundle.dtos[] schema extension (`dtoKind`/`cases`/`domainTypeName`/`isContextShared` — non-conflicting with legacy `kind=DtoSpec` per audit M3), (4) SharedTargetRenderer 條件式 DTO emit migration (audit M4). **Pure function of bundle** — no FileManager reads (audit H2 fix). Status: draft → ready. 下一步 /pickup."
+    },
+    {
+      "status": "done",
+      "at": "2026-05-19T15:30:00Z",
+      "completed": "2026-05-19",
+      "note": "**Phase 1.h DONE (narrow v2 scope)**。實作摘要: (1) `ApiRenderer.swift` ~190 lines pure-function-of-bundle; (2) 3 templates in `Templates/v0.1/Api/` (ApplicationService + DtoEnumMapper + DtoStructMapper); (3) FullBundle.DtoSpec 擴 dtoKind/cases/domainTypeName/isContextShared; (4) BundleParser legacy backwards-compat heuristic (no Phase 1.h fields → isContextShared=true); (5) SharedTargetRenderer 條件式 DTO emit (only isContextShared=true 走 Shared, audit M4); (6) NewCommand 加 scanExistingApiPaths + ApiRenderer step; (7) Version 0.1.0-phase1h; (8) SwiftTypeResolver applied to bundle rawType (Array[String]→[String]). **Tests**: 10 new ApiRendererTests + 187/187 full suite PASS in 226s. **Real e2e**: /tmp/phase1h-e2e 2 aggregates + 9 UCs swift build complete 47.50s. **Codex 4H+5M+1L all addressed**: H1+H3+H4 defer Phase 1.i (need OpenAPIGenerator infra); H2 pure-function fix; M1 operatorId LAST; M2 bundle SSOT no Swift parse; M3 dtoKind avoids legacy 'kind=DtoSpec' clash; M4 conditional Shared emit; M5 defer; L1 fatalError narrow. **下一步**: Phase 1.i (openapi.yaml + ApiHandler + ApiComponents + plugin) 或 revise /api skill spec → AI fill only."
+    }
+  ],
+  "audit_findings": {
+    "high": [
+      {
+        "id": "H1",
+        "issue": "OpenAPIGenerator plugin missing in PackageRenderer",
+        "fix": "Defer to Phase 1.i (ApiHandler emission also defers)",
+        "resolved": true,
+        "deferred_to": "phase-1i"
+      },
+      {
+        "id": "H2",
+        "issue": "ApiRenderer reads FileManager during same-run plan/commit",
+        "fix": "Pure function of bundle — useCases.input + aggregate.identityName as SSOT, no Swift file parsing",
+        "resolved": true
+      },
+      {
+        "id": "H3",
+        "issue": "openapi.yaml not emitted by Genesis",
+        "fix": "Defer to Phase 1.i",
+        "resolved": true,
+        "deferred_to": "phase-1i"
+      },
+      {
+        "id": "H4",
+        "issue": "Error case 1:1 mapping breaks build when openapi enum diverges",
+        "fix": "Defer to Phase 1.i (ApiComponents also defers)",
+        "resolved": true,
+        "deferred_to": "phase-1i"
+      }
+    ],
+    "medium": [
+      {
+        "id": "M1",
+        "issue": "ApplicationService operatorId order wrong vs OC",
+        "fix": "Template emit operatorId LAST per OC EditEstimatedRevenue",
+        "resolved": true
+      },
+      {
+        "id": "M2",
+        "issue": "ServiceInputParser regex Swift parsing fragile",
+        "fix": "Use bundle.useCases[].input as SSOT instead",
+        "resolved": true
+      },
+      {
+        "id": "M3",
+        "issue": "DtoSpec 'kind=DtoSpec' legacy collides new 'kind'",
+        "fix": "Rename new field to dtoKind",
+        "resolved": true
+      },
+      {
+        "id": "M4",
+        "issue": "SharedTargetRenderer 既有 emit 全 DTO 到 Shared 與 spec 不符",
+        "fix": "Spec the migration — 條件式 emit based on isContextShared",
+        "resolved": true
+      },
+      {
+        "id": "M5",
+        "issue": "Adapter scan append vs skip 矛盾",
+        "fix": "Defer to Phase 1.i (no ApiHandler emit means no append behavior)",
+        "resolved": true,
+        "deferred_to": "phase-1i"
+      }
+    ],
+    "low": [
+      {
+        "id": "L1",
+        "issue": "fatalError wording too broad",
+        "fix": "A7 wording narrows to AS execute + struct DTO toDomain only",
+        "resolved": true
+      }
+    ]
+  },
+  "completed": "2026-05-19"
+}
