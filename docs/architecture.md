@@ -858,6 +858,37 @@ package func {ucCamel}(_ input: Operations.{ucCamel}.Input) async throws -> Oper
 
 詳見 `docs/tasks/phase-1k-presenter-renderer.md` + `docs/decisions.md` Phase 1.k ratification 條目。
 
+### 10.11 /api skill — write-side AI fill flow（v4）
+
+`/api` skill 與 `/readmodel`、`/presenter` 不同 —— 那兩個是 **bundle-writing**（design-time，改 bundle JSON）；`/api` 是 **fill-in**（implementation-time，in-place edit Swift scaffold）。它消費 Phase 1.h+1.i renderer 留下的 `fatalError("TODO(/api skill)")` body。
+
+```
+bundle JSON
+    ↓ genesis new (Phase 1.h + 1.i)
+write-side scaffold（body 為 fatalError TODO）：
+  Adapter/<UC>/<UC>ApplicationService.swift   # execute() fatalError
+  Adapter/ApiHandler.swift                     # asInput closure fatalError
+  Adapter/Dto/<X>Dto+Domain.swift              # init(from dto:) fatalError
+  Adapter/ApiComponents/ApiComponents+<A>ApiError.swift  # case .x: self = .x（已 compile-pass）
+    ↓ /api <useCaseName>（≤200 LoC SKILL.md，6 Phase）
+fill categories 1-3（category 4 = NO-OP）：
+  1 AS execute() → service.execute(...) + return（server-gen ID 用 UUID，只進 Service Input）
+  2 ApiHandler asInput → 直接構造（Variant B 以 AS Input 欄位 Swift 型別決定 Decimal/Date 解析）
+  3 DTO toDomain → field-by-field（依 domain type 決定轉換）
+  4 ApiComponents → 不動（aggregate-wide mapper，per-UC 改會跨 UC 害 422→503）
+    ↓ swift build
+✓ write-side compile pass，可 serve HTTP
+```
+
+**關鍵設計（Codex audit v4 驅動）**：
+
+- **Variant 偵測 truth source = AS Input 欄位 Swift 型別**，不看 openapi schema —— Phase 1.i 把 Decimal/Date 都 emit 成 plain `type: string`，schema 無法區分（audit H2）。
+- **category 4 NO-OP** —— ApiComponents 是 aggregate-wide error mapper，被同 aggregate 所有 UC 共用，per-UC 改 `return nil` 會有跨 UC 副作用（audit H1）。
+- **idempotent 用 structural invariant**（含 `service.execute` / 無 `_ = payload` 殘留 / domain field assignment 齊全），不靠「fatalError 消失」單一信號，半填 → exit 4（audit M7）。
+- **exit codes**：0 success / 1 prerequisite missing（含 UC 0 match）/ 2 read-UC out-of-scope / 3 drift（AS Input non-path/non-header fields ≠ openapi requestBody）/ 4 corrupted-or-ambiguous（含多 aggregate 同名 UC、半填、duplicate handler）。
+
+詳見 `docs/tasks/2026-05-18-api-skill.md` (v4) + `docs/decisions.md` /api skill v4 ratification 條目。
+
 
 ## 11. Open questions
 
@@ -867,7 +898,7 @@ These are spec-level gaps not yet resolved:
 2. **`_routing.md` format** — D21 mentions routing cache for `event-storming` ambiguity, schema undefined.
 3. **`.ai/conventions/review.md` content** — D19 says shared between `test-review-commit` and `strict-review`, skeleton undefined.
 4. **Per-project skill override conflict** — if user customizes a skill in `~/.claude/skills/` and Genesis ships a new version, how to detect and prompt?
-5. **`/api` skill 6 steps** — D18 caps at 200 LoC / 6 steps but the steps themselves are not enumerated.
+5. ~~**`/api` skill 6 steps** — D18 caps at 200 LoC / 6 steps but the steps themselves are not enumerated.~~ **Resolved (/api skill v4, 2026-05-22)**：6 Phase（0 read-UC 偵測 / 1 locate aggregate / 2 prerequisite / 3 parse inputs / 4 drift+Variant 偵測 / 5 fill categories 1-3 / 6 report）enumerated in §10.11；SKILL.md 188 行 ≤200。
 6. **Cosmogony MCP config schema** — exact shape `install-mcp` writes (depends on Cosmogony's MCP server invocation).
 
 These should be resolved during implementation, not blocking design lock-in.

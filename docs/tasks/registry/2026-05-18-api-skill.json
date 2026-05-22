@@ -2,7 +2,7 @@
   "id": "2026-05-18-api-skill",
   "file": "docs/tasks/2026-05-18-api-skill.md",
   "title": "/api skill v3 — AI fill TODO bodies in Phase 1.h+1.i scaffolds (revised)",
-  "status": "ready",
+  "status": "done",
   "created": "2026-05-18",
   "depends_on": [
     "phase-1f-context-shared-infra",
@@ -39,6 +39,8 @@
     "diff ~/.claude/skills/api/SKILL.md Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md",
     "grep -F '/api skill' docs/decisions.md",
     "grep -F '/api skill' docs/architecture.md",
+    "swift build",
+    "mkdir -p /tmp/api-v3-install-test",
     "./.build/debug/genesis install-skills --scope project --project-dir /tmp/api-v3-install-test --force",
     "test -f /tmp/api-v3-install-test/.claude/skills/api/SKILL.md",
     "! grep -nE 'write[s]? (the )?openapi\\.yaml|emit[s]? (the )?openapi\\.yaml|generate[s]? (the )?openapi\\.yaml' ~/.claude/skills/api/SKILL.md",
@@ -52,7 +54,7 @@
     "phase-2",
     "skill",
     "api",
-    "ready"
+    "done"
   ],
   "status_history": [
     {
@@ -74,6 +76,11 @@
       "status": "ready",
       "at": "2026-05-22T00:00:00Z",
       "note": "**v4 — Codex external audit 重跑 + registry sync**。v3 標『defer Codex external』事後太樂觀：scope 縮成填空後浮現的填空判定漏洞 v3 沒抓到。重跑 Codex 回 5H+5M+2L 全套修進 spec v4：(H1) category 4 ApiComponents → v1 NO-OP（aggregate-wide mapper，per-UC 改 return nil 跨 UC 害 422→503）；(H2) Variant B 偵測改以 AS Input 欄位 Swift 型別為 truth（Phase 1.i Decimal/Date 都 emit plain string，不可靠 openapi schema）；(H3) server-gen ID 只進 Service Input 不改 AS Output shape；(H4) Decimal parse error case 無 domain-specific 時 fallback .invalidPayload；(H5) A11 acceptance 自相矛盾修復（! grep '寫 openapi.yaml' 誤命中 A4 明文 '不寫 openapi.yaml'，已機械確認，改英文肯定指示句 pattern）；(M6) drift 偵測排除 aggIdName/operatorId/server-gen ID + 查 type 可支援性；(M7) idempotent 改 structural invariant per category，半填→exit 4；(M8) category 3 加 domain type declaration lookup；(M9) 多 aggregate 同名 UC → exit 4 列候選；(M10) exit 1(prerequisite)/4(corrupted) 邊界明確化；(L11) read UC lowercased prefix；(L12) exit 0 wording 改 applicable。**Registry sync**：verification[] 從過時 v2（6 template 檔 + 步驟[1-6] + aggregateRootId.alias + 只寫 Adapter/）換成 v4 A1-A12（in-place edit 模式不需 templates 目錄 / Phase[0-6] / 只動 Adapter/ / A11 修正後的 pattern）。3 fill categories（非 4）+ 1 no-op。內部 4b/5b 全 PASS。Status: ready（內容待 author SKILL.md + manual E2E sign-off → done）。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-22T12:00:00Z",
+      "note": "**SKILL.md authored + E2E pass**。寫 `~/.claude/skills/api/SKILL.md`（197 行 ≤200）+ Genesis bundled mirror（byte-identical）。6 Phase flow、`disable-model-invocation: true`、`allowed-tools: Read, Edit, Glob, Grep, Bash`。**30 機械 acceptance gate 全 PASS**（A1 LoC 197 / A2 7 phases / A3 4 categories / A4 D18 明文含修正後 '只動 Adapter/' / A5 scaffold refs / A6 Variant A-B / A7 server-generated+UUID / A8 mirror byte-identical / A9 docs / A10 install-skills 裝入新內容（修 acceptance 加 mkdir）/ A11 H5-fixed pattern / A12 Decimal-Date-Iso8601）。**Real E2E swift build PASS**：`/tmp/api-e2e`（genesis new IAMContext + iam-bundle，UserAccessProfile 7 write UC），依 SKILL.md 填 createUserAccessProfile（cat 1 AS execute + cat 2 ApiHandler asInput；無 DTO；cat 4 不動）→ Build complete 67.17s。**E2E 抓到並修 1 個 SKILL.md bug**：category 1 sample 原硬塞 {AGG_ID_NAME}+operatorId 進 Service Input，但實測 {UC}Input 只宣告業務欄位（無 aggId/operatorId）→ 硬塞 compile fail；改為『Service Input 宣告為 SSOT，只填其宣告的 fields』，SKILL.md + spec 同步修。docs：decisions.md /api skill v4 ratification + architecture.md §10.11 fill flow + Open question #5 resolved。**剩餘 manual edge-case**（idempotent / read-UC exit 2 / drift exit 3 / 半填 exit 4）待 manual 測，不阻 done。"
     }
   ],
   "audit_findings": {
