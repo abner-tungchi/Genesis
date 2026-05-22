@@ -19,26 +19,33 @@
   "verification": [
     "test -f ~/.claude/skills/api/SKILL.md",
     "[ $(wc -l < ~/.claude/skills/api/SKILL.md) -le 200 ]",
-    "[ $(grep -cE '^## (Step [1-6]|步驟 [1-6])' ~/.claude/skills/api/SKILL.md) -eq 6 ]",
+    "[ $(grep -cE '^## (Phase [0-6]|Step [0-6]|步驟 [0-6])' ~/.claude/skills/api/SKILL.md) -ge 6 ]",
+    "grep -F 'category 1' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'category 2' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'category 3' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'category 4' ~/.claude/skills/api/SKILL.md",
     "grep -F 'D18' ~/.claude/skills/api/SKILL.md",
-    "grep -F 'one UC per invocation' ~/.claude/skills/api/SKILL.md",
-    "grep -F 'aggregateRootId.alias' ~/.claude/skills/api/SKILL.md",
-    "grep -F 'OpenAPIGenerator' ~/.claude/skills/api/SKILL.md",
-    "grep -F 'exhaustive' ~/.claude/skills/api/SKILL.md",
-    "grep -F 'duplicate' ~/.claude/skills/api/SKILL.md",
-    "test -f ~/.claude/skills/api/templates/ApplicationServiceBase.swift.template",
-    "test -f ~/.claude/skills/api/templates/ApplicationServicePayloadExtension.swift.template",
-    "test -f ~/.claude/skills/api/templates/ApiHandlerSkeleton.swift.template",
-    "test -f ~/.claude/skills/api/templates/ApiHandlerMethod.swift.template",
-    "test -f ~/.claude/skills/api/templates/ApiComponentsErrorSkeleton.swift.template",
-    "test -f ~/.claude/skills/api/templates/ApiComponentsErrorCase.swift.template",
-    "diff ~/.claude/skills/api/SKILL.md Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md",
-    "grep -F 'Phase 2 (/api v1)' docs/decisions.md",
-    "! grep -F '寫 openapi.yaml' ~/.claude/skills/api/SKILL.md",
-    "! grep -F '讀 invariants.md' ~/.claude/skills/api/SKILL.md",
     "grep -F '不寫 openapi.yaml' ~/.claude/skills/api/SKILL.md",
     "grep -F '不讀 invariants.md' ~/.claude/skills/api/SKILL.md",
-    "grep -F '只寫 Adapter/' ~/.claude/skills/api/SKILL.md"
+    "grep -F '只動 Adapter/' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'Phase 1.h' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'Phase 1.i' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'fatalError' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'TODO(/api skill)' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'Variant A' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'Variant B' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'server-generated' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'UUID' ~/.claude/skills/api/SKILL.md",
+    "diff ~/.claude/skills/api/SKILL.md Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md",
+    "grep -F '/api skill' docs/decisions.md",
+    "grep -F '/api skill' docs/architecture.md",
+    "./.build/debug/genesis install-skills --scope project --project-dir /tmp/api-v3-install-test --force",
+    "test -f /tmp/api-v3-install-test/.claude/skills/api/SKILL.md",
+    "! grep -nE 'write[s]? (the )?openapi\\.yaml|emit[s]? (the )?openapi\\.yaml|generate[s]? (the )?openapi\\.yaml' ~/.claude/skills/api/SKILL.md",
+    "! grep -nE 'read[s]? (the )?invariants\\.md' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'Decimal(string:)' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'Date.parseIso8601' ~/.claude/skills/api/SKILL.md",
+    "grep -F 'Iso8601ParsingError' ~/.claude/skills/api/SKILL.md"
   ],
   "tags": [
     "feature",
@@ -62,6 +69,11 @@
       "status": "ready",
       "at": "2026-05-19T17:30:00Z",
       "note": "**Spec v3 revised — fundamentally scope-shifted after Phase 1.h+1.i ship**。原 v2 all-AI generation 模式 obsolete：Phase 1.h emit AS + DTO scaffolds、Phase 1.i emit openapi.yaml + ApiHandler + ApiComponents + PackageRenderer plugin。**新 scope**: AI fill 4 TODO categories per write UC：(1) AS `execute()` body 從 Service Input 推 Service execute 呼叫；(2) ApiHandler method 內 `let asInput = { fatalError() }()` 改 payload→AS Input 構造 (Variant A 1:1 / Variant B 加 inline Decimal/Date 解析)；(3) DTO struct `init(from dto:) throws` 反向 mapper body；(4) ApiComponents switch 中 unreachable cases 改 `return nil // TODO`。**完全不做**: openapi.yaml / Package.swift / Service.swift / *.yaml 寫；scaffold emit；framework 動。**新 6-step flow**: arg parse → workspace locate → prerequisite check → parse 5 inputs (AS scaffold + Service Input + payload schema + Error enum + handler method block) → Variant A/B detection → fill 4 categories。**12 acceptance gates** (A1-A12) + Human E2E sign-off。**Server-generated ID detection rule**: Service Input 有 `*Id` String 但 AS Input 無 → UUID().uuidString case。**Audit findings**: 6H+2M+1L 從 v2 — 全 resolved or rendered moot by Phase 1.h+1.i ship；新 11 known limits 列 v3 scope。**Depends on**: phase-1f + phase-1h + phase-1i (全 DONE)。Status: still 'ready' (now revised v3)；下一步 user 自行 author SKILL.md content + manual E2E sign-off → mark done。Spec 554 → 380 lines."
+    },
+    {
+      "status": "ready",
+      "at": "2026-05-22T00:00:00Z",
+      "note": "**v4 — Codex external audit 重跑 + registry sync**。v3 標『defer Codex external』事後太樂觀：scope 縮成填空後浮現的填空判定漏洞 v3 沒抓到。重跑 Codex 回 5H+5M+2L 全套修進 spec v4：(H1) category 4 ApiComponents → v1 NO-OP（aggregate-wide mapper，per-UC 改 return nil 跨 UC 害 422→503）；(H2) Variant B 偵測改以 AS Input 欄位 Swift 型別為 truth（Phase 1.i Decimal/Date 都 emit plain string，不可靠 openapi schema）；(H3) server-gen ID 只進 Service Input 不改 AS Output shape；(H4) Decimal parse error case 無 domain-specific 時 fallback .invalidPayload；(H5) A11 acceptance 自相矛盾修復（! grep '寫 openapi.yaml' 誤命中 A4 明文 '不寫 openapi.yaml'，已機械確認，改英文肯定指示句 pattern）；(M6) drift 偵測排除 aggIdName/operatorId/server-gen ID + 查 type 可支援性；(M7) idempotent 改 structural invariant per category，半填→exit 4；(M8) category 3 加 domain type declaration lookup；(M9) 多 aggregate 同名 UC → exit 4 列候選；(M10) exit 1(prerequisite)/4(corrupted) 邊界明確化；(L11) read UC lowercased prefix；(L12) exit 0 wording 改 applicable。**Registry sync**：verification[] 從過時 v2（6 template 檔 + 步驟[1-6] + aggregateRootId.alias + 只寫 Adapter/）換成 v4 A1-A12（in-place edit 模式不需 templates 目錄 / Phase[0-6] / 只動 Adapter/ / A11 修正後的 pattern）。3 fill categories（非 4）+ 1 no-op。內部 4b/5b 全 PASS。Status: ready（內容待 author SKILL.md + manual E2E sign-off → done）。"
     }
   ],
   "audit_findings": {
@@ -128,6 +140,86 @@
         "resolved": true,
         "v3_status": "rendered_moot_or_resolved"
       }
-    ]
+    ],
+    "v4_codex_2026_05_22": {
+      "high": [
+        {
+          "id": "H1",
+          "issue": "Category 4 ApiComponents 是 aggregate-wide mapper，per-UC 改 return nil 害同 aggregate 其他 UC 422→503；間接 throw grep 不到",
+          "fix": "category 4 → v1 NO-OP，aggregate-wide unreachable 精修 defer v2",
+          "resolved": true
+        },
+        {
+          "id": "H2",
+          "issue": "Variant B 偵測靠 openapi string+pattern，但 Phase 1.i Decimal/Date emit plain string → pass-through compile fail",
+          "fix": "改以 AS Input 欄位 Swift 型別為 truth (Decimal/Date/plain)",
+          "resolved": true
+        },
+        {
+          "id": "H3",
+          "issue": "server-gen ID After sample 改 AS Output shape → compile fail",
+          "fix": "UUID 只進 Service Input，AS Output 維持不變",
+          "resolved": true
+        },
+        {
+          "id": "H4",
+          "issue": "Decimal error case .invalid<Field> 可能不存在於 enum → compile fail",
+          "fix": "驗 enum 有該 case 否則 fallback .invalidPayload",
+          "resolved": true
+        },
+        {
+          "id": "H5",
+          "issue": "A11 ! grep '寫 openapi.yaml' 誤命中 A4 明文 '不寫 openapi.yaml' → acceptance 自相矛盾（機械確認）",
+          "fix": "A11 改英文肯定指示句精確 pattern",
+          "resolved": true
+        }
+      ],
+      "medium": [
+        {
+          "id": "M6",
+          "issue": "drift 偵測沒排除 aggIdName/operatorId/server-gen ID、沒查型別 drift",
+          "fix": "定義 non-path/non-header fields == requestBody properties + type 可支援性",
+          "resolved": true
+        },
+        {
+          "id": "M7",
+          "issue": "idempotent fatalError-gone 誤判半填",
+          "fix": "每 category structural invariant；半填 → exit 4",
+          "resolved": true
+        },
+        {
+          "id": "M8",
+          "issue": "category 3 缺 domain type declaration lookup",
+          "fix": "加 {DomainTypeName} 到 conditional inputs",
+          "resolved": true
+        },
+        {
+          "id": "M9",
+          "issue": "多 aggregate 同名 UC 未定義行為",
+          "fix": "0→exit 1；多→exit 4 列候選",
+          "resolved": true
+        },
+        {
+          "id": "M10",
+          "issue": "exit 1 vs 4 邊界模糊",
+          "fix": "prerequisite 缺→1；存在但 corrupted→4",
+          "resolved": true
+        }
+      ],
+      "low": [
+        {
+          "id": "L11",
+          "issue": "read UC 偵測沒 lowercase normalize",
+          "fix": "lowercased prefix get/list/find",
+          "resolved": true
+        },
+        {
+          "id": "L12",
+          "issue": "exit 0 wording 'all 4 filled' 但 cat3/4 可選",
+          "fix": "改 'all applicable'",
+          "resolved": true
+        }
+      ]
+    }
   }
 }
