@@ -18,14 +18,14 @@ final class SkillInstallerTests: XCTestCase {
         let names = try SkillInstaller.bundledSkillNames()
         XCTAssertEqual(
             Set(names),
-            ["api", "event-storming", "presenter", "readmodel", "strict-review", "usecase", "write-ddd-spec"]
+            ["api", "event-storming", "presenter", "presenter-fill", "readmodel", "strict-review", "usecase", "write-ddd-spec"]
         )
     }
 
     func testInstallIntoEmptyDir() throws {
         let target = tmpDir.appendingPathComponent("skills", isDirectory: true)
         let summary = try SkillInstaller.install(into: target, force: false)
-        XCTAssertEqual(summary.installed.count, 7)
+        XCTAssertEqual(summary.installed.count, 8)
         XCTAssertTrue(summary.skipped.isEmpty)
         XCTAssertTrue(summary.overwritten.isEmpty)
         XCTAssertTrue(summary.failed.isEmpty)
@@ -40,7 +40,7 @@ final class SkillInstallerTests: XCTestCase {
         let summary = try SkillInstaller.install(into: target, force: false)
         XCTAssertTrue(summary.skipped.contains("usecase"))
         XCTAssertFalse(summary.installed.contains("usecase"))
-        XCTAssertEqual(summary.installed.count, 6)
+        XCTAssertEqual(summary.installed.count, 7)
     }
 
     func testInstallForceOverwrites() throws {

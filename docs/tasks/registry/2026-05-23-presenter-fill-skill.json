@@ -1,0 +1,61 @@
+{
+  "id": "2026-05-23-presenter-fill-skill",
+  "file": "docs/tasks/2026-05-23-presenter-fill-skill.md",
+  "title": "/presenter-fill skill v1 — fill read-side AS execute() body (per-aggregate)",
+  "status": "done",
+  "created": "2026-05-23",
+  "depends_on": [
+    "phase-1f-context-shared-infra",
+    "phase-1g-readmodel-renderer",
+    "phase-1k-presenter-renderer"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-23-presenter-fill-skill.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/skills/presenter-fill/SKILL.md",
+    "file:docs/decisions.md",
+    "file:docs/architecture.md"
+  ],
+  "verification": [
+    "test -f ~/.claude/skills/presenter-fill/SKILL.md",
+    "[ $(wc -l < ~/.claude/skills/presenter-fill/SKILL.md) -le 200 ]",
+    "[ $(grep -cE '^## (Phase [0-5]|Step [0-5]|步驟 [0-5])' ~/.claude/skills/presenter-fill/SKILL.md) -ge 5 ]",
+    "grep -F 'TODO(/presenter-fill skill)' ~/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F 'ProjectionReadInconsistency' ~/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F 'EventMapper' ~/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F 'cross-aggregate' ~/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F 'Phase 1.k.2' ~/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F 'multi-field' ~/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F 'idempotent' ~/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F '不動 ApiHandler' ~/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F '不寫 openapi.yaml' ~/.claude/skills/presenter-fill/SKILL.md",
+    "diff ~/.claude/skills/presenter-fill/SKILL.md Sources/GenesisCore/Resources/Templates/skills/presenter-fill/SKILL.md",
+    "grep -F '/presenter-fill' docs/decisions.md",
+    "grep -F '/presenter-fill' docs/architecture.md",
+    "swift build",
+    "mkdir -p /tmp/presenter-fill-install-test",
+    "./.build/debug/genesis install-skills --scope project --project-dir /tmp/presenter-fill-install-test --force",
+    "test -f /tmp/presenter-fill-install-test/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F 'presenter-fill' Tests/GenesisCoreTests/SkillInstallerTests.swift",
+    "swift test --filter SkillInstallerTests"
+  ],
+  "tags": [
+    "feature",
+    "phase-2",
+    "skill",
+    "presenter-fill",
+    "done"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-23T00:00:00Z",
+      "note": "write-spec + OC 架構核對（body pattern 對照 OC GetContractNotes/GetFontSize/GetPurpose 逐字相符；ProjectionReadInconsistency 為 OC-canonical not-found pattern）+ audit-spec pass。內部 4b/5b 全 PASS。Codex external 3H+4M+3L 全套修：H1 idempotent 先於 parse、H2 v1 單一 input field（多欄 exit 3）、H3 同名跨 aggregate exit 4、M4 elementSource identifier regex、M5 cross-agg 多 match exit 4、M6 idempotent scope execute block、M7 移除 exit 2、L8 eventMapper suffix-strip、L9 Output parser normalize、L10 補 known limits。決策 D1 per-aggregate only / D2 ProjectionReadInconsistency→503 / D3 直接 field access。下一步 pickup（author SKILL.md + 新 per-agg readModel+presenter fixture + real e2e build 驗 eventMapper symbol）。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-23T12:00:00Z",
+      "note": "SKILL.md authored（125 行 ≤200）+ Genesis bundled mirror（byte-identical）。全 acceptance gate PASS（A1-A11：LoC 125 / 5 Phase / TODO marker / ProjectionReadInconsistency / EventMapper / cross-aggregate+Phase1.k.2 / multi-field+ambiguous+idempotent / optional+array / 不動 ApiHandler / 不寫 openapi / A8 mirror / A9 docs / A10 install-skills 裝 8 skills 含新內容 / A11 SkillInstallerTests 7→8 PASS）。Real E2E swift build PASS：/tmp/pf-e2e（per-agg readModel GetUserAccessProfileRoles + presenter scalar String）依 SKILL.md 填 execute body → Build complete 56.65s，驗證 GetUserAccessProfileRolesEventMapper plugin symbol 真實存在（最高風險 de-risk）。E2E 順帶發現上游 Phase 1.k 限制：scalar output 配 collection elementType（Set<String>）→ openapi OpenAPIArrayContainer 錯配（非本 skill，記入 known limit 12，fixture 改用 scalar String）。docs：decisions.md /presenter-fill v1 ratification + architecture.md §10.12。SkillInstaller 動態掃目錄自動註冊。不 bump 版本。"
+    }
+  ]
+}

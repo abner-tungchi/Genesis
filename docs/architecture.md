@@ -889,6 +889,37 @@ fill categories 1-3（category 4 = NO-OP）：
 
 詳見 `docs/tasks/2026-05-18-api-skill.md` (v4) + `docs/decisions.md` /api skill v4 ratification 條目。
 
+### 10.12 /presenter-fill skill — read-side AI fill flow（v1）
+
+`/presenter-fill` 是 `/api` 的 read-side sibling。Phase 1.k 對 bundle.presenters[] codegen 出 read-side `{Name}ApplicationService.swift`（execute body 為 `fatalError("TODO(/presenter-fill skill)")`）+ **完整的** ApiHandler read method。本 skill 只填那一個 execute body。
+
+```
+bundle JSON（含 readModels[] + presenters[]）
+    ↓ /readmodel + /presenter（design-time bundle-writing）
+    ↓ genesis new（Phase 1.g projector codegen + Phase 1.k read-side AS + ApiHandler read method）
+read-side scaffold：
+  {A}Aggregate/Adapter/{Name}/{Name}ApplicationService.swift   # execute() fatalError TODO ← 唯一要填
+  {A}Aggregate/Usecase/Projector/{Name}/{Name}Presenter.swift  # plugin projector（per-aggregate）
+  {A}Aggregate/Adapter/ApiHandler.swift                        # read method 已完整 codegen（不碰）
+    ↓ /presenter-fill <presenterName>（≤200 LoC，5 Phase）
+fill execute() body：
+  let presenter = {R}Presenter(coordinator: .init(client: kdbClient, eventMapper: {R}EventMapper()))
+  非optional: guard let readModel = ...?.readModel else { throw ProjectionReadInconsistency(...) }; return readModel.{elementSource}
+  optional:   let readModel = ...?.readModel; return readModel?.{elementSource}
+    ↓ swift build
+✓ read-side compile pass，可 serve HTTP GET
+```
+
+**關鍵設計（OC-aligned + Codex audit v1 驅動）**：
+
+- **scope = per-aggregate only（D1）**：cross-aggregate（context-level readModel）的 read-side AS 在 `{A}Aggregate` 要 import context target → `Context → {A}Aggregate → Context` 循環依賴 → exit 3，defer Phase 1.k.2。
+- **idempotent 先於 parse（audit H1）**：已填 body 的 TODO 註解已移除，Phase 2 先做 execute-block structural invariant，避免重跑誤判 exit 4。
+- **單一 input field（audit H2）**：projector Input 只 wrap 單一 key；多欄（key+filter）的 filter 屬 domain 邏輯（OC GetContractNotes 手寫）無法自動填 → exit 3。
+- **nil → ProjectionReadInconsistency → 503（D2）**：non-optional nil 用 Phase 1.f infra error（保證 compile）；read-side ApiHandler 無 404 path；404/422 精確語意需 designated domain notFound case（OC 有時用，Genesis bundle 不保證），defer v2。
+- **scaffold self-describing**：skill 從 read-side AS 的 TODO 註解 parse `{R}Presenter` + `{elementSource}`；eventMapper = `{R}Presenter` 去 `Presenter` suffix + `EventMapper`。
+
+詳見 `docs/tasks/2026-05-23-presenter-fill-skill.md` + `docs/decisions.md` /presenter-fill skill v1 ratification 條目。
+
 
 ## 11. Open questions
 
