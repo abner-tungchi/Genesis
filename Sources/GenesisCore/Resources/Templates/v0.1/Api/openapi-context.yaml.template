@@ -1,0 +1,53 @@
+openapi: 3.1.0
+info:
+  title: {ContextName} Cross-Aggregate API
+  version: 0.1.0
+paths:
+{PATH_OPERATIONS}
+components:
+  parameters:
+{PARAMETERS_BLOCK}
+  responses:
+    NotFoundError:
+      description: '404 Not Found'
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - error
+            properties:
+              error:
+                $ref: '#/components/schemas/{Context}ApiError'
+    UnprocessableEntityError:
+      description: '422 Unprocessable Entity'
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - error
+            properties:
+              error:
+                $ref: '#/components/schemas/{Context}ApiError'
+    ServiceUnavailableError:
+      description: '503 Service Unavailable'
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - error
+            properties:
+              error:
+                $ref: '#/components/schemas/{Context}ApiError'
+  schemas:
+    {Context}ApiError:
+      type: string
+      enum:
+        - aggregateNotFound
+        - invalidPayload
+        - invalidDateFormat
+        - undefinedDomainError
+        - serviceUnavailable
+{DOMAIN_ERROR_CASES}

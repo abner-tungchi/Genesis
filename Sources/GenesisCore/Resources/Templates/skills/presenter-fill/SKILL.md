@@ -38,13 +38,20 @@ allowed-tools: Read, Edit, Glob, Grep
 
 空 arg → exit 1：`usage: /presenter-fill <presenterName>`。
 
-## Phase 1 — Locate read-side AS
+## Phase 1 — Locate read-side AS（v2 — 支援 per-agg + context-level）
 
-`Glob Sources/*Aggregate/Adapter/<presenterName>/<presenterName>ApplicationService.swift`：
+Glob **兩種** module 路徑合併（Phase 1.k.2 後 cross-agg AS 搬到 context target）：
+
+- `Sources/*Aggregate/Adapter/<presenterName>/<presenterName>ApplicationService.swift`（per-aggregate）
+- `Sources/*/Adapter/<presenterName>/<presenterName>ApplicationService.swift`，排除已涵蓋的 `*Aggregate`（context-level）
+
+判定：
 
 - 0 match → exit 1：`prerequisite missing: <presenterName>ApplicationService.swift not found; run genesis new`
-- ≥2 match（同名 presenter 跨多 aggregate）→ exit 4：`ambiguous presenter <presenterName> in aggregates [...]; use /presenter-fill <Aggregate>.<Presenter> (v2)`
-- 1 match → 取 `<A>` = aggregate 名（`Sources/<A>Aggregate/...`）。確認 `Sources/<A>Aggregate/<A>Error.swift` 存在，否則 exit 1。
+- ≥2 match（同名 presenter 跨多 module）→ exit 4：`ambiguous presenter <presenterName> in modules [...]; use /presenter-fill <Module>.<Presenter> (v2)`
+- 1 match → 依路徑推導 module 與 `{QueryErrorType}`：
+  - 路徑形如 `Sources/<A>Aggregate/Adapter/...` → `<A>` = aggregate 名、`{QueryErrorType}` = `<A>QueryError`。verify `Sources/<A>Aggregate/<A>QueryError.swift` 存在（缺 → exit 1）。
+  - 路徑形如 `Sources/<contextName>/Adapter/...` → `<A>` = contextName、`{QueryErrorType}` = `<contextName>QueryError`。verify `Sources/<contextName>/<contextName>QueryError.swift` 存在（缺 → exit 1）。
 
 ## Phase 2 — Idempotent structural invariant（**先於 parse**）
 
@@ -68,28 +75,28 @@ allowed-tools: Read, Edit, Glob, Grep
   - parse 不到 → exit 4（`scaffold integrity check failed; cannot parse projector reference`）。
 - 衍生 `<eventMapper>` = `<PresenterType>` 去尾 `Presenter`（hasSuffix 後 dropLast(9)）+ `EventMapper`（**suffix-strip，非全字串 replace**）。
 
-## Phase 4 — Locate projector（cross-aggregate 偵測）
+## Phase 4 — Locate projector（same-module）
 
-`Glob Sources/<A>Aggregate/**/<PresenterType>.swift`：
+v2 module 統一處理：projector 必須與 AS **同 module**（D1 已由 BundleParser 保證 co-location）。
 
-- 同 module 找到（≥1）→ 續 Phase 5（per-aggregate clean case）。
-- 否則 `Glob Sources/*/Projector/**/<PresenterType>.swift`：
-  - exactly 1 match 不在 `<A>Aggregate`（context-level）→ exit 3：`cross-aggregate presenter (<context-level> readModel) not fillable in v1 — needs Phase 1.k.2 to relocate read-side AS to context target`。
-  - ≥2 match → exit 4：`ambiguous projector <PresenterType> in [...]`。
-- 都沒有 → exit 1：`prerequisite missing: <PresenterType> projector not generated; run /readmodel + genesis new first`。
+- per-agg：`Glob Sources/<A>Aggregate/**/<PresenterType>.swift`
+- context-level：`Glob Sources/<contextName>/Projector/**/<PresenterType>.swift`
+
+≥1 match → 續 Phase 5；0 match → exit 1：`prerequisite missing: <PresenterType> projector not generated; run /readmodel + genesis new first`。
 
 ## Phase 5 — Fill execute() body
 
 ReadModel local var 型別由 `presenter.execute(input:)?.readModel` 推導，不需顯式 naming。
 value mapping 一律直接 `readModel.<elementSource>`（D3；per-element `.map` transform defer v2）。
 
-**non-optional output（`X` 或 `[X]`）** —— guard + throw on nil：
+**non-optional output（`X` 或 `[X]`）** —— guard + throw QueryError → 404：
 ```swift
     package func execute(input: Input) async throws -> Output {
         let presenter = <PresenterType>(coordinator: .init(client: kdbClient, eventMapper: <eventMapper>()))
         guard let readModel = try await presenter.execute(input: .init(<keyField>: input.<keyField>))?.readModel else {
-            throw ProjectionReadInconsistency(
-                cause: "<presenterName>",
+            throw ContextError<{QueryErrorType}>(
+                error: .notFound,
+                in: .struct(<presenterName>ApplicationService.self, function: #function),
                 message: "read model not found for \(input.<keyField>)"
             )
         }
@@ -106,14 +113,15 @@ value mapping 一律直接 `readModel.<elementSource>`（D3；per-element `.map`
     }
 ```
 
-> **nil 處理（D2）**：non-optional output 在 readModel 為 nil 時 throw `ProjectionReadInconsistency`（Phase 1.f infra，保證 compile）→ `ApiHandler.mapToApiError` 回 nil → 503。read-side ApiHandler 無 404 path；404/422 精確語意需 designated domain notFound case，defer v2。
+> **nil 處理（D2 v2）**：non-optional output 在 readModel 為 nil 時 throw `ContextError<{QueryErrorType}>(error: .notFound, ...)`，由 Phase 1.k.2 codegen 的 ApiHandler `catch ContextError<{QueryErrorType}> where error.error == .notFound → .notFound(...)` 接住 → **404**。`{QueryErrorType}` 在 Phase 1 已依 module 推導（per-agg `<A>QueryError` / context `<contextName>QueryError`）。
 > **不要** throw `ContextError<{A}Error>(error: .aggregateNotFound)` —— `aggregateNotFound` 只在 ApiError(infra)，**非** domain `{A}Error` case，會 compile fail。
+> **不要**用 v1 的 `ProjectionReadInconsistency` —— Phase 1.k.2 後已升級為 QueryError，由 404 catch 處理。
 
 填完印 report：`filled <presenterName>ApplicationService execute() body (<output kind>)`，提醒 user 跑 `swift build`。
 
 ## Framework constraints（沿用，不可破壞）
 
-- 型別來自 Phase 1.f `<Ctx>Shared`：`ApplicationService`、`ContextError<E>`、`ProjectionReadInconsistency`。
+- 型別來自 Phase 1.f `<Ctx>Shared`：`ApplicationService`、`ContextError<E>`。`<QueryErrorType>`（`<A>QueryError` / `<contextName>QueryError`）由 Phase 1.k.2 QueryErrorRenderer 產出。
 - `<R>Presenter` / `<R>EventMapper` / `<R>ProjectorProtocol`：plugin-generated（Phase 1.g）。
 - `KurrentDBClient` / `KurrentStorageCoordinator`：read-side AS scaffold 已 `import KurrentDB`。
 - `presenter.execute(input:)?.readModel` 為 optional（CQRSProjector 行為）。

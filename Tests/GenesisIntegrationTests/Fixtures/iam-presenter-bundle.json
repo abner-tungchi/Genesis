@@ -42,7 +42,7 @@
         {
           "id": "ccc6fb32-1766-4a39-b496-478ba03924b9",
           "name": "checkUserId",
-          "title": "\u78ba\u8a8d User ID \u5b58\u5728",
+          "title": "確認 User ID 存在",
           "rules": [
             {
               "when": "always",
@@ -62,11 +62,11 @@
         {
           "id": "b124ae6d-789b-44a7-a19d-888243b31729",
           "name": "checkPermissions",
-          "title": "\u78ba\u8a8d\u4f7f\u7528\u8005\u8eab\u4e0a\u7684\u6b0a\u9650\u7b26\u5408\u90e8\u9580\u3001\u8077\u7a31",
+          "title": "確認使用者身上的權限符合部門、職稱",
           "rules": [
             {
               "when": "always",
-              "rule": "userPermissions \u2287 baseline(department, jobTitle)"
+              "rule": "userPermissions ⊇ baseline(department, jobTitle)"
             }
           ],
           "errorCode": "permissionNotMatch",
@@ -78,7 +78,7 @@
         {
           "id": "3b672d09-680f-4da0-ba05-a6ef12aaac9f",
           "name": "employeeMustActive",
-          "title": "\u54e1\u5de5\u5fc5\u9808\u5728\u8077",
+          "title": "員工必須在職",
           "rules": [
             {
               "when": "always",
@@ -628,7 +628,7 @@
       "presenterSpecId": "p-GetUserAccessSummary",
       "name": "GetUserAccessSummary",
       "readModelRef": "GetUserAccessSummary",
-      "aggregateRef": "UserAccessProfile",
+      "aggregateRef": "<context-level>",
       "input": {
         "fields": [
           {

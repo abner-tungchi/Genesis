@@ -156,6 +156,15 @@ struct NewCommand: AsyncParsableCommand {
             try plan(file.path, file.content, file.role)
         }
 
+        // 2.3.6 QueryError emission (Phase 1.k.2 — per-agg + context-level for read presenters)
+        for file in try QueryErrorRenderer.render(
+            bundle: bundle,
+            contextName: contextName,
+            existingPaths: existingApiPaths
+        ) {
+            try plan(file.path, file.content, file.role)
+        }
+
         // 2.4 Test placeholder
         let testTemplate = try TemplateLoader.loadTemplate(name: "TestPlaceholder.swift", ext: "template")
         let testRendered = TemplateRenderer.render(template: testTemplate, vars: ["ContextName": contextName])
@@ -403,7 +412,46 @@ struct NewCommand: AsyncParsableCommand {
                     result.insert(presenterPath)
                 }
             }
+            // Phase 1.k.2 additions: per-agg {A}QueryError.swift (when aggregate has read presenter)
+            let queryErrorPath = "Sources/\(agg.name)Aggregate/\(agg.name)QueryError.swift"
+            if fm.fileExists(atPath: aggRoot.appendingPathComponent("\(agg.name)QueryError.swift").path) {
+                result.insert(queryErrorPath)
+            }
         }
+
+        // Phase 1.k.2: context-level Adapter scaffold + {Context}QueryError.swift
+        let contextName = bundle.context
+        let ctxRoot = outputDir.appendingPathComponent("Sources").appendingPathComponent(contextName)
+        // context-level read-side AS per-presenter
+        for presenter in bundle.presenters where presenter.aggregateRef == "<context-level>" {
+            let presenterPath = "Sources/\(contextName)/Adapter/\(presenter.name)/\(presenter.name)ApplicationService.swift"
+            let abs = ctxRoot.appendingPathComponent("Adapter/\(presenter.name)/\(presenter.name)ApplicationService.swift").path
+            if fm.fileExists(atPath: abs) {
+                result.insert(presenterPath)
+            }
+        }
+        // context-level ApiHandler / ApiComponents / openapi.yaml / config
+        let ctxHandlerPath = "Sources/\(contextName)/Adapter/ApiHandler.swift"
+        if fm.fileExists(atPath: ctxRoot.appendingPathComponent("Adapter/ApiHandler.swift").path) {
+            result.insert(ctxHandlerPath)
+        }
+        let ctxComponentsPath = "Sources/\(contextName)/Adapter/ApiComponents/ApiComponents+\(contextName)ApiError.swift"
+        if fm.fileExists(atPath: ctxRoot.appendingPathComponent("Adapter/ApiComponents/ApiComponents+\(contextName)ApiError.swift").path) {
+            result.insert(ctxComponentsPath)
+        }
+        let ctxOpenapiPath = "Sources/\(contextName)/openapi.yaml"
+        if fm.fileExists(atPath: ctxRoot.appendingPathComponent("openapi.yaml").path) {
+            result.insert(ctxOpenapiPath)
+        }
+        let ctxOpenapiCfgPath = "Sources/\(contextName)/openapi-generator-config.yaml"
+        if fm.fileExists(atPath: ctxRoot.appendingPathComponent("openapi-generator-config.yaml").path) {
+            result.insert(ctxOpenapiCfgPath)
+        }
+        let ctxQueryErrorPath = "Sources/\(contextName)/\(contextName)QueryError.swift"
+        if fm.fileExists(atPath: ctxRoot.appendingPathComponent("\(contextName)QueryError.swift").path) {
+            result.insert(ctxQueryErrorPath)
+        }
+
         return result
     }
 }

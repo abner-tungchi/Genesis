@@ -118,15 +118,25 @@ final class PresenterRendererTests: XCTestCase {
         XCTAssertTrue(outputs[0].content.contains("typealias Output = String?"))
     }
 
-    // MARK: - Cross-aggregate skip (defer 1.k.2)
+    // MARK: - Cross-aggregate routing (Phase 1.k.2: was silent-skip in 1.k; now routes to context Adapter)
 
-    func testCrossAggregateSilentSkip() throws {
+    func testCrossAggregateRoutesToContextAdapter() throws {
         let p = presenter(aggregateRef: "<context-level>")
         let outputs = try PresenterRenderer.render(
             bundle: bundleWith(presenters: [p]), contextName: "AuditQuotingContext",
             adapter: .defaultFor(contextName: "AuditQuotingContext")
         )
-        XCTAssertTrue(outputs.isEmpty, "context-level presenter must be silently skipped in Phase 1.k v1")
+        XCTAssertEqual(outputs.count, 1, "context-level presenter must emit one read-side AS in Phase 1.k.2")
+        XCTAssertEqual(
+            outputs[0].path,
+            "Sources/AuditQuotingContext/Adapter/GetThings/GetThingsApplicationService.swift",
+            "context-level AS must live in context target (Sources/<contextName>/Adapter/), not under any *Aggregate"
+        )
+        // Phase 1.k.2 audit-driven: TODO Reference path must point to context-level projector dir.
+        XCTAssertTrue(
+            outputs[0].content.contains("Reference: Sources/AuditQuotingContext/Projector/"),
+            "TODO Reference path must reflect context-level projector location"
+        )
     }
 
     func testUnknownAggregateRefSilentSkip() throws {

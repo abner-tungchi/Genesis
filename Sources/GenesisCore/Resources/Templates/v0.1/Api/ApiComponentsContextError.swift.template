@@ -1,0 +1,18 @@
+{AggregateImports}
+{SharedImport}
+
+
+extension Components.Schemas.{Context}ApiError {
+    // TODO: log unmapped domain error when project-wide logging is introduced.
+    package init(from error: ContextError<{Context}QueryError>) {
+        self = .init(from: error.error) ?? .undefinedDomainError
+    }
+
+    package init?(from error: {Context}QueryError) {
+        switch error {
+        case .notFound: self = .aggregateNotFound
+        }
+    }
+
+{PER_AGGREGATE_OVERLOADS}
+}

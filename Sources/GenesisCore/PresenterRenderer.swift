@@ -1,12 +1,14 @@
 import Foundation
 
 /// Phase 1.k: PresenterRenderer — read-side AS scaffold codegen.
+/// Phase 1.k.2: routing by readModel.aggregateRef via `PresenterPlacementResolver` (audit M3).
 ///
-/// Pure function of bundle. Per per-aggregate presenter emit:
-///   `Sources/<A>Aggregate/Adapter/<presenter.name>/<presenter.name>ApplicationService.swift`
+/// Pure function of bundle. Emits read-side `<presenter.name>ApplicationService.swift`:
+///   - per-aggregate placement → `Sources/<A>Aggregate/Adapter/<presenter.name>/...`
+///   - context-level placement → `Sources/<contextName>/Adapter/<presenter.name>/...`
 ///
-/// Cross-aggregate presenters (`aggregateRef == "<context-level>"`) silently skipped
-/// (defer Phase 1.k.2 — context-level read-side AS has different target structure).
+/// D1 (BundleParser) guarantees `presenter.aggregateRef` matches the resolved readModel
+/// aggregateRef, so routing decision is unambiguous here.
 public enum PresenterRenderer {
 
     public static func render(
@@ -18,24 +20,32 @@ public enum PresenterRenderer {
         var outputs: [(String, String, String)] = []
         let sharedImport = "import \(contextName)Shared"
 
-        for presenter in bundle.presenters {
-            // Defer cross-aggregate to Phase 1.k.2 (silent skip per /presenter skill design)
-            if presenter.aggregateRef == "<context-level>" {
-                continue
-            }
-            // Defensive: aggregateRef must exist in bundle.aggregates[]
-            guard bundle.aggregates.contains(where: { $0.name == presenter.aggregateRef }) else {
-                continue
+        for (presenter, placement) in PresenterPlacementResolver.placements(bundle: bundle) {
+            let basePath: String
+            let aRef: String          // {A} template var (used for {A}QueryError reference)
+            let projectorRefPath: String
+
+            switch placement {
+            case .aggregate(let aggName):
+                // Defensive: must exist in bundle.aggregates[].
+                guard bundle.aggregates.contains(where: { $0.name == aggName }) else { continue }
+                basePath = "Sources/\(aggName)Aggregate/Adapter"
+                aRef = aggName
+                projectorRefPath = "Sources/\(aggName)Aggregate/Usecase/Projector/"
+            case .context:
+                basePath = "Sources/\(contextName)/Adapter"
+                aRef = contextName
+                projectorRefPath = "Sources/\(contextName)/Projector/"
             }
 
-            let path = "Sources/\(presenter.aggregateRef)Aggregate/Adapter/\(presenter.name)/\(presenter.name)ApplicationService.swift"
-            if existingPaths.contains(path) {
-                continue  // scaffold-once
-            }
+            let path = "\(basePath)/\(presenter.name)/\(presenter.name)ApplicationService.swift"
+            if existingPaths.contains(path) { continue }  // scaffold-once
 
             let content = try renderApplicationService(
                 presenter: presenter,
-                sharedImport: sharedImport
+                sharedImport: sharedImport,
+                aRef: aRef,
+                projectorRefPath: projectorRefPath
             )
             outputs.append((path, content, "presenterApplicationService"))
         }
@@ -56,7 +66,9 @@ public enum PresenterRenderer {
 
     private static func renderApplicationService(
         presenter: PresenterSpec,
-        sharedImport: String
+        sharedImport: String,
+        aRef: String,
+        projectorRefPath: String
     ) throws -> String {
         let template = try TemplateLoader.loadTemplate(name: "Api/PresenterApplicationService.swift", ext: "template")
 
@@ -76,7 +88,8 @@ public enum PresenterRenderer {
         return TemplateRenderer.render(template: template, vars: [
             "SharedImport": sharedImport,
             "Name": presenter.name,
-            "A": presenter.aggregateRef,
+            "A": aRef,
+            "ProjectorRefPath": projectorRefPath,
             "INPUT_FIELDS": inputFields,
             "INIT_PARAMS": initParams,
             "INIT_ASSIGNMENTS": initAssignments,

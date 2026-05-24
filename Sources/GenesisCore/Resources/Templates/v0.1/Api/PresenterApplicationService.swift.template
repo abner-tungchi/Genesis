@@ -22,7 +22,7 @@ package struct {Name}ApplicationService: ApplicationService {
 
     package func execute(input: Input) async throws -> Output {
         // TODO(/presenter-fill skill): fetch via {Name}Presenter (projector) and map readModel.{ElementSource} to Output
-        // Reference: Sources/{A}Aggregate/Usecase/Projector/{Name}/{Name}Presenter.swift
+        // Reference: {ProjectorRefPath}{Name}/{Name}Presenter.swift
         fatalError("TODO(/presenter-fill skill): execute body for {Name}ApplicationService")
     }
 }

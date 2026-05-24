@@ -43,7 +43,112 @@ public enum OpenApiYamlRenderer {
                 outputs.append((cfgPath, cfgContent, "openapiGeneratorConfig"))
             }
         }
+
+        // Phase 1.k.2: Context-level openapi.yaml + config (when bundle has cross-agg presenter)
+        if PresenterPlacementResolver.hasContextLevelPresenter(bundle: bundle) {
+            let contextPresenters = bundle.presenters.filter { $0.aggregateRef == "<context-level>" }
+            let sourceAggs = PresenterPlacementResolver.contextSourceAggregates(bundle: bundle)
+            let sourceAggSpecs = bundle.aggregates.filter { sourceAggs.contains($0.name) }
+
+            let ctxYamlPath = "Sources/\(contextName)/openapi.yaml"
+            if !existingPaths.contains(ctxYamlPath) {
+                let ctxYamlContent = try renderContextOpenApiYaml(
+                    contextName: contextName,
+                    presenters: contextPresenters,
+                    sourceAggregates: sourceAggSpecs
+                )
+                outputs.append((ctxYamlPath, ctxYamlContent, "contextOpenapiYaml"))
+            }
+
+            let ctxCfgPath = "Sources/\(contextName)/openapi-generator-config.yaml"
+            if !existingPaths.contains(ctxCfgPath) {
+                let cfgContent = try TemplateLoader.loadTemplate(
+                    name: "Api/openapi-generator-config.yaml",
+                    ext: "template"
+                )
+                outputs.append((ctxCfgPath, cfgContent, "contextOpenapiGeneratorConfig"))
+            }
+        }
+
         return outputs
+    }
+
+    private static func renderContextOpenApiYaml(
+        contextName: String,
+        presenters: [PresenterSpec],
+        sourceAggregates: [AggregateSpec]
+    ) throws -> String {
+        let template = try TemplateLoader.loadTemplate(name: "Api/openapi-context.yaml", ext: "template")
+
+        var pathOps: [String] = []
+        var pathParamNames: Set<String> = []
+        for presenter in presenters {
+            let ucCamel = CaseTransformer.lowerCamel(presenter.name)
+            let pathParamName = presenter.input.fields.first?.name ?? "id"
+            pathParamNames.insert(pathParamName)
+
+            var op: [String] = []
+            op.append("  \(presenter.endpoint.path):")
+            op.append("    get:")
+            op.append("      operationId: \(ucCamel)")
+            op.append("      description: 'TODO: describe \(presenter.name)'")
+            op.append("      parameters:")
+            op.append("        - $ref: '#/components/parameters/\(pathParamName)'")
+            op.append("      responses:")
+            op.append("        '200':")
+            op.append("          description: 'success'")
+            op.append("          content:")
+            op.append("            application/json:")
+            op.append("              schema:")
+            switch presenter.output.kind {
+            case .array:
+                op.append("                type: array")
+                op.append("                items:")
+                op.append("                  $ref: '#/components/schemas/\(presenter.output.elementType)'")
+            case .single:
+                op.append("                $ref: '#/components/schemas/\(presenter.output.elementType)'")
+            case .scalar:
+                op.append("                type: \(yamlType(for: presenter.output.elementType))")
+            }
+            op.append("        '404':")
+            op.append("          $ref: '#/components/responses/NotFoundError'")
+            op.append("        '422':")
+            op.append("          $ref: '#/components/responses/UnprocessableEntityError'")
+            op.append("        '503':")
+            op.append("          $ref: '#/components/responses/ServiceUnavailableError'")
+            pathOps.append(op.joined(separator: "\n"))
+        }
+
+        // audit M6: context-level params are presenter-only — no operatorId, no aggregate-identity {A}Id
+        var parameterLines: [String] = []
+        for pname in pathParamNames.sorted() {
+            parameterLines.append("    \(pname):")
+            parameterLines.append("      name: \(pname)")
+            parameterLines.append("      in: path")
+            parameterLines.append("      required: true")
+            parameterLines.append("      schema:")
+            parameterLines.append("        type: string")
+        }
+        let parametersBlock = parameterLines.joined(separator: "\n")
+
+        // Domain error cases: union of all source-aggregate errorCodes (for context ApiError enum).
+        // Required so context-level ApiComponents per-agg overloads' `case .x: self = .x` compiles.
+        var seenCases: Set<String> = []
+        var domainCases: [String] = []
+        for agg in sourceAggregates.sorted(by: { $0.name < $1.name }) {
+            for inv in agg.invariants where !seenCases.contains(inv.errorCode) {
+                seenCases.insert(inv.errorCode)
+                domainCases.append("        - \(inv.errorCode)")
+            }
+        }
+
+        return TemplateRenderer.render(template: template, vars: [
+            "ContextName": contextName,
+            "Context": contextName,
+            "PATH_OPERATIONS": pathOps.joined(separator: "\n"),
+            "PARAMETERS_BLOCK": parametersBlock,
+            "DOMAIN_ERROR_CASES": domainCases.joined(separator: "\n"),
+        ]).output
     }
 
     private static func renderOpenApiYaml(

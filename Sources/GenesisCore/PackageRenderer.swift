@@ -20,12 +20,22 @@ public enum PackageRenderer {
             : ""
 
         // Phase 1.i: OpenAPI plugin conditional — only emit when aggregate has at least 1 write UC.
+        // Phase 1.k.2 (audit H4): extend to include read presenters + context-level presenter,
+        // otherwise presenter-only bundles reference OpenAPIRuntime/plugin without package deps.
         func hasWriteUC(_ agg: AggregateSpec) -> Bool {
             bundle.useCases.contains { uc in
                 uc.aggregateSpecId == agg.aggregateSpecId && !ApiRenderer.isReadUseCase(uc.useCase)
             }
         }
-        let anyAggregateHasWriteUC = bundle.aggregates.contains(where: hasWriteUC)
+        func hasReadPresenter(_ agg: AggregateSpec) -> Bool {
+            bundle.presenters.contains { $0.aggregateRef == agg.name }
+        }
+        func aggregateNeedsOpenApi(_ agg: AggregateSpec) -> Bool {
+            hasWriteUC(agg) || hasReadPresenter(agg)
+        }
+        let anyAggregateNeedsOpenApi = bundle.aggregates.contains(where: aggregateNeedsOpenApi)
+        let hasContextPresenter = PresenterPlacementResolver.hasContextLevelPresenter(bundle: bundle)
+        let needsOpenApi = anyAggregateNeedsOpenApi || hasContextPresenter
 
         var productLines: [String] = []
         var targetLines: [String] = []
@@ -34,14 +44,15 @@ public enum PackageRenderer {
             productLines.append(p.output.trimmingCharacters(in: CharacterSet.newlines))
 
             // Phase 1.i: conditional OpenAPI dep + resources + plugin per aggregate
-            let aggHasWrite = hasWriteUC(aggregate)
-            let openApiTargetDep: String = aggHasWrite
+            // Phase 1.k.2 (audit H4): extend trigger to read presenters too
+            let aggNeedsOpenApi = aggregateNeedsOpenApi(aggregate)
+            let openApiTargetDep: String = aggNeedsOpenApi
                 ? "                .product(name: \"OpenAPIRuntime\", package: \"swift-openapi-runtime\"),\n"
                 : ""
-            let openApiResources: String = aggHasWrite
+            let openApiResources: String = aggNeedsOpenApi
                 ? "            resources: [\n                .process(\"openapi.yaml\"),\n                .process(\"openapi-generator-config.yaml\"),\n            ],\n"
                 : ""
-            let openApiPlugin: String = aggHasWrite
+            let openApiPlugin: String = aggNeedsOpenApi
                 ? "                .plugin(name: \"OpenAPIGenerator\", package: \"swift-openapi-generator\"),\n"
                 : ""
 
@@ -88,16 +99,29 @@ public enum PackageRenderer {
             let aggregateDepLines = uniqueSources
                 .map { "                    .target(name: \"\($0)Aggregate\")," }
                 .joined(separator: "\n")
+            // Phase 1.k.2: context target carries Adapter (openapi + plugin) when bundle has cross-agg presenter.
+            let openApiCtxDep: String = hasContextPresenter
+                ? "                    .product(name: \"OpenAPIRuntime\", package: \"swift-openapi-runtime\"),\n"
+                : ""
+            let openApiCtxResources: String = hasContextPresenter
+                ? "                    .process(\"openapi.yaml\"),\n                    .process(\"openapi-generator-config.yaml\"),\n"
+                : ""
+            let openApiCtxPlugin: String = hasContextPresenter
+                ? "                    .plugin(name: \"OpenAPIGenerator\", package: \"swift-openapi-generator\"),\n"
+                : ""
             let contextTargetTemplate = try TemplateLoader.loadTemplate(name: "PackageContextTarget.swift", ext: "template")
             let ctxBlock = TemplateRenderer.render(template: contextTargetTemplate, vars: [
                 "ContextName": contextName,
                 "AggregateDepLines": aggregateDepLines,
+                "OpenApiContextDep": openApiCtxDep,
+                "OpenApiContextResources": openApiCtxResources,
+                "OpenApiContextPlugin": openApiCtxPlugin,
             ])
             contextTargetBlock = "\n" + ctxBlock.output.trimmingCharacters(in: CharacterSet.newlines)
             contextProductLine = "\n        .library(name: \"\(contextName)\", targets: [\"\(contextName)\"]),"
         }
 
-        let openApiDependencies: String = anyAggregateHasWriteUC
+        let openApiDependencies: String = needsOpenApi
             ? "        .package(url: \"https://github.com/apple/swift-openapi-generator\", from: \"1.0.0\"),\n        .package(url: \"https://github.com/apple/swift-openapi-runtime\", from: \"1.0.0\"),"
             : ""
 

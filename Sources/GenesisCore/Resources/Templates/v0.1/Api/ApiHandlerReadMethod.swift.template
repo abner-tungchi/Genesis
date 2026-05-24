@@ -9,6 +9,8 @@
         do {
             let output = try await service.execute(input: asInput)
             return .ok(.init(body: .json(output)))
+        } catch let error as ContextError<{QueryErrorType}> where error.error == .notFound {
+            return .notFound(.init(body: .json(.init(error: .aggregateNotFound))))
         } catch {
             if let apiError = mapToApiError(error) {
                 return .unprocessableContent(.init(body: .json(.init(error: apiError))))

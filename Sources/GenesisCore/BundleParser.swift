@@ -53,6 +53,13 @@ public enum BundleParser {
             }
         }
 
+        // Phase 1.k.2: presenter ↔ readModel validation pass (audit H1+M1+M2 fixes)
+        try validatePresentersAgainstReadModels(
+            presenters: presenters,
+            readModels: readModels,
+            aggregates: aggregates
+        )
+
         return FullBundle(
             manifestVersion: manifestVersion,
             bundleId: bundleId,
@@ -447,6 +454,86 @@ public enum BundleParser {
             domainTypeName: raw.domainTypeName,
             isContextShared: resolvedIsContextShared
         )
+    }
+
+    // MARK: - Phase 1.k.2 presenter ↔ readModel validations
+
+    /// audit M2 — strip optional + trim, then detect collection prefixes.
+    private static func isCollectionType(_ raw: String) -> Bool {
+        var t = raw.trimmingCharacters(in: .whitespaces)
+        // Strip trailing `?` (optional) — `Set<X>?` is still a collection.
+        while t.hasSuffix("?") { t.removeLast() }
+        t = t.trimmingCharacters(in: .whitespaces)
+        return t.hasPrefix("[")
+            || t.hasPrefix("Set<")
+            || t.hasPrefix("Array<")
+            || t.hasPrefix("Array[")
+            || t.hasPrefix("Dictionary<")
+            || t.hasPrefix("Dictionary[")
+    }
+
+    /// audit M1 — resolve readModel's effective aggregateRef.
+    /// nil aggregateRef + aggregateSpecId → resolve to aggregate.name; both nil → throw (only when presenter references this readModel).
+    private static func resolvedReadModelAggregateRef(
+        _ rm: ReadModelSpec,
+        aggregates: [AggregateSpec]
+    ) throws -> String {
+        if let ref = rm.aggregateRef { return ref }
+        if let specId = rm.aggregateSpecId,
+           let agg = aggregates.first(where: { $0.aggregateSpecId == specId }) {
+            return agg.name
+        }
+        throw GenesisError.bundleInvalid(
+            reason: "readModel '\(rm.name)' has neither aggregateRef nor resolvable aggregateSpecId; cannot be used by presenter"
+        )
+    }
+
+    private static func validatePresentersAgainstReadModels(
+        presenters: [PresenterSpec],
+        readModels: [ReadModelSpec],
+        aggregates: [AggregateSpec]
+    ) throws {
+        // (a) readModel name uniqueness (audit H1)
+        var seen: Set<String> = []
+        for rm in readModels {
+            if !seen.insert(rm.name).inserted {
+                throw GenesisError.bundleInvalid(
+                    reason: "duplicate readModel name '\(rm.name)'; readModel names must be unique within a bundle"
+                )
+            }
+        }
+
+        // Skip remaining checks if no presenters (per-agg-only bundles unaffected by Phase 1.k.2).
+        guard !presenters.isEmpty else { return }
+
+        // (b) readModelRef must exist (audit H1) — build lookup
+        let readModelsByName = Dictionary(uniqueKeysWithValues: readModels.map { ($0.name, $0) })
+
+        for p in presenters {
+            guard let rm = readModelsByName[p.readModelRef] else {
+                throw GenesisError.bundleInvalid(
+                    reason: "presenter '\(p.name)' references missing readModel '\(p.readModelRef)'"
+                )
+            }
+
+            // (c) D1 consistency — presenter.aggregateRef must match resolved readModel aggregateRef
+            let resolved = try resolvedReadModelAggregateRef(rm, aggregates: aggregates)
+            if p.aggregateRef != resolved {
+                throw GenesisError.bundleInvalid(
+                    reason: "presenter '\(p.name)' aggregateRef '\(p.aggregateRef)' does not match "
+                        + "readModelRef '\(p.readModelRef)' aggregateRef '\(resolved)' "
+                        + "(must be co-located per Phase 1.k.2 D1)"
+                )
+            }
+
+            // (d) D4 scalar + collection elementType reject (audit M2 boundary handling)
+            if p.output.kind == .scalar && isCollectionType(p.output.elementType) {
+                throw GenesisError.bundleInvalid(
+                    reason: "presenter '\(p.name)' scalar output cannot use collection elementType "
+                        + "'\(p.output.elementType)'; use kind=array or change elementType"
+                )
+            }
+        }
     }
 
     private static func decodePresenterSpec(_ raw: RawPresenter, idx: Int) throws -> PresenterSpec {

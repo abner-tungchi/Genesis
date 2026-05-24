@@ -920,6 +920,44 @@ fill execute() body：
 
 詳見 `docs/tasks/2026-05-23-presenter-fill-skill.md` + `docs/decisions.md` /presenter-fill skill v1 ratification 條目。
 
+### 10.13 Cross-aggregate read flow + QueryError 雙軌制（Phase 1.k.2，OC-aligned）
+
+Phase 1.k.2 補完 Phase 1.k 留下的「per-aggregate presenter 引用 context-level readModel」架構錯位（read-side AS 在 `{A}Aggregate` 但 projector 在 `{Context}` target 造成循環依賴）+ 對齊 OC 的 query-side error 雙軌制。
+
+```
+bundle JSON (含 cross-agg readModel + presenter，BundleParser 強制 D1 co-location)
+    ↓ genesis new (Phase 1.k.2)
+    ├── per-agg: Sources/{A}Aggregate/{A}QueryError.swift (case .notFound)
+    │            + Adapter/{Name}/{Name}ApplicationService.swift (kdbClient + Presenter projector 同 module)
+    │            + Adapter/ApiHandler.swift (404 catch ContextError<{A}QueryError>)
+    │            + Adapter/ApiComponents/ApiComponents+{A}ApiError.swift
+    │            + openapi.yaml
+    └── context-level (when bundle has cross-agg presenter):
+                 Sources/{Context}/{Context}QueryError.swift (case .notFound)
+                 + Adapter/{Name}/{Name}ApplicationService.swift (kdbClient + context-level projector 同 module)
+                 + Adapter/ApiHandler.swift (multi-branch mapToApiError import 各 source aggregate, 404 catch ContextError<{Context}QueryError>)
+                 + Adapter/ApiComponents/ApiComponents+{Context}ApiError.swift (per source aggregate overloads + QueryError overload)
+                 + openapi.yaml (無 operatorId/aggIdName，per-agg domain errorCodes union 進 ApiError enum)
+    ↓ /presenter-fill v2 (依路徑推導 module → 選 {QueryErrorType})
+fill execute() body：
+  non-optional nil → throw ContextError<{QueryErrorType}>(error: .notFound, ...) → 404
+  optional       → return readModel?.{elementSource}
+    ↓ swift build
+✓ cross-agg read endpoint 真正 serve 404 + ApiHandler/projector/openapi 全 compile pass
+```
+
+**關鍵設計**：
+
+- **D1 co-location（BundleParser 強制）**：`presenter.aggregateRef == resolved readModel.aggregateRef`。不一致 reject `bundleInvalid`。這隱含 OC 的「presenter/AS/readModel 同 target」規則。
+- **`PresenterPlacementResolver` 共用 helper（audit M3）**：5 個 renderer（Presenter/QueryError/ApiHandler/OpenApiYaml/Package）皆透過此 helper 判 per-agg vs context-level，避免邏輯散落 drift。
+- **QueryError 雙軌制（OC pattern F1）**：per-aggregate + context-level 各自的 `<X>QueryError.swift`（v1 預設 `case notFound`），讀取端 ApiHandler 加 `catch ContextError<{X}QueryError> where error.error == .notFound → .notFound(.init(error: .aggregateNotFound))` 404 catch。`aggregateNotFound` 已是 ApiError infra case（Phase 1.i），故 read 404 reuse 不需 openapi enum 改動。
+- **context-level ApiHandler 獨立 template**（audit H3）：不沿用 per-agg template（後者帶 `repository` / `{A}AggregateEventMapper` 不存在符號），新 `ApiHandlerContext.swift.template` 僅 kdbClient + mapToApiError + read methods。mapToApiError multi-branch import 各 source aggregate（透過 readModel.events.sourceAggregate dedup），對齊 OC `OpportunityContext.Adapter.ApiHandler` 多 branch pattern。
+- **needsOpenApi 擴展**（audit H4）：top-level swift-openapi-* package deps 條件由「有任一 write UC」改為「有任一 write UC 或任一 read presenter（per-agg/context）」，否則 presenter-only 場景 SwiftPM resolve fail。per-agg target conditional 同步擴展。
+- **/presenter-fill v2 升級**：Phase 1 glob 加 `Sources/*/Adapter/` context 路徑；non-optional nil throw 從 v1 `ProjectionReadInconsistency → 503` 升級為 `ContextError<{QueryErrorType}> → 404`，**解除 v1 known limit #2**。v1 既有 fills 不自動升級（structural invariant 視為「已填」exit 0），user 想升級須手 unfill。
+- **scalar+collection reject**（D4）：BundleParser 攔 `presenter.output.kind=.scalar` 配 collection elementType（Set</Array</[/Dictionary< prefix + strip optional + trim），避免 openapi `OpenAPIArrayContainer` 錯配（Phase 1.k 既有限制，現在 fail-fast at bundle level）。
+
+詳見 `docs/tasks/phase-1k2-cross-aggregate-presenter.md` + `docs/decisions.md` Phase 1.k.2 ratification 條目。
+
 
 ## 11. Open questions
 

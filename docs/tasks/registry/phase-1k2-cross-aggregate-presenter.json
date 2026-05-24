@@ -1,0 +1,70 @@
+{
+  "id": "phase-1k2-cross-aggregate-presenter",
+  "file": "docs/tasks/phase-1k2-cross-aggregate-presenter.md",
+  "title": "Phase 1.k.2 — Cross-aggregate presenter + QueryError 雙軌制（OC-aligned full pattern）",
+  "status": "done",
+  "created": "2026-05-25",
+  "depends_on": [
+    "phase-1f-context-shared-infra",
+    "phase-1g-readmodel-renderer",
+    "phase-1g2-cross-aggregate-codegen",
+    "phase-1h-api-renderer",
+    "phase-1i-api-handler",
+    "phase-1k-presenter-renderer",
+    "2026-05-23-presenter-fill-skill"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-24-phase-1k2-cross-aggregate-presenter.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/BundleParser.swift",
+    "file:Sources/GenesisCore/PresenterRenderer.swift",
+    "file:Sources/GenesisCore/ApiHandlerRenderer.swift",
+    "file:Sources/GenesisCore/OpenApiYamlRenderer.swift",
+    "file:Sources/GenesisCore/PackageRenderer.swift",
+    "file:Sources/Genesis/Commands/NewCommand.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/PresenterApplicationService.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiHandlerReadMethod.swift.template"
+  ],
+  "verification": [
+    "test -f Sources/GenesisCore/QueryErrorRenderer.swift",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/QueryError.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiComponentsContextError.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiHandlerContext.swift.template",
+    "grep -F '0.1.0-phase1k2' Sources/GenesisCore/Version.swift",
+    "grep -F 'presenter' Sources/GenesisCore/BundleParser.swift | grep -F 'aggregateRef'",
+    "grep -F 'scalar output cannot use collection' Sources/GenesisCore/BundleParser.swift",
+    "grep -F '{ProjectorRefPath}' Sources/GenesisCore/Resources/Templates/v0.1/Api/PresenterApplicationService.swift.template",
+    "! grep -F 'Sources/{A}Aggregate/Usecase/Projector/' Sources/GenesisCore/Resources/Templates/v0.1/Api/PresenterApplicationService.swift.template",
+    "grep -F 'ContextError<{QueryErrorType}>' Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiHandlerReadMethod.swift.template",
+    "grep -F 'QueryError' Sources/GenesisCore/Resources/Templates/skills/presenter-fill/SKILL.md",
+    "! grep -F 'ProjectionReadInconsistency' Sources/GenesisCore/Resources/Templates/skills/presenter-fill/SKILL.md",
+    "diff Sources/GenesisCore/Resources/Templates/skills/presenter-fill/SKILL.md ~/.claude/skills/presenter-fill/SKILL.md",
+    "python3 -c \"import json; d=json.load(open('Tests/GenesisIntegrationTests/Fixtures/iam-presenter-bundle.json')); assert d['presenters'][0]['aggregateRef'] == '<context-level>'\"",
+    "test -f Tests/GenesisIntegrationTests/Fixtures/iam-cross-agg-presenter-bundle.json",
+    "swift build",
+    "swift test",
+    "mkdir -p /tmp/phase1k2-install-test",
+    "./.build/debug/genesis install-skills --scope project --project-dir /tmp/phase1k2-install-test --force",
+    "grep -F 'QueryError' /tmp/phase1k2-install-test/.claude/skills/presenter-fill/SKILL.md",
+    "grep -F 'Phase 1.k.2' docs/decisions.md",
+    "grep -F 'QueryError' docs/architecture.md"
+  ],
+  "tags": [
+    "feature",
+    "phase-1k2",
+    "cross-aggregate",
+    "done"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-25T00:00:00Z",
+      "note": "write-spec + 第二輪 OC 深探（user 質疑驅動：發現 OC QueryError 雙軌制 + 404 catch pattern，scope 從『修補包』擴為『完整補包』）+ audit-spec pass。內部 4b/5b 全 PASS（7 phase 依賴皆 done）。Codex external 4H+7M+1L 全套修：H1 BundleParser 加 readModel name uniqueness + readModelRef exists + (a)(b)(c)(d) validation 順序、H2 NewCommand path 修正、H3 新 ApiHandlerContext.swift.template（無 repository）、H4 PackageRenderer needsOpenApi 擴 read presenter、H5 /presenter-fill v2 Phase 1 glob 加 context-level path；M1 resolvedReadModelAggregateRef helper、M2 isCollectionType 邊界、M3 PresenterPlacement 共用 helper、M4 QueryErrorRenderer existingPaths scaffold-once、M5 ApiComponents overloads 對齊 per-agg、M6 context openapi 獨立 param、M7 v2 retro-upgrade scope、M8 既有 testCrossAggregateSilentSkip flip；L1 registry 入改動檔案。決策 D1 reject Case Y / D2 完整 OC QueryError 雙軌制 / D4 reject scalar+collection。下一步 pickup（實作 7+ renderer 改動 + 新 template + QueryErrorRenderer + 新 fixture + real cross-agg E2E swift build）。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-25T12:00:00Z",
+      "note": "Pickup 實作完整 Phase 1.k.2 OC-aligned cross-agg + QueryError 雙軌制：(1) PresenterPlacementResolver 共用 helper 統一 5 個 renderer routing；(2) BundleParser D1 (presenter↔readModel aggregateRef co-location) + D4 (scalar+collection reject) + readModel name uniqueness + readModelRef-must-exist validation；(3) PresenterRenderer 改 readModel-aggregateRef 路由（context-level → Sources/{Context}/Adapter/，解 circular dep）+ ProjectorRefPath placeholder；(4) QueryErrorRenderer + QueryError.swift.template emit per-agg {A}QueryError + context {Context}QueryError（scaffold-once）；(5) ApiHandlerContext.swift.template + ApiComponentsContextError.swift.template 兩個獨立 template（無 repository / per-agg overloads + ContextError<{Context}QueryError> non-optional overload + import 各 source aggregate target）；(6) ApiHandlerReadMethod 加 404 catch (reuse infra .aggregateNotFound)；(7) OpenApiYamlRenderer 加 context-level openapi 獨立 param 收集 + per-agg domain errorCodes union 進 {Context}ApiError enum；(8) PackageRenderer needsOpenApi 擴 includes read presenter + context-level；(9) /presenter-fill v2 升級 SKILL.md：Phase 1 glob 加 Sources/*/Adapter/ context 路徑 + non-optional nil 升級 throw ContextError<{QueryErrorType}>.notFound → 404 (解除 v1 known limit #2)；(10) iam-presenter-bundle fixture 修 Case Y + 建 iam-cross-agg-presenter-bundle.json；(11) testCrossAggregateSilentSkip flip 為 testCrossAggregateRoutesToContextAdapter（audit M8）；(12) NewCommand 加 QueryErrorRenderer step + scanExistingApiPaths 擴 context paths + QueryError 路徑。Version → 0.1.0-phase1k2。全 212 tests PASS。Real E2E cross-agg swift build PASS（/tmp/pk2-e2e: IAMContext.swiftmodule + Adapter/{ApiHandler, ApiComponents+IAMContextApiError, GetUserAccessSummary AS} + IAMContextQueryError 全 compile，filled body throw ContextError<IAMContextQueryError>.notFound 由 404 catch 接住）。"
+    }
+  ]
+}

@@ -3,12 +3,12 @@
 {AggregateDepLines}
                     .target(name: "{ContextName}Shared"),
                     .product(name: "DDDKit", package: "swift-ddd-kit"),
-                ],
+{OpenApiContextDep}                ],
                 resources: [
                     .process("event.yaml"),
                     .process("projection-model.yaml"),
                     .process("event-generator-config.yaml"),
-                ],
+{OpenApiContextResources}                ],
                 plugins: [
                     .plugin(name: "ModelGeneratorPlugin", package: "swift-ddd-kit"),
-                ]),
+{OpenApiContextPlugin}                ]),

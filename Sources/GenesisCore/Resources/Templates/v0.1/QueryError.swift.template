@@ -1,0 +1,13 @@
+import Foundation
+{SharedImport}
+
+
+package enum {QueryErrorTypeName}: Error, Equatable {
+    case notFound
+}
+
+extension ContextError where ErrorType == {QueryErrorTypeName} {
+    package static func notFound(in source: Source, message: String) -> Self {
+        return .init(error: .notFound, in: source, message: message)
+    }
+}
