@@ -1008,6 +1008,59 @@ Phase 1.j 補完 Phase 1.h/1.i defer 的 OC pattern：當 UC 的 AS Input 含 `D
 
 詳見 `docs/tasks/phase-1j-variant-b-extension.md` + `docs/decisions.md` Phase 1.j ratification 條目。
 
+### 10.16 Usecase Input OC alignment（Phase 1.l）
+
+Phase 1.l 修補 Genesis 與 OC 的一處架構 divergence —— Genesis 原本 Usecase Input 只含業務欄位（缺 aggId + operatorId），導致 OC Usecase body pattern（`repository.find(byId: input.<aggId>)` / `repository.save(..., userId: input.operatorId)`）無法在 Genesis 端 1:1 套用。Phase 1.l 改 `UseCaseRenderer.renderInput` 自動 inject 兩個 field，並把 /api skill 升 v6 以 pass-through 取代原本的「Service Input SSOT」邏輯。
+
+```
+bundle.useCases[<UC>].input = [業務欄位 only]  (未變更)
+  ↓ UseCaseRenderer.renderInput
+emit <UC>Input = [<aggId>: String, ...業務欄位, operatorId: String]  (canonical ordering, dedupe)
+  ↓ AS Input ≡ Usecase Input
+/api v6 category 1 fill：
+  service.execute(input: .init(<aggId>:, ...業務欄位:, operatorId:))   ← 全 1:1 pass-through
+  ↓ unlock /usecase skill (input.<aggId> + input.operatorId 都可取)
+Usecase extension execute() body 寫 OC pattern：
+  repository.find → aggregate.method → repository.save → return
+```
+
+**OC reference**：`EditPaidInCapitalInput` / `EditFontSizeInput` / `CreateQuotationInput` 皆為 `{aggId, 業務, operatorId}` shape；Phase 1.l 後 Genesis 對齊。
+
+**Breaking change**：既有 /api v4 fills 缺新欄位，需 manual unfill + 重跑 /api v6。v6 idempotent invariant 偵測 stale v4 fill → exit 4（audit M5）。
+
+詳見 `docs/tasks/phase-1l-usecase-input-oc-alignment.md` + `docs/decisions.md` Phase 1.l ratification 條目。
+
+### 10.17 /usecase skill — domain orchestration body fill flow（v1，第四個 fill skill）
+
+`/usecase` 是 `/api`、`/presenter-fill`、`/readmodel-mutation` 之後的第四個 in-place fill skill。對 `{UC}Usecase.swift` extension 的 `execute(input:)` body 填 OC pattern。**前置條件**：Phase 1.l 已 done（Usecase Input 含 aggId + operatorId）。
+
+```
+bundle JSON
+  → genesis new (Phase 1.g/1.h scaffold + GENESIS-STUB)
+{UC}Usecase.swift extension default execute() body = `fatalError("not implemented")`
+  → /usecase <useCaseName>
+依 3 patterns + structural detection 填：
+  Delete: find → repository.delete(byId:, userId:) → return .init(id:)
+  Create: try <A>(id:, ...) → repository.save → return .init(id:..., message: nil)
+          (init params 對 input business fields 配對；缺 → exit 3)
+  Update: find → guard → <agg>.<ucCamel>(<methodArgs>:) → repository.save → return
+          (method args 依 Command extension signature 順序；缺 → exit 3)
+共用 catch ladder: ContextError<<A>Error> + DDDError + executeUsecaseFailed fallback
+  ↓ swift build
+✓ Usecase 真實邏輯運作（從 fatalError trap → 真實 orchestration）
+```
+
+**關鍵設計（OC-aligned）**：
+
+- **Structural detection（audit H2）**：Update 不靠 prefix gate（`grantPrivilege`/`promoteUser` 等不符 Edit/Set/Rename prefix），改為「Command extension `<A>+<UC>.swift` 存在且含 `package func <ucCamel>(`」結構判定。
+- **Create init 防呆（audit H1）**：parse 真實 `<A>(id:,...)` 簽名 + 逐 param 驗在 input business fields；不可預設 input fields = init fields（Genesis aggregate init 來自 createdEvent.eventPayload，可能多於 useCase.input）。
+- **Update args 依 signature 順序（audit M6）**：parse Command method label list，emit 順序匹配，非 input 順序。
+- **共用 catch ladder（audit M3）**：Delete 補 `ContextError<<A>Error>` 對齊 Create/Update，未來擴 domain error 不用回頭修。
+
+**完成 4 個 fill skill chain**：bundle → scaffold → /api（write AS）→ /presenter-fill（read AS）→ /readmodel-mutation（projector when）→ **/usecase（Usecase orchestration）** → swift build → 真實 domain logic 運作。
+
+詳見 `docs/tasks/2026-05-26-usecase-skill.md` + `docs/decisions.md` /usecase skill v1 ratification 條目。
+
 
 ## 11. Open questions
 

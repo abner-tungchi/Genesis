@@ -1,0 +1,52 @@
+{
+  "id": "2026-05-26-usecase-skill",
+  "file": "docs/tasks/2026-05-26-usecase-skill.md",
+  "title": "/usecase skill v1 — fill Usecase extension execute() body (3 OC patterns)",
+  "status": "done",
+  "created": "2026-05-26",
+  "depends_on": [
+    "phase-1l-usecase-input-oc-alignment",
+    "phase-1f-context-shared-infra",
+    "phase-1g-readmodel-renderer",
+    "phase-1h-api-renderer",
+    "phase-1k-presenter-renderer",
+    "2026-05-18-api-skill"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-26-usecase-alignment-and-fill-skill.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md"
+  ],
+  "verification": [
+    "test -f ~/.claude/skills/usecase/SKILL.md",
+    "[ $(wc -l < ~/.claude/skills/usecase/SKILL.md) -le 200 ]",
+    "grep -F 'Create pattern' ~/.claude/skills/usecase/SKILL.md",
+    "grep -F 'Update pattern' ~/.claude/skills/usecase/SKILL.md",
+    "grep -F 'Delete pattern' ~/.claude/skills/usecase/SKILL.md",
+    "grep -F 'repository.find(byId:' ~/.claude/skills/usecase/SKILL.md",
+    "grep -F 'DDDError.aggregateNotFound' ~/.claude/skills/usecase/SKILL.md",
+    "grep -F 'ContextError<' ~/.claude/skills/usecase/SKILL.md",
+    "diff ~/.claude/skills/usecase/SKILL.md Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md",
+    "grep -F 'usecase' Tests/GenesisCoreTests/SkillInstallerTests.swift",
+    "swift build",
+    "swift test --filter SkillInstallerTests"
+  ],
+  "tags": [
+    "skill",
+    "usecase",
+    "fill",
+    "done"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-26T00:00:00Z",
+      "note": "write-spec + Codex external audit pass (跨 spec 修 H1 Create init mismatch + H2 Update structural detection + M3 Delete ContextError catch + M6 signature-order args + L7 Output shape wording)。前置條件 Phase 1.l 待 done。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-26T01:50:00Z",
+      "note": "SKILL.md 139 行 ≤200 + 14/14 mechanical gate PASS + 212/212 全 test suite PASS。Real E2E PASS: iam-bundle 重生 (Phase 1.l Usecase Input 含 aggId+operatorId + Usecase.swift import IAMContextShared) → 填 PromoteUserUsecase Update pattern (guard repository.find → try userAccessProfile.promoteUser(...) → repository.save → 完整 catch ladder) → PromoteUserUsecase.swift.o compiled。SkillInstaller count 維持 9 (usecase placeholder 早在 list 內，僅內容從 placeholder 變真實)。完成 4 個 fill skill chain：/api + /presenter-fill + /readmodel-mutation + /usecase。"
+    }
+  ]
+}

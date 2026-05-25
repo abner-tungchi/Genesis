@@ -25,7 +25,7 @@ final class SkillInstallerTests: XCTestCase {
     func testInstallIntoEmptyDir() throws {
         let target = tmpDir.appendingPathComponent("skills", isDirectory: true)
         let summary = try SkillInstaller.install(into: target, force: false)
-        XCTAssertEqual(summary.installed.count, 9)
+        XCTAssertEqual(summary.installed.count, 9)  // usecase is now real SKILL.md, but count unchanged (was already in list as placeholder)
         XCTAssertTrue(summary.skipped.isEmpty)
         XCTAssertTrue(summary.overwritten.isEmpty)
         XCTAssertTrue(summary.failed.isEmpty)

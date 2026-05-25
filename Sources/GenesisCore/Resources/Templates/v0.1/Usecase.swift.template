@@ -1,4 +1,5 @@
 import DDDKit
+{SharedImport}
 
 package protocol {UC}Usecase: Usecase<{UC}Input, {UC}Output> {
     var repository: {Aggregate}Repository { get }

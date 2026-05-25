@@ -1,0 +1,46 @@
+{
+  "id": "phase-1l-usecase-input-oc-alignment",
+  "file": "docs/tasks/phase-1l-usecase-input-oc-alignment.md",
+  "title": "Phase 1.l — Usecase Input OC alignment + /api skill v6",
+  "status": "done",
+  "created": "2026-05-26",
+  "depends_on": [
+    "phase-1e-aggregate-alignment",
+    "phase-1h-api-renderer",
+    "phase-1i-api-handler",
+    "2026-05-18-api-skill",
+    "phase-1j-variant-b-extension"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-26-usecase-alignment-and-fill-skill.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/UseCaseRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md"
+  ],
+  "verification": [
+    "grep -F 'identityName' Sources/GenesisCore/UseCaseRenderer.swift",
+    "grep -F 'operatorId' Sources/GenesisCore/UseCaseRenderer.swift",
+    "[ $(wc -l < Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md) -le 200 ]",
+    "diff Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md ~/.claude/skills/api/SKILL.md",
+    "swift build",
+    "swift test"
+  ],
+  "tags": [
+    "phase-1l",
+    "codegen",
+    "oc-alignment",
+    "done"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-26T00:00:00Z",
+      "note": "write-spec + Codex external audit pass (跨 spec M4+M5 修進，含 dedupe aggId+operatorId、stale v4 fill detection)。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-26T01:30:00Z",
+      "note": "UseCaseRenderer.renderInput 改 canonical ordering [aggIdField] + businessFields + [operatorIdField]，filter dedupe aggId+operatorId（audit M4）。/api SKILL.md v6（192 行 ≤200）category 1 改 pass-through 全 fields；audit M5 stale v4 fill detection 加進 idempotent invariant。Real E2E PASS：iam-bundle 重生 → CreateUserAccessProfileInput = {useraccessprofileId,userId,department,jobTitle,operatorId} (OC 1:1) → 填 pass-through v6 form → CreateUserAccessProfileApplicationService.swift.o compiled。全 test suite (含 NewCommand integration tests) 0 regression。"
+    }
+  ]
+}

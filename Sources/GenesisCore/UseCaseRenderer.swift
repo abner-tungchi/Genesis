@@ -18,15 +18,24 @@ public enum UseCaseRenderer {
 
         let inputDir = "Sources/\(aggregate)Aggregate/Usecase/Port/In/\(ucName)"
 
+        // Phase 1.l: lookup aggregate.identityName to auto-inject aggId field into UsecaseInput (OC alignment).
+        guard let agg = bundle.aggregates.first(where: { $0.aggregateSpecId == useCase.aggregateSpecId }) else {
+            throw GenesisError.bundleInvalid(
+                reason: "useCase '\(useCase.useCase)' aggregateSpecId '\(useCase.aggregateSpecId)' not found in bundle.aggregates"
+            )
+        }
+        let aggIdName = agg.identityName
+
         var outputs: [(String, String, String)] = []
 
         outputs.append(try renderInput(
             uc: ucName, fields: useCase.input,
+            aggIdName: aggIdName,
             adapter: adapter, knownCustomTypes: knownCustomTypes,
             sharedImport: sharedImport, dir: inputDir
         ))
         outputs.append(try renderOutput(uc: ucName, dir: inputDir))
-        outputs.append(try renderUsecase(uc: ucName, aggregate: aggregate, dir: inputDir))
+        outputs.append(try renderUsecase(uc: ucName, aggregate: aggregate, sharedImport: sharedImport, dir: inputDir))
         outputs.append(try renderService(uc: ucName, aggregate: aggregate))
         outputs.append(try renderCommandExtension(
             uc: ucName,
@@ -45,15 +54,23 @@ public enum UseCaseRenderer {
     private static func renderInput(
         uc: String,
         fields: [FieldSpec],
+        aggIdName: String,
         adapter: Adapter,
         knownCustomTypes: Set<String>,
         sharedImport: String,
         dir: String
     ) throws -> (String, String, String) {
+        // Phase 1.l (audit M4): canonical ordering — aggId first, business fields middle, operatorId last.
+        // Filter dedupes user-supplied aggId/operatorId in useCase.input[] to avoid double-emit.
+        let businessFields = fields.filter { $0.name != aggIdName && $0.name != "operatorId" }
+        let aggIdField = FieldSpec(name: aggIdName, rawType: "String")
+        let operatorIdField = FieldSpec(name: "operatorId", rawType: "String")
+        let canonicalFields = [aggIdField] + businessFields + [operatorIdField]
+
         var decls: [String] = []
         var initParamsParts: [String] = []
         var assignments: [String] = []
-        for field in fields {
+        for field in canonicalFields {
             let resolved = try SwiftTypeResolver.resolve(
                 rawType: field.rawType, knownCustomTypes: knownCustomTypes, adapter: adapter
             )
@@ -82,7 +99,7 @@ public enum UseCaseRenderer {
         return ("\(dir)/\(uc)Output.swift", rendered.output, "usecaseOutput")
     }
 
-    private static func renderUsecase(uc: String, aggregate: String, dir: String) throws -> (String, String, String) {
+    private static func renderUsecase(uc: String, aggregate: String, sharedImport: String, dir: String) throws -> (String, String, String) {
         let template = try TemplateLoader.loadTemplate(name: "Usecase.swift", ext: "template")
         let rendered = TemplateRenderer.render(
             template: template,
@@ -90,6 +107,7 @@ public enum UseCaseRenderer {
                 "UC": uc,
                 "Aggregate": aggregate,
                 "useCaseCamelCase": CaseTransformer.lowerCamel(uc),
+                "SharedImport": sharedImport,
             ]
         )
         return ("\(dir)/\(uc)Usecase.swift", rendered.output, "usecase")

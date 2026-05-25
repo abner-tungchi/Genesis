@@ -104,13 +104,9 @@ Read 並解析（用語意錨點，勿用行號）：
 
 半填 → **exit 4**：`partial fill detected in <file>; manual repair needed before /api`。
 
-### category 1 — ApplicationService execute()
+### category 1 — ApplicationService execute()（v6 — Phase 1.l OC pass-through）
 
-**Service Input 是 SSOT（不可硬塞欄位）**：`<UC>Service` conform `<UC>Usecase: Usecase<<UC>Input, <UC>Output>`，
-其 `execute(input:)` 收 `<UC>Input`（在 `Usecase/Port/In/<ucPascal>/<ucPascal>Input.swift`）。
-構造 `.init(...)` 時 **只**填 `<UC>Input` **實際宣告**的 fields，每個從**同名** AS Input field 取 `input.<field>`。
-**不要假設**含 `<aggIdName>` 或 `operatorId`——只有 `<UC>Input` 真的宣告它們時才填。
-`return .init(...)` 用 **AS Output 宣告**的 fields（同名取自 `input`，通常 = aggregate id）。
+**Phase 1.l 後 `<UC>Input` ≡ AS Input**（含 aggId + 業務欄位 + operatorId）。pass-through 全部 fields：
 
 Edit 替換 `fatalError("TODO(/api skill): execute body ...")` 整段為（依各 struct 實際欄位）：
 
@@ -122,15 +118,12 @@ Edit 替換 `fatalError("TODO(/api skill): execute body ...")` 整段為（依�
         return .init(<每個 AS Output 宣告的 field>: input.<field>)
 ```
 
-> 實例（createUserAccessProfile）：`<UC>Input` = `{userId, department, jobTitle}`（無 aggId/operatorId），
-> AS Output = `{useraccessprofileId}` → execute body 為
-> `service.execute(input: .init(userId: input.userId, department: input.department, jobTitle: input.jobTitle))`
-> + `return .init(useraccessprofileId: input.useraccessprofileId)`。
+> 實例（createUserAccessProfile, Phase 1.l 後）：`<UC>Input` = `{useraccessprofileId, userId, department, jobTitle, operatorId}` → execute body 為
+> `service.execute(input: .init(useraccessprofileId: input.useraccessprofileId, userId: input.userId, department: input.department, jobTitle: input.jobTitle, operatorId: input.operatorId))` + `return .init(useraccessprofileId: input.useraccessprofileId)`。
 
-**server-generated ID（Variant）**：若 `<UC>Input` 有 `*Id` String field（lowercased suffix `id`）
-但 AS Input **無**此 field → 在 `let service` 前加 `let <idField> = UUID().uuidString`，
-並把 `<idField>: <idField>` 填進 `<UC>Input.init`。
-**重要（audit H3）**：generated ID **只**進 Service Input，`return .init(...)` 維持 AS Output 原 shape 不變。
+**Stale v4 fill 偵測（audit M5）**：category 1 idempotent invariant 改成 parse 已填 body `.init(...)` 的 argument labels 與**當前** `<UC>Input` 宣告的 fields 比對。若 labels 缺 aggId 或 operatorId → **exit 4 stale v4 fill detected**，hint：「Phase 1.l 後 v4 fill 缺新欄位；manual unfill + 重跑 /api v6」。
+
+**server-generated ID（Variant）**：若 `<UC>Input` 有 `*Id` field 但 AS Input 無 → `let <idField> = UUID().uuidString` 先 emit，填進 `<UC>Input.init`。AS Output 維持原 shape。
 
 ### category 2 — ApiHandler AS Input 構造
 
