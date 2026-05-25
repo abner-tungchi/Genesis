@@ -1,0 +1,50 @@
+{
+  "id": "phase-1j-variant-b-extension",
+  "file": "docs/tasks/phase-1j-variant-b-extension.md",
+  "title": "Phase 1.j — Variant B init(from payload:) extension emission (Date scope)",
+  "status": "done",
+  "created": "2026-05-25",
+  "depends_on": [
+    "phase-1f-context-shared-infra",
+    "phase-1h-api-renderer",
+    "phase-1i-api-handler",
+    "2026-05-18-api-skill"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-25-phase-1j-variant-b-extension.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/ApplicationService.swift.template",
+    "file:Sources/GenesisCore/ApiRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md"
+  ],
+  "verification": [
+    "grep -F '{PAYLOAD_INIT_EXTENSION}' Sources/GenesisCore/Resources/Templates/v0.1/Api/ApplicationService.swift.template",
+    "grep -F 'hasVariantBDate' Sources/GenesisCore/ApiRenderer.swift",
+    "grep -F 'renderPayloadInitExtension' Sources/GenesisCore/ApiRenderer.swift",
+    "swift build",
+    "swift test --filter ApiRendererTests",
+    "grep -F 'init(from payload:' Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md",
+    "grep -F 'Iso8601ParsingError' Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md",
+    "grep -F 'short-form' Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md",
+    "diff Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md ~/.claude/skills/api/SKILL.md",
+    "grep -F 'Phase 1.j' docs/decisions.md"
+  ],
+  "tags": [
+    "feature",
+    "phase-1j",
+    "quality",
+    "done"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-25T16:00:00Z",
+      "note": "write-spec + self-audit（Codex API 529 unavailable）+ 確認 Genesis parseIso8601 雙 overload 簡化 Date/Date? body emission。下一步 pickup（template placeholder + ApiRenderer + /api v5 + fixture + e2e）。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-25T17:00:00Z",
+      "note": "ApplicationService.swift.template 加 {PAYLOAD_INIT_EXTENSION} placeholder；ApiRenderer 加 hasVariantBDate + renderPayloadInitExtension（Date/Date? 用 try Date.parseIso8601(payload.<f>) 統一 emission，Phase 1.f parseIso8601 雙 overload Swift 自動 resolve）；/api SKILL.md v5 加短形偵測（grep extension + 純 Date → 短形 try Init(from:) + catch is Iso8601ParsingError → .invalidDateFormat），199 行 ≤200；新 fixture iam-date-uc-bundle.json 加 scheduleAccessReview UC + reviewDate: Date + AccessReviewScheduled event。Real E2E swift build PASS (/tmp/p1j-e2e: ScheduleAccessReviewApplicationService.swift.o compiled with extension  + try Date.parseIso8601(payload.reviewDate))。Variant A regression PASS（10/10 ApiRendererTests，iam-bundle 全 plain String 不 emit extension）。Codex audit unavailable (API 529 第 4 次) — self-audit 確認 parseIso8601 雙 overload 簡化、v4 idempotent 不 retro-upgrade、Decimal v2。"
+    }
+  ]
+}

@@ -135,6 +135,14 @@ public enum ApiRenderer {
             .map { "        self.\($0.0) = \($0.0)" }
             .joined(separator: "\n")
 
+        // Phase 1.j: emit `extension {UC}ApplicationServiceInput { init(from payload:) throws { ... } }`
+        // in same AS file when any non-aggId non-operatorId field resolves to Date / Date?.
+        let payloadInitExtension = renderPayloadInitExtension(
+            ucPascal: ucPascal,
+            aggIdName: aggIdName,
+            resolvedFields: resolvedFields
+        )
+
         return TemplateRenderer.render(template: template, vars: [
             "SharedImport": sharedImport,
             "UC": ucPascal,
@@ -143,7 +151,52 @@ public enum ApiRenderer {
             "INPUT_FIELDS": inputFields,
             "INIT_PARAMS_MID": initParamsMid,
             "INIT_ASSIGNMENTS": initAssignments,
+            "PAYLOAD_INIT_EXTENSION": payloadInitExtension,
         ]).output
+    }
+
+    // MARK: - Phase 1.j: Variant B-Date init(from payload:) extension
+
+    /// Returns true iff any resolved field type equals "Date" or "Date?" (Variant B-Date trigger).
+    private static func hasVariantBDate(resolvedFields: [(String, String)]) -> Bool {
+        resolvedFields.contains { _, type in type == "Date" || type == "Date?" }
+    }
+
+    /// Emit the `extension {UC}ApplicationServiceInput { init(from payload:) throws { ... } }` block,
+    /// OR empty string when no Date field (Variant A path stays unchanged).
+    /// Each non-aggId non-operatorId field maps to:
+    /// - plain → `<f>: payload.<f>,`
+    /// - Date / Date? → `<f>: try Date.parseIso8601(payload.<f>),`
+    ///   (Phase 1.f `parseIso8601` has String→Date + String?→Date? overloads; Swift auto-resolves.)
+    private static func renderPayloadInitExtension(
+        ucPascal: String,
+        aggIdName: String,
+        resolvedFields: [(String, String)]
+    ) -> String {
+        guard hasVariantBDate(resolvedFields: resolvedFields) else { return "" }
+        let fieldLines: String = resolvedFields.map { name, type -> String in
+            if type == "Date" || type == "Date?" {
+                return "            \(name): try Date.parseIso8601(payload.\(name)),"
+            }
+            return "            \(name): payload.\(name),"
+        }.joined(separator: "\n")
+
+        return """
+        extension \(ucPascal)ApplicationServiceInput {
+            package init(
+                from payload: Components.Schemas.\(ucPascal)Request,
+                \(aggIdName): String,
+                operatorId: String
+            ) throws {
+                self.init(
+                    \(aggIdName): \(aggIdName),
+        \(fieldLines)
+                    operatorId: operatorId
+                )
+            }
+        }
+
+        """
     }
 
     // MARK: - Enum DTO renderer

@@ -145,6 +145,8 @@ Edit 替換 `fatalError("TODO(/api skill): execute body ...")` 整段為（依�
         )
 ```
 
+**Variant B-Date short-form（Phase 1.j v5）**：若 AS file grep 得 `extension <UC>ApplicationServiceInput { init(from payload:` 且純 Date（無 Decimal），category 2 emit 短形 `try <UC>...Input(from: payload, <aggIdName>:, operatorId:)` 用 do-block + `catch is Iso8601ParsingError → .invalidDateFormat`。否則 inline form（v4 path）。
+
 **Variant B（型別轉換以 AS Input 欄位型別為 truth，不看 openapi schema）**：
 
 - AS field 型別 `Decimal` → 在 asInput 前加 guard，`Decimal(string:)` 解析：

@@ -16,7 +16,7 @@ package struct {UC}ApplicationServiceInput {
     }
 }
 
-package struct {UC}ApplicationServiceOutput {
+{PAYLOAD_INIT_EXTENSION}package struct {UC}ApplicationServiceOutput {
     package let {AGG_ID_NAME}: String
 }
 

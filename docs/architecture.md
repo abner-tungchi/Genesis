@@ -994,6 +994,20 @@ read AS body 填好 (Phase 1.k.2 已 ship)
 
 詳見 `docs/tasks/2026-05-25-readmodel-mutation-skill.md` + `docs/decisions.md` /readmodel-mutation skill v1 ratification 條目。
 
+### 10.15 Variant B `init(from payload:)` extension（Phase 1.j，pure quality improvement）
+
+Phase 1.j 補完 Phase 1.h/1.i defer 的 OC pattern：當 UC 的 AS Input 含 `Date` / `Date?` field（Variant B-Date），ApiRenderer 在同 AS file emit `extension <UC>ApplicationServiceInput { init(from payload:, <aggIdName>:, operatorId:) throws { self.init(...) } }`；/api skill v5 用短形 `try <UC>...Input(from: payload, ...)` + `catch is Iso8601ParsingError → 422 .invalidDateFormat` 取代 v4 inline guard+throw。**行為不變**，handler method body 變短、與 OC AddAccountingApplicationService 1:1。
+
+**Variant B-Date 自動 emit body rules**：plain field → `<f>: payload.<f>`；Date / Date? field → `<f>: try Date.parseIso8601(payload.<f>)`（Phase 1.f `parseIso8601` 雙 overload Swift 自動 resolve）。aggId / operatorId 從 init args 傳入（非 payload）。
+
+**Trigger**: ApiRenderer.`hasVariantBDate(resolvedFields:)` — 任一 non-aggId non-operatorId field 型別 `Date` / `Date?` 即 emit；否則 placeholder 空字串、Variant A path 不變。
+
+**/api v5 短形偵測**: grep AS file `extension <UC>ApplicationServiceInput { init(from payload:`，命中且純 Date（無 Decimal） → emit 短形；否則 v4 inline path（Decimal 路徑 + 無 extension fallback）。
+
+**Defer v2**: Variant B-Decimal extension（需 guard+throw in init body）、nested DTO `.init(from:)` 與 array DTO `try .map { try ... }` 自動 emit、既有 v4 inline handler retro-upgrade 為短形。
+
+詳見 `docs/tasks/phase-1j-variant-b-extension.md` + `docs/decisions.md` Phase 1.j ratification 條目。
+
 
 ## 11. Open questions
 
