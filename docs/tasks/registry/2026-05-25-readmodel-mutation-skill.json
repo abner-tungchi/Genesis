@@ -1,0 +1,62 @@
+{
+  "id": "2026-05-25-readmodel-mutation-skill",
+  "file": "docs/tasks/2026-05-25-readmodel-mutation-skill.md",
+  "title": "/readmodel-mutation skill v1 — fill projector when() body (per-Presenter)",
+  "status": "done",
+  "created": "2026-05-25",
+  "depends_on": [
+    "phase-1f-context-shared-infra",
+    "phase-1g-readmodel-renderer",
+    "phase-1g2-cross-aggregate-codegen",
+    "phase-1k-presenter-renderer",
+    "phase-1k2-cross-aggregate-presenter",
+    "2026-05-23-presenter-fill-skill"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-25-readmodel-mutation-skill.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/skills/readmodel-mutation/SKILL.md",
+    "file:docs/decisions.md",
+    "file:docs/architecture.md"
+  ],
+  "verification": [
+    "test -f ~/.claude/skills/readmodel-mutation/SKILL.md",
+    "[ $(wc -l < ~/.claude/skills/readmodel-mutation/SKILL.md) -le 200 ]",
+    "[ $(grep -cE '^## (Phase [0-5]|Step [0-5]|步驟 [0-5])' ~/.claude/skills/readmodel-mutation/SKILL.md) -ge 5 ]",
+    "grep -F 'set scalar' ~/.claude/skills/readmodel-mutation/SKILL.md",
+    "grep -F 'append' ~/.claude/skills/readmodel-mutation/SKILL.md",
+    "grep -F 'removeAll' ~/.claude/skills/readmodel-mutation/SKILL.md",
+    "grep -F 'updateAt' ~/.claude/skills/readmodel-mutation/SKILL.md",
+    "grep -F 'when(readModel:' ~/.claude/skills/readmodel-mutation/SKILL.md",
+    "grep -F '不動 ReadModel' ~/.claude/skills/readmodel-mutation/SKILL.md",
+    "grep -F '不寫 openapi.yaml' ~/.claude/skills/readmodel-mutation/SKILL.md",
+    "grep -F 'idempotent' ~/.claude/skills/readmodel-mutation/SKILL.md",
+    "diff ~/.claude/skills/readmodel-mutation/SKILL.md Sources/GenesisCore/Resources/Templates/skills/readmodel-mutation/SKILL.md",
+    "grep -F '/readmodel-mutation' docs/decisions.md",
+    "grep -F '/readmodel-mutation' docs/architecture.md",
+    "swift build",
+    "mkdir -p /tmp/rmm-install-test",
+    "./.build/debug/genesis install-skills --scope project --project-dir /tmp/rmm-install-test --force",
+    "test -f /tmp/rmm-install-test/.claude/skills/readmodel-mutation/SKILL.md",
+    "grep -F 'readmodel-mutation' Tests/GenesisCoreTests/SkillInstallerTests.swift",
+    "swift test --filter SkillInstallerTests"
+  ],
+  "tags": [
+    "feature",
+    "skill",
+    "readmodel-mutation",
+    "done"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-25T13:00:00Z",
+      "note": "write-spec + 內部 4b/5b 全 PASS（6 依賴 phase 皆 done）。**Codex external audit unavailable**：API 529 server overloaded 三次重試皆失敗。Self-audit 抓到 3 個 clarification（pattern priority 規則 / append payload-missing-field exit 3 / placeholder tolerance whitespace）全套修進 spec。決策 D1=A in-place fill（與 /api / /presenter-fill 同模式）/ D2=per-Presenter / D3=5 patterns（set scalar/anchor/append/removeAll/updateAt/assignList Set）。Codex 後續可補審。下一步 pickup（author SKILL.md 200 LoC + real e2e build）。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-25T15:00:00Z",
+      "note": "SKILL.md 133 行 + bundled mirror byte-identical + 20/20 gate PASS + SkillInstallerTests 8→9 + install-skills 9 skills + Real E2E swift build PASS (/tmp/rmm-e2e assignList pattern readModel.roles = Set(event.roles) + GetUserAccessProfileRolesPresenter.swift.o compiled). Codex audit unavailable (API 529 三次)，self-audit 抓 3 個 clarification 進 spec。完成 read-side codegen+fill chain 最後一塊。"
+    }
+  ]
+}

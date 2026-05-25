@@ -958,6 +958,42 @@ fill execute() body：
 
 詳見 `docs/tasks/phase-1k2-cross-aggregate-presenter.md` + `docs/decisions.md` Phase 1.k.2 ratification 條目。
 
+### 10.14 /readmodel-mutation skill — projector when() body fill flow（v1）
+
+`/readmodel-mutation` 是 `/api`（write-side）與 `/presenter-fill`（read-side AS）之後的第三個 in-place fill skill —— 填 Phase 1.g 留下的 projector `when()` mutation body stubs。完成 read-side codegen 鏈最後一塊：**read endpoint 真正能回正確 readModel 資料**（不只 compile-pass）。
+
+```
+bundle (含 readModels[] + events refs + presenters[])
+    ↓ /readmodel + /presenter (design-time bundle-writing)
+    ↓ genesis new (Phase 1.g + 1.k + 1.k.2 projector + AS scaffold)
+projector scaffold:
+  Sources/{A}Aggregate/Usecase/Projector/{Name}/{Name}Presenter.swift
+  OR Sources/{Context}/Projector/{Name}/{Name}Presenter.swift (cross-agg, Phase 1.k.2)
+  含 per event 的 stub: when(readModel: inout R, event: E) { _ = readModel; _ = event }
+    ↓ /readmodel-mutation <presenterName>  ← 本 skill 填這
+fill 5 patterns（依 event name + payload-vs-storedField）：
+  Removed/Deleted → removeAll { $0.id == event.id }
+  Edited/Updated/Renamed → guard firstIndex + readModel[i].field = event.field
+  Added → readModel.col.append(.init(field: event.field, ...))
+  Created → readModel.anchorField = event.anchorField (set anchor 多 field)
+  Set/Edited 全 scalar → readModel.field = event.field
+  [X] → Set<X> → readModel.setField = Set(event.arr)
+    ↓ /presenter-fill <presenterName>
+read AS body 填好 (Phase 1.k.2 已 ship)
+    ↓ swift build
+✓ read endpoint 真正運作：projector 累積 event → readModel 累積狀態 → AS 抓 readModel → 200/404
+```
+
+**關鍵設計**：
+
+- **in-place fill（D1 = A）**：與 /api、/presenter-fill 同 mental model；不擴 bundle schema、不改 renderer。理由：mutation 是 code-level 邏輯（不是 design-time 結構決策），DSL 中間層增加 debug 成本且涵蓋不全。
+- **5 patterns + pattern priority** 對應 OC ground truth：set scalar (GetFontSize) / set anchor (QuotationCreated 多 read) / append struct (GetContractNotes ContractNoteAddedByUser) / removeAll (GetContractNotes ContractNoteRemovedByUser) / updateAt (GetContractNotes ContractNoteEdited) / assignList (Set<roles> from `[String]`).
+- **idempotent per-method（granular）**：每 `when()` body 獨立判定（同 file 可混合已填+未填）；placeholder tolerant matching（whitespace、trailing comment、line-based `^\s*_ = readModel/event`）。
+- **out-of-scope（exit 3）**：v1 不涵蓋 reorder via Dictionary+compactMap、insert-at-position with fallback、cross-event 條件 update、custom type wrap、append struct 涉及 payload-missing-field（domain 決策，需 manual default）。
+- **per-agg + context-level locate**：Phase 1.k.2 後 cross-agg projector 在 `Sources/{Context}/Projector/`，本 skill 同樣 cover。
+
+詳見 `docs/tasks/2026-05-25-readmodel-mutation-skill.md` + `docs/decisions.md` /readmodel-mutation skill v1 ratification 條目。
+
 
 ## 11. Open questions
 
