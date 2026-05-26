@@ -1,0 +1,12 @@
+        .executableTarget(
+            name: "{ContextName}Server",
+            dependencies: [
+{AggregateDepLines}
+{ContextDepLine}                .target(name: "{ContextName}Shared"),
+                .product(name: "DDDKit", package: "swift-ddd-kit"),
+                .product(name: "Hummingbird", package: "hummingbird"),
+                .product(name: "OpenAPIHummingbird", package: "swift-openapi-hummingbird"),
+                .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+                .product(name: "Logging", package: "swift-log"),
+            ]
+        ),

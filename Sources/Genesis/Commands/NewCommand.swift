@@ -165,6 +165,15 @@ struct NewCommand: AsyncParsableCommand {
             try plan(file.path, file.content, file.role)
         }
 
+        // 2.3.7 Server target (Phase 1.m — HTTP MVP, auto-register all ApiHandlers)
+        for file in try ServerRenderer.render(
+            bundle: bundle,
+            contextName: contextName,
+            existingPaths: existingApiPaths
+        ) {
+            try plan(file.path, file.content, file.role)
+        }
+
         // 2.4 Test placeholder
         let testTemplate = try TemplateLoader.loadTemplate(name: "TestPlaceholder.swift", ext: "template")
         let testRendered = TemplateRenderer.render(template: testTemplate, vars: ["ContextName": contextName])

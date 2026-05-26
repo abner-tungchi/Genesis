@@ -1061,6 +1061,47 @@ bundle JSON
 
 詳見 `docs/tasks/2026-05-26-usecase-skill.md` + `docs/decisions.md` /usecase skill v1 ratification 條目。
 
+### 10.18 Server target wire-up（Phase 1.m，HTTP MVP）
+
+Phase 1.m 補完 Genesis 最後一塊架構缺口 —— Server entry codegen。`genesis new` 自動產出可 `swift run` 的 HTTP service entry。
+
+```
+bundle JSON
+  → genesis new (Phase 1.a-1.l) + ServerRenderer (Phase 1.m)
+  Sources/<Context>Server/<Context>Server.swift:
+    @main @MainActor struct
+    - KurrentDBClient from ESDB_URL env var (default kurrent://admin:changeit@localhost:2113?tls=false)
+    - Hummingbird Router
+    - try <Agg>Aggregate.ApiHandler(kdbClient:).registerHandlers(on:, serverURL:, middlewares: [])  per aggregate with handler
+    - try <Context>.ApiHandler(kdbClient:).registerHandlers(...)  when hasContextLevelPresenter
+    - TODO(Phase 1.m v2): projection subscription wiring
+    - Application bind 0.0.0.0:PORT (env, default 8080) + runService()
+  Package.swift (conditional, when any handler emit):
+    + .package(url: "swift-openapi-hummingbird") + hummingbird + swift-log
+    + .executable(name: "<Context>Server", targets: [...])
+    + .executableTarget(name: "<Context>Server", deps: aggregates + context + Shared + DDDKit + Hummingbird + OpenAPIHummingbird + OpenAPIRuntime + Logging products)
+  ↓ swift run <Context>Server
+  ✓ HTTP service running, write endpoints work, read endpoints return empty (until projection wired)
+```
+
+**OC alignment**：對齊 OC `Sources/OCServer/OCServer.swift` 核心結構。
+
+**OC-divergence（business-specific 排除）**：
+- BearerTokenAuthenticationMiddleware / CORSMiddleware / LoggingMiddleware — auth/CORS/logging 因專案而異
+- GoogleCloudStorage / Storage<StandardContextMetadata> — OC blob storage
+- 自家 Middleware target / FileStorageContext target — OC private packages
+- context handler `storage:` init param — OC-specific extension
+- $ce-<X> 寫死 stream subscription + retry/nack + EventBus + EventMappers — OC production-level，且 v1 MVP only scope（user 拍 D1，留 TODO 給 v2）
+
+**Genesis 自加**（不在 OC）：
+- `PORT` env var default 8080（OC hardcoded 24101）
+- TODO block 明示 SourceCategoryPrefix 規則 + Phase 1.g 文件指引（per audit M4）
+- 顯式 startup log line
+
+**Conditional emit**：bundle 無 handler（無 write UC、無 read presenter、無 context-level presenter） → Server target 不 emit；deps、product、target 三層都條件式跳過。
+
+詳見 `docs/tasks/phase-1m-server-wire-up.md` + `docs/decisions.md` Phase 1.m ratification 條目。
+
 
 ## 11. Open questions
 

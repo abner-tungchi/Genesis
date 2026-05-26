@@ -54,6 +54,7 @@ final class TemplateRendererTests: XCTestCase {
                 "SharedTargetsList": "",
                 "TestTargetBlock": "",
                 "OpenApiDependencies": "",
+                "ServerDependencies": "",
             ]
         )
         XCTAssertEqual(result.unresolvedVariables, [])

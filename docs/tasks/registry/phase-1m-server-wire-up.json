@@ -1,0 +1,49 @@
+{
+  "id": "phase-1m-server-wire-up",
+  "file": "docs/tasks/phase-1m-server-wire-up.md",
+  "title": "Phase 1.m — Server target wire-up (HTTP MVP, OC-aligned)",
+  "status": "done",
+  "created": "2026-05-26",
+  "depends_on": [
+    "phase-1a-package-swift-scaffold",
+    "phase-1h-api-renderer",
+    "phase-1i-api-handler",
+    "phase-1k-presenter-renderer",
+    "phase-1k2-cross-aggregate-presenter",
+    "phase-1l-usecase-input-oc-alignment"
+  ],
+  "supersedes": [],
+  "discussion": "",
+  "preconditions": [
+    "file:Sources/GenesisCore/PackageRenderer.swift",
+    "file:Sources/Genesis/Commands/NewCommand.swift"
+  ],
+  "verification": [
+    "test -f Sources/GenesisCore/ServerRenderer.swift",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/Server/Server.swift.template",
+    "test -f Sources/GenesisCore/Resources/Templates/v0.1/PackageServerTarget.swift.template",
+    "grep -F 'hummingbird' Sources/GenesisCore/PackageRenderer.swift",
+    "grep -F 'openapi-hummingbird' Sources/GenesisCore/PackageRenderer.swift",
+    "grep -F 'ServerRenderer.render' Sources/Genesis/Commands/NewCommand.swift",
+    "swift build",
+    "swift test"
+  ],
+  "tags": [
+    "phase-1m",
+    "server",
+    "hummingbird",
+    "done"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-26T03:00:00Z",
+      "note": "write-spec + Codex external audit pass (1H+3M 全修：Server deps 不含 Foundation/explicit KurrentDB / scanner contextName 參數 / cross-agg fixture assertion 補 PermissionAggregate / TODO stream name 用 SourceCategoryPrefix)。MVP only 純 HTTP，projection subscription defer v2。OC business-specific (auth/CORS/GCS/persistent subscription) 全排除。"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-26T03:30:00Z",
+      "note": "ServerRenderer + Server.swift.template + PackageServerTarget.swift.template + PackageRenderer conditional Server emission (deps/product/target) + NewCommand Step 2.3.7 wiring + TemplateRendererTests bump (新 ServerDependencies placeholder)。Real E2E PASS: iam-cross-agg-presenter-bundle 重生 → IAMContextServer.swift @main + 3 ApiHandler (PermissionAggregate + UserAccessProfileAggregate + IAMContext) register + TODO subscription block + ESDB_URL/PORT env vars + Application.runService → swift build Build complete + IAMContextServer.swift.o compiled。212/212 全 test suite PASS。完成 Genesis codegen 最後一塊。"
+    }
+  ]
+}

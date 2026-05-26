@@ -125,18 +125,50 @@ public enum PackageRenderer {
             ? "        .package(url: \"https://github.com/apple/swift-openapi-generator\", from: \"1.0.0\"),\n        .package(url: \"https://github.com/apple/swift-openapi-runtime\", from: \"1.0.0\"),"
             : ""
 
+        // Phase 1.m: conditional Server target + deps (needsServer == needsOpenApi for now,
+        // since ApiHandler emit condition ≡ Server-needs-to-register condition).
+        let aggregatesWithHandler = ServerRenderer.aggregatesNeedingHandler(bundle: bundle)
+        let needsServer = !aggregatesWithHandler.isEmpty || hasContextPresenter
+
+        let serverDependencies: String = needsServer
+            ? "        .package(url: \"https://github.com/swift-server/swift-openapi-hummingbird\", from: \"2.0.0\"),\n        .package(url: \"https://github.com/hummingbird-project/hummingbird\", from: \"2.0.0\"),\n        .package(url: \"https://github.com/apple/swift-log\", from: \"1.0.0\"),"
+            : ""
+
+        var serverProductLine: String = ""
+        var serverTargetBlock: String = ""
+        if needsServer {
+            serverProductLine = "\n        .executable(name: \"\(contextName)Server\", targets: [\"\(contextName)Server\"]),"
+
+            let aggregateDepLines = aggregatesWithHandler
+                .sorted(by: { $0.name < $1.name })
+                .map { "                .target(name: \"\($0.name)Aggregate\")," }
+                .joined(separator: "\n")
+            let contextDepLine: String = hasContextPresenter
+                ? "                .target(name: \"\(contextName)\"),\n"
+                : ""
+
+            let serverTemplate = try TemplateLoader.loadTemplate(name: "PackageServerTarget.swift", ext: "template")
+            let serverBlock = TemplateRenderer.render(template: serverTemplate, vars: [
+                "ContextName": contextName,
+                "AggregateDepLines": aggregateDepLines,
+                "ContextDepLine": contextDepLine,
+            ])
+            serverTargetBlock = "\n" + serverBlock.output.trimmingCharacters(in: CharacterSet.newlines)
+        }
+
         let mainTemplate = try TemplateLoader.loadTemplate(name: "Package.swift", ext: "template")
         let rendered = TemplateRenderer.render(
             template: mainTemplate,
             vars: [
                 "ContextName": contextName,
                 "GenesisVersion": genesisVersion,
-                "ProductsList": productLines.joined(separator: "\n") + contextProductLine,
-                "TargetsList": targetLines.joined(separator: "\n") + contextTargetBlock,
+                "ProductsList": productLines.joined(separator: "\n") + contextProductLine + serverProductLine,
+                "TargetsList": targetLines.joined(separator: "\n") + contextTargetBlock + serverTargetBlock,
                 "SharedProductsList": sharedProductLines.joined(separator: "\n"),
                 "SharedTargetsList": sharedTargetLines.joined(separator: "\n"),
                 "TestTargetBlock": testBlock.output.trimmingCharacters(in: CharacterSet.newlines),
                 "OpenApiDependencies": openApiDependencies,
+                "ServerDependencies": serverDependencies,
             ]
         )
         return ("Package.swift", rendered.output)
