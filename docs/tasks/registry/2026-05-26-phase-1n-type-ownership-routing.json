@@ -1,0 +1,66 @@
+{
+  "id": "2026-05-26-phase-1n-type-ownership-routing",
+  "file": "docs/tasks/2026-05-26-phase-1n-type-ownership-routing.md",
+  "title": "Phase 1.n — Custom type ownership routing",
+  "status": "done",
+  "created": "2026-05-26",
+  "completed": "2026-05-27",
+  "depends_on": [],
+  "soft_depends_on": [
+    "phase-1f-context-shared-infra",
+    "phase-1h-api-renderer"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-26-phase-1n-type-ownership-routing.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/SharedTargetRenderer.swift",
+    "file:Sources/GenesisCore/ApiRenderer.swift",
+    "file:Sources/GenesisCore/AggregateRenderer.swift",
+    "file:Sources/GenesisCore/BundleParser.swift",
+    "file:Sources/GenesisCore/FullBundle.swift",
+    "file:Sources/Genesis/Commands/NewCommand.swift"
+  ],
+  "verification": [
+    "swift build",
+    "swift test",
+    "test -f Sources/GenesisCore/TypeOwnershipResolver.swift",
+    "test -f Tests/GenesisCoreTests/TypeOwnershipResolverTests.swift",
+    "grep -q 'public enum TypeOwnership' Sources/GenesisCore/TypeOwnershipResolver.swift",
+    "grep -q 'case contextShared' Sources/GenesisCore/TypeOwnershipResolver.swift",
+    "grep -q 'case ownedBy' Sources/GenesisCore/TypeOwnershipResolver.swift",
+    "grep -q 'public static func resolve' Sources/GenesisCore/TypeOwnershipResolver.swift",
+    "grep -q 'ownership: \\[String: TypeOwnership\\]' Sources/GenesisCore/SharedTargetRenderer.swift",
+    "grep -q 'ownership: \\[String: TypeOwnership\\]' Sources/GenesisCore/ApiRenderer.swift",
+    "grep -q 'public let aggregateRef: String?' Sources/GenesisCore/FullBundle.swift",
+    "grep -q 'public let isContextShared: Bool?' Sources/GenesisCore/FullBundle.swift",
+    "grep -q 'TypeOwnershipResolver.resolve' Sources/Genesis/Commands/NewCommand.swift",
+    "! grep -q 'deferred to Phase 1.f' Sources/GenesisCore/AggregateRenderer.swift",
+    "! grep -q 'not supported in Phase 1.e' Sources/GenesisCore/AggregateRenderer.swift",
+    "grep -q 'Genesis enforces 1:1 naming' Sources/GenesisCore/AggregateRenderer.swift"
+  ],
+  "tags": [
+    "feature",
+    "codegen",
+    "ownership-routing",
+    "dogfood-finding",
+    "phase-1n"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-26T15:30:00Z",
+      "note": "audit-spec PASS / 1H + 2M + 2L Codex findings all fixed. H1 = lock DtoSpec.isContextShared as Bool? optional (移除 BundleParser legacy fallback, resolver Tier 1/2 統一處理 nil/true/false). M2 = aggregateRef validation 統一在 resolver Tier 1 fallback + warning, BundleParser 不做 fail-fast. L3 = fixture 不改 DTO ownership JSON 但 preserve 既有 readModel/presenter aggregateRef. M4 = ApiRendererTests + SharedTargetRendererTests 既有 caller 全部補 ownership 參數已列入改動檔案 + Step 10. L5 = extractTypeName 在 TypeOwnershipResolver 內獨立實作（不重用 SwiftTypeResolver 因 matchContainer 只覆蓋 Array[X]/Set<X> 不含 [X]/Optional<X>/X?）. 524 lines spec. 下一步 /pickup 開始實作."
+    },
+    {
+      "status": "in-progress",
+      "at": "2026-05-27T00:36:39Z",
+      "session": "/pickup full chain — Codex 主刀 + Gemini 驗證 + Claude 協調，10 step batched 成 ~5 phase"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-27T01:14:08Z",
+      "completed": "2026-05-27",
+      "note": "**Phase 1.n DONE**. 實作摘要: (1) Phase A: TypeOwnershipResolver.swift 新檔 201 行 (Codex 1 delegation); (2) Phase B: 8 檔 cascade — FullBundle.DtoSpec isContextShared Bool→Bool? + aggregateRef / BundleParser remove fallback / SharedTargetRenderer + ApiRenderer + NewCommand wire resolver + F1 wording reframe / ApiRendererTests + SharedTargetRendererTests caller update (Codex 1 delegation); (3) Phase C: TypeOwnershipResolverTests 10 tests, 215 行, T1-T10 全 pass; (4) Phase D: NewCommandTests assertion 更新 EmployeeStatus → UserAccessProfileAggregate/ + warning emit assertion (Claude 直接 edit). **Tests**: 222/222 pass / 2 skip / 0 fail (+10 新 resolver tests). **E2E real bundle**: user IAM bundle 重生 → EmployeeStatus.swift 在 Sources/UserAccessProfileAggregate/ ✅, IAMContextShared/ 不存在 ✅, stderr advisory warning ✅. **Gemini final review**: PASS / 11 verification + 11 spec compliance 全綠 / 0 issues. **F1 reframe 順帶**: AggregateRenderer.swift 'deferred to Phase 1.f' 註解 removed + 'adapter mapping required' 訊息 reword 為 'Genesis enforces 1:1 naming...'. **下一步**: Phase 1.o hygiene (F2 TODO marker + F3 Service execute() stub + F5 event.yaml map shape)."
+    }
+  ]
+}

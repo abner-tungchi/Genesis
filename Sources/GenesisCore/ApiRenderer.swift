@@ -23,7 +23,8 @@ public enum ApiRenderer {
         bundle: FullBundle,
         contextName: String,
         adapter: Adapter,
-        existingPaths: Set<String> = []
+        existingPaths: Set<String> = [],
+        ownership: [String: TypeOwnership]
     ) throws -> [(path: String, content: String, role: String)] {
         var outputs: [(String, String, String)] = []
         let sharedImport = "import \(contextName)Shared"
@@ -48,16 +49,14 @@ public enum ApiRenderer {
         }
 
         // --- Per-DTO mapper files (per-aggregate only; context-shared handled by SharedTargetRenderer) ---
-        // v1: assume DTO applies to FIRST aggregate (multi-aggregate assignment defer v2).
-        guard let firstAggregate = bundle.aggregates.first else { return outputs }
-
-        for dto in bundle.dtos where !dto.isContextShared {
+        for dto in bundle.dtos {
+            guard case .ownedBy(let aggName) = ownership[dto.name] else { continue }
             let dtoKind = resolveDtoKind(dto)
             if dtoKind == "union" {
                 // Defer Phase 1.i.2 — skip with no emit
                 continue
             }
-            let mapperPath = "Sources/\(firstAggregate.name)Aggregate/Adapter/Dto/\(dto.name)+Domain.swift"
+            let mapperPath = "Sources/\(aggName)Aggregate/Adapter/Dto/\(dto.name)+Domain.swift"
             if existingPaths.contains(mapperPath) { continue }
 
             let content: String

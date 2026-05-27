@@ -4,11 +4,12 @@ public enum SharedTargetRenderer {
     public static func render(
         bundle: FullBundle,
         contextName: String,
-        adapter: Adapter
+        adapter: Adapter,
+        ownership: [String: TypeOwnership]
     ) throws -> [(path: String, content: String, role: String)] {
         var outputs: [(String, String, String)] = []
         outputs.append(contentsOf: try renderBundleDtosAndCustomTypes(
-            bundle: bundle, contextName: contextName, adapter: adapter
+            bundle: bundle, contextName: contextName, adapter: adapter, ownership: ownership
         ))
         outputs.append(contentsOf: try renderInfraFiles(contextName: contextName))
         return outputs
@@ -18,7 +19,8 @@ public enum SharedTargetRenderer {
     private static func renderBundleDtosAndCustomTypes(
         bundle: FullBundle,
         contextName: String,
-        adapter: Adapter
+        adapter: Adapter,
+        ownership: [String: TypeOwnership]
     ) throws -> [(String, String, String)] {
         let sharedTarget = "\(contextName)Shared"
 
@@ -39,15 +41,30 @@ public enum SharedTargetRenderer {
         // Emit adapter / auto-generated custom types
         for name in byName.keys.sorted() {
             let ct = byName[name]!
-            outputs.append(try renderCustomType(ct, dir: sharedTarget, knownCustomTypes: knownCustomTypes, adapter: adapter))
+            let dir: String
+            switch ownership[name] {
+            case .contextShared, nil:
+                dir = sharedTarget
+            case .ownedBy(let aggName):
+                dir = "\(aggName)Aggregate"
+            }
+            outputs.append(try renderCustomType(ct, dir: dir, knownCustomTypes: knownCustomTypes, adapter: adapter))
             emittedNames.insert(name)
         }
 
         // Emit bundle.dtos[] (skip ones overridden by adapter)
-        for dto in bundle.dtos where !emittedNames.contains(dto.name) && dto.isContextShared {
+        for dto in bundle.dtos where !emittedNames.contains(dto.name) {
+            guard let own = ownership[dto.name] else { continue }
+            let hostTarget: String
+            switch own {
+            case .contextShared:
+                hostTarget = sharedTarget
+            case .ownedBy(let aggName):
+                hostTarget = "\(aggName)Aggregate"
+            }
             let rendered = try DtoRenderer.render(
                 dto: dto,
-                hostTarget: sharedTarget,
+                hostTarget: hostTarget,
                 knownCustomTypes: knownCustomTypes,
                 adapter: adapter
             )

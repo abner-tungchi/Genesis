@@ -91,10 +91,21 @@ struct NewCommand: AsyncParsableCommand {
             }
         }
 
+        // 2.3.pre — Phase 1.n: resolve custom type ownership (Tier 1 explicit, Tier 2 usage scan)
+        let (ownership, ownershipWarnings) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        for w in ownershipWarnings {
+            FileHandle.standardError.write(Data("⚠ \(w)\n".utf8))
+        }
+
         // 2.3 Shared target (Phase 1.f: always emitted — infra files are universal)
         let needShared = true
         if needShared {
-            for file in try SharedTargetRenderer.render(bundle: bundle, contextName: contextName, adapter: adapter) {
+            for file in try SharedTargetRenderer.render(
+                bundle: bundle,
+                contextName: contextName,
+                adapter: adapter,
+                ownership: ownership
+            ) {
                 try plan(file.path, file.content, file.role)
             }
         }
@@ -121,7 +132,8 @@ struct NewCommand: AsyncParsableCommand {
             bundle: bundle,
             contextName: contextName,
             adapter: adapter,
-            existingPaths: existingApiPaths
+            existingPaths: existingApiPaths,
+            ownership: ownership
         ) {
             try plan(file.path, file.content, file.role)
         }

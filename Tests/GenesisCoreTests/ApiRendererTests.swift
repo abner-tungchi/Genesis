@@ -38,7 +38,14 @@ final class ApiRendererTests: XCTestCase {
     func testVariantAApplicationServiceShape() throws {
         let uc = writeUC()
         let bundle = bundleWith(useCases: [uc])
-        let outputs = try ApiRenderer.render(bundle: bundle, contextName: "IAMContext", adapter: defaultAdapter())
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle,
+            contextName: "IAMContext",
+            adapter: adapter,
+            ownership: ownership
+        )
         XCTAssertEqual(outputs.count, 1)
         let f = outputs[0]
         XCTAssertEqual(f.path, "Sources/UserAccessProfileAggregate/Adapter/CreateUserAccessProfile/CreateUserAccessProfileApplicationService.swift")
@@ -67,7 +74,14 @@ final class ApiRendererTests: XCTestCase {
             writeUC(useCase: "listUserAccessProfiles"),
             writeUC(useCase: "findUserAccessProfile"),
         ])
-        let outputs = try ApiRenderer.render(bundle: bundle, contextName: "IAMContext", adapter: defaultAdapter())
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle,
+            contextName: "IAMContext",
+            adapter: adapter,
+            ownership: ownership
+        )
         XCTAssertEqual(outputs.count, 1, "only 1 write UC should emit AS")
         XCTAssertTrue(outputs[0].path.contains("CreateUserAccessProfile"))
     }
@@ -79,7 +93,15 @@ final class ApiRendererTests: XCTestCase {
         let existing: Set<String> = [
             "Sources/UserAccessProfileAggregate/Adapter/CreateUserAccessProfile/CreateUserAccessProfileApplicationService.swift"
         ]
-        let outputs = try ApiRenderer.render(bundle: bundle, contextName: "IAMContext", adapter: defaultAdapter(), existingPaths: existing)
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle,
+            contextName: "IAMContext",
+            adapter: adapter,
+            existingPaths: existing,
+            ownership: ownership
+        )
         XCTAssertTrue(outputs.isEmpty, "existing path must be skipped")
     }
 
@@ -92,10 +114,18 @@ final class ApiRendererTests: XCTestCase {
             dtoKind: "enum",
             cases: ["activate", "resigned"],
             domainTypeName: "EmployeeStatus",
-            isContextShared: false
+            isContextShared: false,
+            aggregateRef: "UserAccessProfile"
         )
         let bundle = bundleWith(dtos: [dto])
-        let outputs = try ApiRenderer.render(bundle: bundle, contextName: "IAMContext", adapter: defaultAdapter())
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle,
+            contextName: "IAMContext",
+            adapter: adapter,
+            ownership: ownership
+        )
         XCTAssertEqual(outputs.count, 1)
         let f = outputs[0]
         XCTAssertEqual(f.path, "Sources/UserAccessProfileAggregate/Adapter/Dto/EmployeeStatusDto+Domain.swift")
@@ -121,10 +151,18 @@ final class ApiRendererTests: XCTestCase {
             dtoKind: "struct",
             cases: [],
             domainTypeName: "Profile",
-            isContextShared: false
+            isContextShared: false,
+            aggregateRef: "UserAccessProfile"
         )
         let bundle = bundleWith(dtos: [dto])
-        let outputs = try ApiRenderer.render(bundle: bundle, contextName: "IAMContext", adapter: defaultAdapter())
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle,
+            contextName: "IAMContext",
+            adapter: adapter,
+            ownership: ownership
+        )
         XCTAssertEqual(outputs.count, 1)
         let c = outputs[0].content
         XCTAssertTrue(c.contains("self.userId = domain.userId"))
@@ -142,10 +180,18 @@ final class ApiRendererTests: XCTestCase {
             dtoKind: "union",
             cases: [],
             domainTypeName: nil,
-            isContextShared: false
+            isContextShared: false,
+            aggregateRef: "UserAccessProfile"
         )
         let bundle = bundleWith(dtos: [dto])
-        let outputs = try ApiRenderer.render(bundle: bundle, contextName: "IAMContext", adapter: defaultAdapter())
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle,
+            contextName: "IAMContext",
+            adapter: adapter,
+            ownership: ownership
+        )
         XCTAssertTrue(outputs.isEmpty, "union DTO defers Phase 1.i.2; no emit")
     }
 
@@ -162,7 +208,14 @@ final class ApiRendererTests: XCTestCase {
             isContextShared: true
         )
         let bundle = bundleWith(dtos: [dto])
-        let outputs = try ApiRenderer.render(bundle: bundle, contextName: "IAMContext", adapter: defaultAdapter())
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle,
+            contextName: "IAMContext",
+            adapter: adapter,
+            ownership: ownership
+        )
         XCTAssertTrue(outputs.isEmpty, "context-shared DTO not emitted by ApiRenderer (per audit M4)")
     }
 
@@ -170,18 +223,24 @@ final class ApiRendererTests: XCTestCase {
 
     func testLegacyDtoEnumByDescriptionFallback() throws {
         // No dtoKind → fallback to description-based inference (legacy DtoRenderer behavior)
-        // BUT isContextShared default heuristic ALSO applies — legacy DTO with no Phase 1.h fields
-        // defaults to isContextShared=true → not emitted by ApiRenderer
+        // Phase 1.n: explicit shared since legacy default was removed.
         let dto = DtoSpec(
             dtoSpecId: "d-1", name: "Legacy", description: "This is a Enum",
             fields: [FieldSpec(name: "a", rawType: ""), FieldSpec(name: "b", rawType: "")],
             dtoKind: nil,
             cases: [],
             domainTypeName: nil,
-            isContextShared: true  // legacy default per BundleParser heuristic
+            isContextShared: true
         )
         let bundle = bundleWith(dtos: [dto])
-        let outputs = try ApiRenderer.render(bundle: bundle, contextName: "IAMContext", adapter: defaultAdapter())
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle,
+            contextName: "IAMContext",
+            adapter: adapter,
+            ownership: ownership
+        )
         XCTAssertTrue(outputs.isEmpty, "legacy DTO with isContextShared=true skipped")
     }
 

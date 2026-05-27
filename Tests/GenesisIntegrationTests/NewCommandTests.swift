@@ -250,9 +250,20 @@ final class NewCommandTests: XCTestCase {
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: oneCommand.path))
 
-        // Phase 1.c: DTO moved to Sources/{Ctx}Shared/
-        let dto = tmpDir.appendingPathComponent("Sources/IAMContextShared/EmployeeStatus.swift")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: dto.path), "DTO must be in IAMContextShared (Phase 1.c)")
+        // Phase 1.n: EmployeeStatus routed to UserAccessProfileAggregate/ via Tier 2 auto-detect
+        // (only UserAccessProfile.state.status references EmployeeStatus → refs.count == 1).
+        let dto = tmpDir.appendingPathComponent("Sources/UserAccessProfileAggregate/EmployeeStatus.swift")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dto.path),
+                      "EmployeeStatus must be in UserAccessProfileAggregate (Phase 1.n Tier 2 routing)")
+        let dtoSharedLegacy = tmpDir.appendingPathComponent("Sources/IAMContextShared/EmployeeStatus.swift")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dtoSharedLegacy.path),
+                       "EmployeeStatus must NOT be in IAMContextShared post-Phase-1.n")
+
+        // Phase 1.n: Tier 2 auto-detect must emit advisory warning to stderr
+        XCTAssertTrue(
+            result.stderr.contains("EmployeeStatus") && result.stderr.contains("ownership auto-detected"),
+            "Tier 2 auto-detect must emit advisory warning for EmployeeStatus: \(result.stderr)"
+        )
 
         // Success message must mention counts
         XCTAssertTrue(result.stdout.contains("1 aggregates"), result.stdout)

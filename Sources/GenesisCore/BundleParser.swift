@@ -243,6 +243,7 @@ public enum BundleParser {
         let cases: [String]?
         let domainTypeName: String?
         let isContextShared: Bool?
+        let aggregateRef: String?
     }
 
     // Phase 2: /presenter skill v1 — RawPresenter for bundle.presenters[]
@@ -439,11 +440,6 @@ public enum BundleParser {
         let fields = try (raw.fields ?? []).enumerated().map { fIdx, f in
             try decodeField(f, prefix: "dtos[\(idx)].fields[\(fIdx)]")
         }
-        // Backwards-compat: legacy DTOs (no Phase 1.h fields) default isContextShared=true,
-        // preserving Phase 1.b/1.c/1.f behavior of emitting all bundle.dtos[] to {Ctx}Shared.
-        // Explicit Phase 1.h entries (with dtoKind or isContextShared) honor the explicit value.
-        let hasPhase1hSchema = raw.dtoKind != nil || raw.isContextShared != nil
-        let resolvedIsContextShared = raw.isContextShared ?? (hasPhase1hSchema ? false : true)
         return DtoSpec(
             dtoSpecId: dtoSpecId,
             name: name,
@@ -452,7 +448,8 @@ public enum BundleParser {
             dtoKind: raw.dtoKind,
             cases: raw.cases ?? [],
             domainTypeName: raw.domainTypeName,
-            isContextShared: resolvedIsContextShared
+            isContextShared: raw.isContextShared,
+            aggregateRef: raw.aggregateRef
         )
     }
 

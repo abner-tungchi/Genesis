@@ -22,10 +22,12 @@ final class SharedTargetRendererTests: XCTestCase {
             aggregateSplit: AggregateSplitSpec(strategy: "byBoundedContext", rootMap: [:]),
             idStrategy: IdStrategySpec(kind: .typedStruct, wrapper: "{Aggregate}ID")
         )
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: typedAdapter)
         let outputs = try SharedTargetRenderer.render(
             bundle: bundle,
             contextName: "IAMContext",
-            adapter: typedAdapter
+            adapter: typedAdapter,
+            ownership: ownership
         )
         let paths = outputs.map { $0.path }
         XCTAssertFalse(
@@ -45,10 +47,12 @@ final class SharedTargetRendererTests: XCTestCase {
             aggregateSplit: AggregateSplitSpec(strategy: "byBoundedContext", rootMap: [:]),
             idStrategy: IdStrategySpec(kind: .direct, wrapper: nil)
         )
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
         let outputs = try SharedTargetRenderer.render(
             bundle: bundle,
             contextName: "IAMContext",
-            adapter: adapter
+            adapter: adapter,
+            ownership: ownership
         )
         let paths = outputs.map { $0.path }
         XCTAssertTrue(paths.contains("Sources/IAMContextShared/MyWrapper.swift"))
@@ -58,10 +62,13 @@ final class SharedTargetRendererTests: XCTestCase {
 
     private func renderDefault(contextName: String = "IAMContext") throws -> [(path: String, content: String, role: String)] {
         let bundle = try loadIAMBundle()
+        let adapter = Adapter.defaultFor(contextName: contextName)
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
         return try SharedTargetRenderer.render(
             bundle: bundle,
             contextName: contextName,
-            adapter: .defaultFor(contextName: contextName)
+            adapter: adapter,
+            ownership: ownership
         )
     }
 
@@ -97,10 +104,13 @@ final class SharedTargetRendererTests: XCTestCase {
             dtos: [],
             readModels: bundle.readModels
         )
+        let adapter = Adapter.defaultFor(contextName: "IAMContext")
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: stripped, adapter: adapter)
         let outputs = try SharedTargetRenderer.render(
             bundle: stripped,
             contextName: "IAMContext",
-            adapter: .defaultFor(contextName: "IAMContext")
+            adapter: adapter,
+            ownership: ownership
         )
         let paths = Set(outputs.map { $0.path })
         XCTAssertTrue(paths.contains("Sources/IAMContextShared/ApplicationService.swift"))

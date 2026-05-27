@@ -166,7 +166,8 @@ public struct DtoSpec: Sendable, Equatable {
     public let dtoKind: String?              // "enum" | "struct" | "union" (legacy nil → description-based inference)
     public let cases: [String]               // for dtoKind="enum"
     public let domainTypeName: String?       // domain type for mapper (default: strip "Dto" suffix from name)
-    public let isContextShared: Bool         // false → per-aggregate Adapter/Dto/; true → {Ctx}Shared
+    public let isContextShared: Bool?        // Phase 1.n: nil = no explicit marking, resolver Tier 2 介入; non-nil = explicit Tier 1
+    public let aggregateRef: String?         // Phase 1.n: explicit per-agg ownership marker (used when isContextShared == false)
 
     public init(
         dtoSpecId: String,
@@ -176,7 +177,8 @@ public struct DtoSpec: Sendable, Equatable {
         dtoKind: String? = nil,
         cases: [String] = [],
         domainTypeName: String? = nil,
-        isContextShared: Bool = false
+        isContextShared: Bool? = nil,
+        aggregateRef: String? = nil
     ) {
         self.dtoSpecId = dtoSpecId
         self.name = name
@@ -186,6 +188,7 @@ public struct DtoSpec: Sendable, Equatable {
         self.cases = cases
         self.domainTypeName = domainTypeName
         self.isContextShared = isContextShared
+        self.aggregateRef = aggregateRef
     }
 }
 
@@ -310,4 +313,3 @@ public struct PresenterEndpoint: Sendable, Equatable {
         self.method = method
     }
 }
-

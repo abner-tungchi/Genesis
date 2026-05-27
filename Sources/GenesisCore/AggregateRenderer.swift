@@ -142,16 +142,16 @@ public enum AggregateRenderer {
                 return (name: field.name, type: resolved)
             }
 
-        // Fail-fast: every payload field must have a matching state field. Phase 1.e does not provide
-        // a payload-to-state adapter mapping (deferred to Phase 1.f). Orphan payload fields would
-        // generate `self.<nonExistentField> = ...` lines that fail to compile with a confusing error.
+        // Genesis enforces 1:1 naming between createdEvent payload and aggregate state (aligned with OC reference). Field rename via adapter is intentionally not supported — bundle authors should align naming, not introduce bridging configuration.
         let stateFieldNames = Set(spec.state.map { $0.name })
         let orphanFields = payloadFields.filter { !stateFieldNames.contains($0.name) }
         if !orphanFields.isEmpty {
             throw GenesisError.bundleInvalid(
                 reason: "createdEvent payload field(s) \(orphanFields.map { $0.name }) "
-                    + "have no matching state in aggregate '\(spec.name)'; "
-                    + "adapter mapping required (not supported in Phase 1.e)"
+                    + "have no matching state in aggregate '\(spec.name)'.\n"
+                    + "Fix: rename the event payload field(s) to match aggregate state names, "
+                    + "OR add the missing field(s) to aggregate state in bundle. "
+                    + "Genesis enforces 1:1 naming (aligned with OC); field rename via adapter is not supported."
             )
         }
 
