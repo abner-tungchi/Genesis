@@ -195,8 +195,14 @@ final class AggregateRendererTests: XCTestCase {
         XCTAssertTrue(yaml.contains("PrivilegeGranted:"))
         XCTAssertTrue(yaml.contains("kind: createdEvent") || yaml.contains("kind: domainEvent"))
         XCTAssertTrue(yaml.contains("alias: useraccessprofileId"))
-        XCTAssertTrue(yaml.contains("type: \"[String]\""), "container types must be quoted to avoid YAML flow sequence parsing")
-        XCTAssertTrue(yaml.contains("type: \"String\""))
+
+        // Phase 1.o D5: map shape (was array `- name: X\n  type: "Y"` pre-1.o).
+        // All values quoted per D5=B; container types stay safe from YAML flow-sequence parsing.
+        XCTAssertTrue(yaml.contains("permissions: \"[String]\""), "Phase 1.o map shape: container types still quoted")
+        XCTAssertTrue(yaml.contains("userId: \"String\""), "Phase 1.o map shape: scalar types also quoted per D5=B")
+        XCTAssertFalse(yaml.contains("- name: userId"), "Phase 1.o: array shape `- name:` must be gone")
+        XCTAssertFalse(yaml.contains("- name: permissions"), "Phase 1.o: array shape `- name:` must be gone")
+
         XCTAssertTrue(yaml.contains("UserAccessProfileDeleted:"), "Genesis auto-adds the Deleted event")
         XCTAssertTrue(yaml.contains("kind: deletedEvent"))
     }

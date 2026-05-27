@@ -1,0 +1,63 @@
+{
+  "id": "2026-05-27-phase-1o-hygiene",
+  "file": "docs/tasks/2026-05-27-phase-1o-hygiene.md",
+  "title": "Phase 1.o — Hygiene phase (F2 / F3a-c / F5 — OC alignment + TODO marker unify + event.yaml map shape)",
+  "status": "done",
+  "created": "2026-05-27",
+  "completed": "2026-05-27",
+  "depends_on": [],
+  "soft_depends_on": [
+    "phase-1l-usecase-input-oc-alignment",
+    "2026-05-26-phase-1n-type-ownership-routing",
+    "2026-05-26-usecase-skill"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-27-phase-1o-hygiene.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Service.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Usecase.swift.template",
+    "file:Sources/GenesisCore/AggregateRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md",
+    "file:Tests/GenesisCoreTests/AggregateRendererTests.swift",
+    "file:Tests/GenesisIntegrationTests/NewCommandTests.swift"
+  ],
+  "verification": [
+    "swift build",
+    "swift test",
+    "grep -q 'package struct {UC}Service: {UC}Usecase' Sources/GenesisCore/Resources/Templates/v0.1/Service.swift.template",
+    "! grep -q 'package final class {UC}Service' Sources/GenesisCore/Resources/Templates/v0.1/Service.swift.template",
+    "grep -q 'Usecase where Input == {UC}Input, Output == {UC}Output' Sources/GenesisCore/Resources/Templates/v0.1/Usecase.swift.template",
+    "! grep -q 'Usecase<{UC}Input, {UC}Output>' Sources/GenesisCore/Resources/Templates/v0.1/Usecase.swift.template",
+    "grep -q 'fatalError(\"TODO(/usecase skill)' Sources/GenesisCore/Resources/Templates/v0.1/Usecase.swift.template",
+    "! grep -q 'fatalError(\"not implemented\")' Sources/GenesisCore/Resources/Templates/v0.1/Usecase.swift.template",
+    "! grep -q 'GENESIS-STUB' Sources/GenesisCore/Resources/Templates/v0.1/Usecase.swift.template",
+    "grep -q 'TODO(/usecase skill)' Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md",
+    "! grep -qF 'fatalError(\"not implemented\")' Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md",
+    "! grep -q 'GENESIS-STUB' Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md"
+  ],
+  "tags": [
+    "cleanup",
+    "hygiene",
+    "oc-alignment",
+    "dogfood-finding",
+    "phase-1o"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-27T02:35:00Z",
+      "note": "audit-spec --quick PASS / 4b 5 PASS (1 line-number anchor 已修, 改用語意錨點 'Sources/.../CLAUDE.md.template 內 ...') / 5b 7 PASS (Code sample fidelity 對照 OC + DDD-kit samples + Genesis 真實檔案皆驗證；目標 vs Non-goals 互斥；依賴關係 phase-1l/1.n/usecase-skill 全 done). 跳過外部 Codex 審查（per discussion D 拍板 --quick；spec 385 lines 但 5 個 fix 全屬 config-heavy template + 1 個 small renderer function 改動 + skill md 同步，風險面小）. 順手修 1 個 source-level grep verification（Swift string interpolation 在 grep escape 不可靠，改 E2E 為主源 + 簡化 source negative grep）. 下一步 /pickup 開始實作."
+    },
+    {
+      "status": "in-progress",
+      "at": "2026-05-27T03:00:00Z",
+      "session": "Claude direct implement (5 fix all small + config-heavy; Phase 1.n 教訓 #2 — < 30 line edits + 顯而易見邏輯 → direct edit faster than Codex delegation)"
+    },
+    {
+      "status": "done",
+      "at": "2026-05-27T03:25:00Z",
+      "completed": "2026-05-27",
+      "note": "**Phase 1.o DONE**. 實作摘要: (1) D2: Service.swift.template `package final class` → `package struct` (OC 對齊); (2) D3: Usecase.swift.template protocol `Usecase<I,O>` → `Usecase where Input == I, Output == O`; (3) D4: Usecase.swift.template extension execute() body `fatalError(\"not implemented\")` + GENESIS-STUB 註解 → 單行 `fatalError(\"TODO(/usecase skill): pattern is ...\")`; (4) D5: AggregateRenderer.renderEventBlock array shape `- name: X\\n  type: \"Y\"` → map shape `X: \"Y\"`（all quoted per D5=B); (5) D6: /usecase SKILL.md description + Step 5 + idempotent table + 上游 reference 全部 markers 對齊單一 `TODO(/usecase skill)`. 既有 AggregateRendererTests testEventYamlQuotesContainerTypes assertion 更新（map shape 4 條斷言 + 2 個 negative array shape 斷言）。NewCommandTests 加 6 條 Phase 1.o assertions（Service struct ✅ no class / Usecase where-clause ✅ no parameterized / unified TODO ✅ no legacy / no GENESIS-STUB comment）。**Tests**: 222/222 pass / 2 skip / 0 fail（執行時間 307s）。**E2E real bundle** 重生：CreateUserAccessProfileService.swift `package struct`、CreateUserAccessProfileUsecase.swift `Usecase where Input == ..., Output == ...` + `fatalError(\"TODO(/usecase skill): ...\")`、event.yaml `permissions: \"[String]\"` map shape with quotes — 全部 OC + DDD-kit upstream sample 對齊。**全 Claude direct edit**（5 fix 都 < 10 行改）no Codex delegation 印證 Phase 1.n 教訓 #2。Phase 1.o.x 候選: real-world dogfood Layer 3 / Service multi-dependency variant / Aggregate skill / Command skill。"
+    }
+  ]
+}

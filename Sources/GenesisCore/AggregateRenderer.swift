@@ -297,12 +297,12 @@ public enum AggregateRenderer {
                 knownCustomTypes: knownCustomTypes,
                 adapter: adapter
             )
-            propLines.append("    - name: \(field.name)")
-            propLines.append("      type: \"\(resolved)\"")
+            // Phase 1.o D5: DDD-kit upstream sample map shape; all type values quoted (D5 lock = B).
+            propLines.append("    \(field.name): \"\(resolved)\"")
         }
         if propLines.isEmpty {
-            propLines.append("    - name: \(alias)")
-            propLines.append("      type: \"String\"")
+            // Phase 1.o D5 fallback: payload empty → single aggregate alias entry, map shape.
+            propLines.append("    \(alias): \"String\"")
         }
 
         let rendered = TemplateRenderer.render(

@@ -1,6 +1,6 @@
 ---
 name: usecase
-description: Genesis fill-in skill (4th sibling, write-side domain orchestration). Inside a Genesis-bootstrapped project, /usecase <useCaseName> fills the `fatalError("not implemented")` GENESIS-STUB in `{UC}Usecase.swift` extension's `execute(input:)` body with one of 3 OC-aligned patterns (Create / Update / Delete) — calling `repository.find/save/delete` + aggregate method + standard catch ladder. Requires Phase 1.l (Usecase Input contains aggId + operatorId).
+description: Genesis fill-in skill (4th sibling, write-side domain orchestration). Inside a Genesis-bootstrapped project, /usecase <useCaseName> fills the `fatalError("TODO(/usecase skill)")` stub in `{UC}Usecase.swift` extension's `execute(input:)` body with one of 3 OC-aligned patterns (Create / Update / Delete) — calling `repository.find/save/delete` + aggregate method + standard catch ladder. Requires Phase 1.l (Usecase Input contains aggId + operatorId).
 argument-hint: [useCaseName]
 disable-model-invocation: true
 allowed-tools: Read, Edit, Glob, Grep
@@ -12,11 +12,11 @@ allowed-tools: Read, Edit, Glob, Grep
 
 ## 你的任務
 
-對 `{UC}Usecase.swift` 內 `extension {UC}Usecase { execute(input:) async throws -> Output }` body，把 Phase 1.g/1.h 留下的 `fatalError("not implemented")` GENESIS-STUB 替換為 OC pattern。**3 patterns**：Create / Update / Delete。前置條件：Phase 1.l 已 done（`{UC}Input` 含 aggId + operatorId）。
+對 `{UC}Usecase.swift` 內 `extension {UC}Usecase { execute(input:) async throws -> Output }` body，把 Phase 1.g/1.h codegen 產出的 `fatalError("TODO(/usecase skill)")` stub 替換為 OC pattern。**3 patterns**：Create / Update / Delete。前置條件：Phase 1.l 已 done（`{UC}Input` 含 aggId + operatorId）。
 
 ### 絕對約束（不可違反）
 
-- **只動** `{UC}Usecase.swift` 內 extension default execute() body 的 `fatalError("not implemented")` 替換
+- **只動** `{UC}Usecase.swift` 內 extension default execute() body 的 `fatalError("TODO(/usecase skill)")` 替換
 - **不動 Aggregate** Entity / Command extension / Usecase Input / Output / Service
 - **不動** read-side（/presenter-fill / /readmodel-mutation 範疇）
 - **不寫 openapi.yaml** / event.yaml / Package.swift / bundle JSON / 任何 *.yaml
@@ -45,8 +45,8 @@ Verify `{ucPascal}Input.swift` + `{ucPascal}Output.swift` 存在，否則 exit 1
 
 | 狀態 | 判定 | 動作 |
 |---|---|---|
-| 已填 | 含 `repository.find` 或 `try <A>(id:`（Create）+ `repository.save` 或 `repository.delete`，且**無** `fatalError("not implemented")` | exit 0 skip |
-| 未填 | 含 `fatalError("not implemented")` + `// GENESIS-STUB:` 註解 | 套 pattern fill |
+| 已填 | 含 `repository.find` 或 `try <A>(id:`（Create）+ `repository.save` 或 `repository.delete`，且**無** `fatalError("TODO(/usecase skill)")` | exit 0 skip |
+| 未填 | 含 `fatalError("TODO(/usecase skill)")` | 套 pattern fill |
 | 半填 | 兩者皆非 | exit 4：`partial fill detected in {ucPascal}Usecase; manual repair needed` |
 
 ## Phase 3 — Parse Input + Aggregate
@@ -134,6 +134,6 @@ Verify `{ucPascal}Input.swift` + `{ucPascal}Output.swift` 存在，否則 exit 1
 
 ## 與其他 skills 的關係
 
-- 上游：`genesis new`（Phase 1.g/1.h codegen scaffold + GENESIS-STUB）+ Phase 1.l（Usecase Input 含 aggId + operatorId）+ /api（write-side AS body fill）
+- 上游：`genesis new`（Phase 1.g/1.h codegen scaffold + Phase 1.o unified TODO marker）+ Phase 1.l（Usecase Input 含 aggId + operatorId）+ /api（write-side AS body fill）
 - sibling：`/api`（AS body）/ `/presenter-fill`（read AS body）/ `/readmodel-mutation`（projector when() body）
 - 第四個 in-place fill skill — 補完 domain 層 orchestration（先前所有 fill 都到 service.execute 為止；本 skill 填 service.execute 真實邏輯）

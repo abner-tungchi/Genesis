@@ -265,6 +265,31 @@ final class NewCommandTests: XCTestCase {
             "Tier 2 auto-detect must emit advisory warning for EmployeeStatus: \(result.stderr)"
         )
 
+        // Phase 1.o D2/D3/D4: Service struct (not class) + Usecase where-clause syntax + unified TODO marker
+        let svcURL = tmpDir.appendingPathComponent(
+            "Sources/UserAccessProfileAggregate/Usecase/Service/CreateUserAccessProfileService.swift"
+        )
+        let svcContent = try String(contentsOf: svcURL, encoding: .utf8)
+        XCTAssertTrue(svcContent.contains("package struct CreateUserAccessProfileService"),
+                      "Phase 1.o D2: Service must be struct (OC alignment), not class")
+        XCTAssertFalse(svcContent.contains("package final class CreateUserAccessProfileService"),
+                       "Phase 1.o D2: legacy `package final class` form must be gone")
+
+        let ucURL = tmpDir.appendingPathComponent(
+            "Sources/UserAccessProfileAggregate/Usecase/Port/In/CreateUserAccessProfile/CreateUserAccessProfileUsecase.swift"
+        )
+        let ucContent = try String(contentsOf: ucURL, encoding: .utf8)
+        XCTAssertTrue(ucContent.contains("Usecase where Input == CreateUserAccessProfileInput, Output == CreateUserAccessProfileOutput"),
+                      "Phase 1.o D3: protocol must use OC where-clause syntax")
+        XCTAssertFalse(ucContent.contains("Usecase<CreateUserAccessProfileInput, CreateUserAccessProfileOutput>"),
+                       "Phase 1.o D3: legacy `Usecase<I, O>` parameterized syntax must be gone")
+        XCTAssertTrue(ucContent.contains("fatalError(\"TODO(/usecase skill)"),
+                      "Phase 1.o D4: unified TODO marker must be present")
+        XCTAssertFalse(ucContent.contains("fatalError(\"not implemented\")"),
+                       "Phase 1.o D4: legacy `fatalError(\"not implemented\")` marker must be gone")
+        XCTAssertFalse(ucContent.contains("GENESIS-STUB:"),
+                       "Phase 1.o D4: `// GENESIS-STUB:` comment must be removed (hint inlined into fatalError message)")
+
         // Success message must mention counts
         XCTAssertTrue(result.stdout.contains("1 aggregates"), result.stdout)
         XCTAssertTrue(result.stdout.contains("7 use cases"), result.stdout)
