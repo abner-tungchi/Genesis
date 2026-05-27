@@ -219,6 +219,55 @@ final class ApiRendererTests: XCTestCase {
         XCTAssertTrue(outputs.isEmpty, "context-shared DTO not emitted by ApiRenderer (per audit M4)")
     }
 
+    // MARK: - Phase 1.o.1 F6 — identity-mapper skip
+
+    func testNoDtoSuffixSkipsIdentityMapper() throws {
+        // F6 root cause: when dto.name has no `Dto` suffix and no explicit domainTypeName,
+        // domainTypeName(for:) falls back to dto.name. Mapper template emits both
+        // `extension <X> { init(from domain: <X>) }` and `extension <X> { init(from dto: <X>) }`
+        // on the SAME Swift type → "invalid redeclaration of 'init(from:)'". Skip emit entirely;
+        // convention says use a `Dto` suffix (or set domainTypeName) when a wire/domain split is wanted.
+        let dto = DtoSpec(
+            dtoSpecId: "d-1", name: "EmployeeStatus", description: "",
+            fields: [],
+            dtoKind: "enum",
+            cases: ["active", "resigned"],
+            domainTypeName: nil,
+            isContextShared: false,
+            aggregateRef: "UserAccessProfile"
+        )
+        let bundle = bundleWith(dtos: [dto])
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle,
+            contextName: "IAMContext",
+            adapter: adapter,
+            ownership: ownership
+        )
+        XCTAssertTrue(outputs.isEmpty, "F6: DTO without Dto suffix → no identity mapper emitted")
+    }
+
+    func testExplicitDomainTypeNameEqualToDtoNameSkipsMapper() throws {
+        // Same skip condition triggered via explicit domainTypeName collision.
+        let dto = DtoSpec(
+            dtoSpecId: "d-1", name: "Status", description: "",
+            fields: [],
+            dtoKind: "enum",
+            cases: ["a", "b"],
+            domainTypeName: "Status",
+            isContextShared: false,
+            aggregateRef: "UserAccessProfile"
+        )
+        let bundle = bundleWith(dtos: [dto])
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle, contextName: "IAMContext", adapter: adapter, ownership: ownership
+        )
+        XCTAssertTrue(outputs.isEmpty, "F6: explicit domainTypeName equal to dto.name also skips")
+    }
+
     // MARK: - Legacy DTO fallback (audit M3)
 
     func testLegacyDtoEnumByDescriptionFallback() throws {

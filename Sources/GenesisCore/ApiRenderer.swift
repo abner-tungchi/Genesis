@@ -56,6 +56,11 @@ public enum ApiRenderer {
                 // Defer Phase 1.i.2 — skip with no emit
                 continue
             }
+            // Phase 1.o.1 F6: identity-mapper skip — when dto.name == resolved domain type name,
+            // both extensions in the mapper template land on the same Swift type, producing two
+            // `init(from: <Name>)` declarations → "invalid redeclaration". Convention: use `Dto`
+            // suffix (or explicit `domainTypeName`) when a wire/domain split is wanted.
+            if dto.name == domainTypeName(for: dto) { continue }
             let mapperPath = "Sources/\(aggName)Aggregate/Adapter/Dto/\(dto.name)+Domain.swift"
             if existingPaths.contains(mapperPath) { continue }
 
