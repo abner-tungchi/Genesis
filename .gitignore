@@ -11,3 +11,6 @@ DerivedData/
 # Editor
 *.swp
 .vscode/
+
+# Claude hook state (per-machine, not shared)
+.claude/state/
