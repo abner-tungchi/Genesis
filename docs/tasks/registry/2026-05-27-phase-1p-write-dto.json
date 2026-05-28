@@ -1,0 +1,57 @@
+{
+  "id": "2026-05-27-phase-1p-write-dto",
+  "file": "docs/tasks/2026-05-27-phase-1p-write-dto.md",
+  "title": "Phase 1.p — Write-side per-UC DTO support (F7 from dogfood)",
+  "status": "ready",
+  "created": "2026-05-27",
+  "depends_on": [],
+  "soft_depends_on": [
+    "phase-1l-usecase-input-oc-alignment",
+    "2026-05-26-phase-1n-type-ownership-routing",
+    "2026-05-26-usecase-skill",
+    "2026-05-27-phase-1o-hygiene"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-27-phase-1p-write-dto.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/TypeOwnershipResolver.swift",
+    "file:Sources/GenesisCore/ApiRenderer.swift",
+    "file:Sources/GenesisCore/BundleParser.swift",
+    "file:Sources/GenesisCore/SharedTargetRenderer.swift",
+    "file:Sources/GenesisCore/SwiftTypeResolver.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/ApplicationService.swift.template",
+    "file:Sources/Genesis/Commands/NewCommand.swift"
+  ],
+  "verification": [
+    "swift build",
+    "swift test",
+    "test -f Sources/GenesisCore/DtoRouter.swift",
+    "grep -q 'public struct DtoRoute' Sources/GenesisCore/DtoRouter.swift",
+    "grep -q 'public enum DtoRouter' Sources/GenesisCore/DtoRouter.swift",
+    "grep -q 'case contextShared' Sources/GenesisCore/TypeOwnershipResolver.swift",
+    "grep -q 'case ownedBy(aggregateName: String)' Sources/GenesisCore/TypeOwnershipResolver.swift",
+    "! grep -E 'case (perUseCase|aggregate)\\b' Sources/GenesisCore/TypeOwnershipResolver.swift",
+    "grep -q 'bundleSchemaVersion' Sources/GenesisCore/BundleParser.swift",
+    "grep -q 'reserved infra pattern' Sources/GenesisCore/BundleParser.swift",
+    "grep -q 'genesis-todo(phase=1.p.1, kind=dto-init-from-input' Sources/GenesisCore/ApiRenderer.swift",
+    "grep -q 'public let scope: Scope' Sources/GenesisCore/DtoRouter.swift",
+    "grep -q 'public let definitionLocation: Scope' Sources/GenesisCore/DtoRouter.swift",
+    "grep -q 'perUseCase × response is unusual' Sources/GenesisCore/BundleParser.swift"
+  ],
+  "tags": [
+    "feature",
+    "dto",
+    "write-side",
+    "api-renderer",
+    "dogfood-finding",
+    "phase-1p",
+    "f7"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-27T17:30:00Z",
+      "note": "workflow discuss-to-impl 完成 discuss (3 rounds, unanimous on all 18 decisions) + write-spec (501 lines, 8-section contract-first) + audit-spec --quick PASS. Audit 4b: line-number anchor PASS / SR-browser keyword PASS / grep counting threshold PASS / React-N/A. Audit 5b: 目標 vs Non-goals 互斥 PASS (Non-goals 段落明列 9 條, 與目標互斥) / verification 分執行者 PASS (Agent 必做 + Human 補做 兩段分明) / 依賴段落正確性 PASS (4 個 soft depends 全 done in registry). 順手修 1 個 minor inconsistency — TODO marker format 在 spec body line 121 + 已知限制 line 485 兩處 no-space variant 與其他 8 處 with-space variant 不一致, 統一為 with-space format. 跳過 external Codex review (--quick). Workflow 在 audit→registry 之間因 session limit 撞牆失敗 (15 agents / 20min), Claude 手動接手完成 audit+registry. 下一步: 等 Cosmogony Event Storming Tool 出 bundle schema v2 (含 scope/usage/useCaseRef/bundleSchemaVersion:2) 後再 /pickup. Phase 1.p 在 inference path 上可獨立 ship 不阻塞 Cosmogony (per D12)."
+    }
+  ]
+}
