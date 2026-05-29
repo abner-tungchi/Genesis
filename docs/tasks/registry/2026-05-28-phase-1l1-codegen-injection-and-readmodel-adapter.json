@@ -1,0 +1,66 @@
+{
+  "id": "2026-05-28-phase-1l1-codegen-injection-and-readmodel-adapter",
+  "file": "docs/tasks/2026-05-28-phase-1l1-codegen-injection-and-readmodel-adapter.md",
+  "title": "Phase 1.l.1 — Codegen aggId/operatorId 注入 fix + BundleParser ReadModel adapter",
+  "status": "done",
+  "created": "2026-05-28",
+  "completed": "2026-05-28",
+  "depends_on": [],
+  "soft_depends_on": [
+    "phase-1l-usecase-input-oc-alignment",
+    "2026-05-26-phase-1n-type-ownership-routing",
+    "2026-05-27-phase-1o-hygiene"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-28-cosmogony-bundle-schema-mismatch.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/BundleParser.swift",
+    "file:Sources/GenesisCore/UseCaseRenderer.swift",
+    "file:Sources/GenesisCore/FullBundle.swift",
+    "file:Tests/GenesisCoreTests/BundleParserTests.swift",
+    "file:Tests/GenesisIntegrationTests/NewCommandTests.swift",
+    "file:Tests/GenesisIntegrationTests/Fixtures/iam-bundle.json",
+    "file:/Users/abnertsai/Downloads/Cosmogony IAMContext bundle.json"
+  ],
+  "verification": [
+    "swift build",
+    "swift test",
+    "grep -qE 'queryName.*name|name.*queryName|case queryName' Sources/GenesisCore/BundleParser.swift",
+    "grep -q 'links.*DomainEvent\\|outbound.*DomainEvent\\|targetType == \"DomainEvent\"' Sources/GenesisCore/BundleParser.swift",
+    "grep -q 'parameters\\[0\\]\\|parameters\\.first\\|raw\\.parameters' Sources/GenesisCore/BundleParser.swift",
+    "grep -q 'returnType\\.fields\\|rt\\.fields\\|returnType' Sources/GenesisCore/BundleParser.swift",
+    "grep -q 'isCreateUseCase' Sources/GenesisCore/UseCaseRenderer.swift",
+    "grep -q 'hasPrefix(\"create\")\\|hasPrefix(\"establish\")' Sources/GenesisCore/UseCaseRenderer.swift",
+    "test -f Tests/GenesisIntegrationTests/Fixtures/iam-cosmogony-bundle.json",
+    "grep -q '\"queryName\"' Tests/GenesisIntegrationTests/Fixtures/iam-cosmogony-bundle.json"
+  ],
+  "tags": [
+    "feature",
+    "hotfix",
+    "bundle-parser",
+    "usecase-renderer",
+    "readmodel",
+    "cosmogony-compat",
+    "dogfood-finding",
+    "phase-1l1",
+    "f8"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-05-28T16:50:00Z",
+      "note": "三輪雙邊 Cosmogony / Genesis sign-off 後手寫 spec MD（無 multi-LLM workflow — 議題已收斂、單一決策者）。Cover 5 個修改：BundleParser 4 個 ReadModel 相容 derive（queryName alias / links→events / parameters→key / returnType→storedFields）+ UseCaseRenderer create UC 跳過 aggId 注入。9-section spec 含 risk points、Non-goals、Agent+Human 驗收分執行者。Audit-spec --quick 4b/5b PASS（0 line-number anchors / 0 SR-only / 0 fragile counting threshold）。下一步: /pickup 開始實作。預估 ~70 行 source + ~120 行 test + 1 fixture，2-3 天 ship。"
+    },
+    {
+      "status": "in-progress",
+      "at": "2026-05-28T17:30:00Z",
+      "session": "Claude direct edit + Codex delegation hybrid (Phase 1.n 教訓 #2: < 30 行 + 邏輯顯而易見 → Claude direct; cascade change → Codex). 預計 Step 1=fixture (Claude) / Step 2-3=BundleParser (Codex, 4 個 derive cascade) / Step 4=UseCaseRenderer (Claude, 簡單條件) / Step 5-6=tests (Codex / Claude split) / Step 7=local verify."
+    },
+    {
+      "status": "done",
+      "at": "2026-05-28T18:00:00Z",
+      "completed": "2026-05-28",
+      "note": "**Phase 1.l.1 DONE** (Claude direct edit only, no Codex delegation — 改動範圍剛好 fit Phase 1.n 教訓 #2 'small + obvious → direct'). 全部 7 step 自家完成。實作摘要：(Step 1) 新 fixture `iam-cosmogony-bundle.json` 從 Cosmogony 真實 bundle + 5 處 typo 修 + 1 處 Phase 1.l.1 scope simplification（EmployeeStatusDto → EmployeeStatus，drop domainTypeName 因為這是 Phase 1.p `aggregate × request` 領域）；(Step 2+3) BundleParser ReadModel adapter：queryName↔name alias + UpperCamelCase 正規化（Cosmogony lowerCamelCase → Genesis PascalCase）+ links→events derive（cross-ref aggregates events 反查 sourceAggregate）+ parameters→key derive 含 stderr warning + returnType.fields→storedFields flatten 含 primitive default 推導 + 非 primitive 自動 wrap Optional；(Step 4) UseCaseRenderer create UC heuristic（prefix `create`/`establish`）+ 跳過 aggId 注入。**順便發現+修了 3 個 scope-adjacent issue**：(a) SwiftTypeResolver 加 `Set[X]` bracket notation 支援（Cosmogony 用 bracket vs Genesis 原本只認 angle）/ (b) FullBundle 新 `dtoTypeNames` helper 同時 expose `dto.name` + `dto.domainTypeName`，3 個 callsite（UseCaseRenderer/AggregateRenderer/SharedTargetRenderer）改用 helper / (c) ReadModelRenderer storedField primitive default 從 flatten 階段補（非 ReadModelRenderer 自身改）。**Tests**: 233/233 pass / 2 skip / 0 fail（既有 224 + 7 new = BundleParserFullTests 7 new readmodel adapter case + NewCommandTests 2 E2E case）。**E2E real bundle verify**：兩個 bundle 都 `swift build` PASS — legacy IAM bundle（含 operatorId 86 files）+ Cosmogony fixture（無 operatorId 90 files）。 全 8 條 registry verification grep PASS。**Phase 1.l.1 known limitation**（記 spec MD）: Cosmogony 真實 bundle 的 `domainTypeName` 分離 wire/domain DTO 屬於 Phase 1.p 範疇；fixture 已簡化此部分（dropped Dto suffix + domainTypeName）。Phase 1.p impl 後可拿真實 Cosmogony bundle re-verify。**下一步**: commit + 通知 Cosmogony 端 v20 sprint 可開跑。"
+    }
+  ]
+}

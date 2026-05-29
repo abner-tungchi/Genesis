@@ -35,6 +35,12 @@ public enum SwiftTypeResolver {
             return trimmed
         }
 
+        // Phase 1.l.1: Cosmogony bracket notation — `Set[X]` → `Set<X>`
+        if let inner = matchContainer(trimmed, prefix: "Set[", suffix: "]") {
+            let resolvedInner = try resolve(rawType: inner, knownCustomTypes: knownCustomTypes)
+            return "Set<\(resolvedInner)>"
+        }
+
         if knownCustomTypes.contains(trimmed) {
             return trimmed
         }

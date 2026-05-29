@@ -1,0 +1,581 @@
+{
+  "manifestVersion": 1,
+  "bundleId": "057e8202-6f1f-4e2c-b821-3b63d931f5df",
+  "context": "IAMContext",
+  "aggregates": [
+    {
+      "kind": "AggregateSpec",
+      "aggregateSpecId": "e6838b7b-e62b-43eb-93f3-435006f8a661",
+      "aggregate": "UserAccessProfile",
+      "identity": {
+        "name": "userAccessProfileId",
+        "_suggested_type": "UserAccessProfileId",
+        "_suggested_field": "userAccessProfileId"
+      },
+      "state": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "permissions",
+          "type": "Set[String]"
+        },
+        {
+          "name": "roles",
+          "type": "Set[String]"
+        },
+        {
+          "name": "department",
+          "type": "String"
+        },
+        {
+          "name": "jobTitle",
+          "type": "String"
+        },
+        {
+          "name": "status",
+          "type": "EmployeeStatus",
+          "dtoSpecRef": "4a90bb33-e89a-439d-bd80-e5a66caa8444"
+        }
+      ],
+      "invariants": [
+        {
+          "id": "00badb74-6d29-43fa-9bfd-fac2303ece3b",
+          "name": "checkUserId",
+          "title": "確認 User ID 存在",
+          "rules": [
+            {
+              "when": "always",
+              "rule": "userId !== nil"
+            },
+            {
+              "when": "always",
+              "rule": "userId !== null"
+            }
+          ],
+          "errorCode": "userIdNotExist",
+          "relatedState": [],
+          "provenance": "ui",
+          "status": "confirmed",
+          "source": null
+        },
+        {
+          "id": "4b78a427-5cea-4629-8452-3dff4e4f2416",
+          "name": "checkPermissions",
+          "title": "確認使用者身上的權限符合部門、職稱",
+          "rules": [
+            {
+              "when": "always",
+              "rule": "userPermissions ⊇ baseline(department, jobTitle)"
+            }
+          ],
+          "errorCode": "permissionNotMatch",
+          "relatedState": [],
+          "provenance": "ui",
+          "status": "confirmed",
+          "source": null
+        },
+        {
+          "id": "38689265-50a7-4c9d-91a8-39d35d4ab2d0",
+          "name": "employeeMustActive",
+          "title": "員工必須在職",
+          "rules": [
+            {
+              "when": "always",
+              "rule": "status == activate"
+            }
+          ],
+          "errorCode": "employeeNotActive",
+          "relatedState": [],
+          "provenance": "ui",
+          "status": "confirmed",
+          "source": null
+        }
+      ],
+      "methods": [
+        {
+          "useCaseSpecId": "55657110-16a7-4495-9b35-938f26f86dc1",
+          "useCase": "grantPrivilege",
+          "emitsEvent": "privilegeGranted",
+          "_suggested_method": "UserAccessProfile.grantPrivilege"
+        },
+        {
+          "useCaseSpecId": "0f6c159f-ef0c-4469-ad35-8fa4e43767e4",
+          "useCase": "revokePrivilege",
+          "emitsEvent": "privilegeRevoked",
+          "_suggested_method": "UserAccessProfile.revokePrivilege"
+        },
+        {
+          "useCaseSpecId": "02c13342-44eb-4b9c-9b8d-c69b8c08695b",
+          "useCase": "assignRoles",
+          "emitsEvent": "rolesAssigned",
+          "_suggested_method": "UserAccessProfile.assignRoles"
+        },
+        {
+          "useCaseSpecId": "82221cb6-b1b8-4baf-8b15-43c0debf08a7",
+          "useCase": "revokeRoles",
+          "emitsEvent": "rolesRevoked",
+          "_suggested_method": "UserAccessProfile.revokeRoles"
+        },
+        {
+          "useCaseSpecId": "1174adb8-418d-4c8f-a200-db124688138f",
+          "useCase": "promoteUser",
+          "emitsEvent": "userPromoted",
+          "_suggested_method": "UserAccessProfile.promoteUser"
+        },
+        {
+          "useCaseSpecId": "a14fd17a-d9f3-4d4d-a45f-8c9f7f5c2ce2",
+          "useCase": "transferDepartment",
+          "emitsEvent": "departmentTransferred",
+          "_suggested_method": "UserAccessProfile.transferDepartment"
+        },
+        {
+          "useCaseSpecId": "d6cb9bc9-d92a-4e46-9d9f-23b0b1d1115f",
+          "useCase": "createUserAccessProfile",
+          "emitsEvent": "userAccessProfileCreated",
+          "_suggested_method": "UserAccessProfile.createUserAccessProfile"
+        }
+      ],
+      "events": [
+        {
+          "name": "privilegeGranted",
+          "emittedByUseCaseSpecId": "55657110-16a7-4495-9b35-938f26f86dc1"
+        },
+        {
+          "name": "privilegeRevoked",
+          "emittedByUseCaseSpecId": "0f6c159f-ef0c-4469-ad35-8fa4e43767e4"
+        },
+        {
+          "name": "rolesAssigned",
+          "emittedByUseCaseSpecId": "02c13342-44eb-4b9c-9b8d-c69b8c08695b"
+        },
+        {
+          "name": "rolesRevoked",
+          "emittedByUseCaseSpecId": "82221cb6-b1b8-4baf-8b15-43c0debf08a7"
+        },
+        {
+          "name": "userPromoted",
+          "emittedByUseCaseSpecId": "1174adb8-418d-4c8f-a200-db124688138f"
+        },
+        {
+          "name": "departmentTransferred",
+          "emittedByUseCaseSpecId": "a14fd17a-d9f3-4d4d-a45f-8c9f7f5c2ce2"
+        },
+        {
+          "name": "userAccessProfileCreated",
+          "emittedByUseCaseSpecId": "d6cb9bc9-d92a-4e46-9d9f-23b0b1d1115f"
+        }
+      ],
+      "_suggested_aggregateId": "UserAccessProfileId",
+      "_suggested_repository": "UserAccessProfileRepository"
+    }
+  ],
+  "useCases": [
+    {
+      "kind": "UseCaseSpec",
+      "useCaseSpecId": "55657110-16a7-4495-9b35-938f26f86dc1",
+      "aggregateSpecId": "e6838b7b-e62b-43eb-93f3-435006f8a661",
+      "useCase": "grantPrivilege",
+      "aggregate": "UserAccessProfile",
+      "preconditions": [
+        {
+          "text": "permissions not already in user.permissions"
+        }
+      ],
+      "input": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "permissions",
+          "type": "Array[String]"
+        }
+      ],
+      "postconditions": [],
+      "emittedEvent": "privilegeGranted",
+      "eventPayload": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "permissions",
+          "type": "Array[String]"
+        }
+      ],
+      "_suggested_aggregateId": "UserAccessProfileId",
+      "_suggested_method": "UserAccessProfile.grantPrivilege",
+      "_suggested_domainEvent": "UserAccessProfileEvents.privilegeGranted",
+      "_suggested_repository": "UserAccessProfileRepository"
+    },
+    {
+      "kind": "UseCaseSpec",
+      "useCaseSpecId": "0f6c159f-ef0c-4469-ad35-8fa4e43767e4",
+      "aggregateSpecId": "e6838b7b-e62b-43eb-93f3-435006f8a661",
+      "useCase": "revokePrivilege",
+      "aggregate": "UserAccessProfile",
+      "preconditions": [
+        {
+          "text": "permissions all exist in user.permissions"
+        }
+      ],
+      "input": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "permissions",
+          "type": "Array[String]"
+        }
+      ],
+      "postconditions": [],
+      "emittedEvent": "privilegeRevoked",
+      "eventPayload": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "permissions",
+          "type": "Array[String]"
+        }
+      ],
+      "_suggested_aggregateId": "UserAccessProfileId",
+      "_suggested_method": "UserAccessProfile.revokePrivilege",
+      "_suggested_domainEvent": "UserAccessProfileEvents.privilegeRevoked",
+      "_suggested_repository": "UserAccessProfileRepository"
+    },
+    {
+      "kind": "UseCaseSpec",
+      "useCaseSpecId": "02c13342-44eb-4b9c-9b8d-c69b8c08695b",
+      "aggregateSpecId": "e6838b7b-e62b-43eb-93f3-435006f8a661",
+      "useCase": "assignRoles",
+      "aggregate": "UserAccessProfile",
+      "preconditions": [
+        {
+          "text": "roles not already in user.roles"
+        }
+      ],
+      "input": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "roles",
+          "type": "Array[String]"
+        }
+      ],
+      "postconditions": [],
+      "emittedEvent": "rolesAssigned",
+      "eventPayload": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "roles",
+          "type": "Array[String]"
+        }
+      ],
+      "_suggested_aggregateId": "UserAccessProfileId",
+      "_suggested_method": "UserAccessProfile.assignRoles",
+      "_suggested_domainEvent": "UserAccessProfileEvents.rolesAssigned",
+      "_suggested_repository": "UserAccessProfileRepository"
+    },
+    {
+      "kind": "UseCaseSpec",
+      "useCaseSpecId": "82221cb6-b1b8-4baf-8b15-43c0debf08a7",
+      "aggregateSpecId": "e6838b7b-e62b-43eb-93f3-435006f8a661",
+      "useCase": "revokeRoles",
+      "aggregate": "UserAccessProfile",
+      "preconditions": [
+        {
+          "text": "roles all exist in user.roles"
+        }
+      ],
+      "input": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "roles",
+          "type": "Array[String]"
+        }
+      ],
+      "postconditions": [],
+      "emittedEvent": "rolesRevoked",
+      "eventPayload": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "roles",
+          "type": "Array[String]"
+        }
+      ],
+      "_suggested_aggregateId": "UserAccessProfileId",
+      "_suggested_method": "UserAccessProfile.revokeRoles",
+      "_suggested_domainEvent": "UserAccessProfileEvents.rolesRevoked",
+      "_suggested_repository": "UserAccessProfileRepository"
+    },
+    {
+      "kind": "UseCaseSpec",
+      "useCaseSpecId": "1174adb8-418d-4c8f-a200-db124688138f",
+      "aggregateSpecId": "e6838b7b-e62b-43eb-93f3-435006f8a661",
+      "useCase": "promoteUser",
+      "aggregate": "UserAccessProfile",
+      "preconditions": [
+        {
+          "text": "status == Active"
+        }
+      ],
+      "input": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "newJobTitle",
+          "type": "String"
+        },
+        {
+          "name": "oldJobTitle",
+          "type": "String"
+        }
+      ],
+      "postconditions": [],
+      "emittedEvent": "userPromoted",
+      "eventPayload": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "newJobTitle",
+          "type": "String"
+        },
+        {
+          "name": "oldJobTitle",
+          "type": "String"
+        }
+      ],
+      "_suggested_aggregateId": "UserAccessProfileId",
+      "_suggested_method": "UserAccessProfile.promoteUser",
+      "_suggested_domainEvent": "UserAccessProfileEvents.userPromoted",
+      "_suggested_repository": "UserAccessProfileRepository"
+    },
+    {
+      "kind": "UseCaseSpec",
+      "useCaseSpecId": "a14fd17a-d9f3-4d4d-a45f-8c9f7f5c2ce2",
+      "aggregateSpecId": "e6838b7b-e62b-43eb-93f3-435006f8a661",
+      "useCase": "transferDepartment",
+      "aggregate": "UserAccessProfile",
+      "preconditions": [
+        {
+          "text": "(newDepartment, newJobTitle) != (current department, jobTitle)"
+        }
+      ],
+      "input": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "newDepartment",
+          "type": "String"
+        },
+        {
+          "name": "newJobTitle",
+          "type": "String"
+        }
+      ],
+      "postconditions": [],
+      "emittedEvent": "departmentTransferred",
+      "eventPayload": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "newDepartment",
+          "type": "String"
+        },
+        {
+          "name": "newJobTitle",
+          "type": "String"
+        }
+      ],
+      "_suggested_aggregateId": "UserAccessProfileId",
+      "_suggested_method": "UserAccessProfile.transferDepartment",
+      "_suggested_domainEvent": "UserAccessProfileEvents.departmentTransferred",
+      "_suggested_repository": "UserAccessProfileRepository"
+    },
+    {
+      "kind": "UseCaseSpec",
+      "useCaseSpecId": "d6cb9bc9-d92a-4e46-9d9f-23b0b1d1115f",
+      "aggregateSpecId": "e6838b7b-e62b-43eb-93f3-435006f8a661",
+      "useCase": "createUserAccessProfile",
+      "aggregate": "UserAccessProfile",
+      "preconditions": [],
+      "input": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "department",
+          "type": "String"
+        },
+        {
+          "name": "jobTitle",
+          "type": "String"
+        }
+      ],
+      "postconditions": [],
+      "emittedEvent": "userAccessProfileCreated",
+      "eventPayload": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "department",
+          "type": "String"
+        },
+        {
+          "name": "jobTitle",
+          "type": "String"
+        },
+        {
+          "name": "permissions",
+          "type": "Set[String]"
+        },
+        {
+          "name": "roles",
+          "type": "Set[String]"
+        },
+        {
+          "name": "status",
+          "type": "EmployeeStatus",
+          "dtoSpecRef": "4a90bb33-e89a-439d-bd80-e5a66caa8444"
+        }
+      ],
+      "_suggested_aggregateId": "UserAccessProfileId",
+      "_suggested_method": "UserAccessProfile.createUserAccessProfile",
+      "_suggested_domainEvent": "UserAccessProfileEvents.userAccessProfileCreated",
+      "_suggested_repository": "UserAccessProfileRepository"
+    }
+  ],
+  "readModels": [
+    {
+      "kind": "ReadModelSpec",
+      "readModelSpecId": "2cca0323-f535-462a-b647-a1bfa414f6ff",
+      "queryName": "getPermissions",
+      "parameters": [
+        {
+          "name": "userId",
+          "type": "String"
+        }
+      ],
+      "returnType": {
+        "shape": "object",
+        "fields": [
+          {
+            "name": "message",
+            "type": "String"
+          },
+          {
+            "name": "permissionDto",
+            "type": "PermissionDto",
+            "dtoSpecRef": "dfca9159-6755-4ebc-9455-d05f9cf148c9"
+          }
+        ]
+      },
+      "links": [
+        {
+          "direction": "outbound",
+          "targetType": "DomainEvent",
+          "targetName": "privilegeGranted",
+          "targetSpecId": "55657110-16a7-4495-9b35-938f26f86dc1"
+        },
+        {
+          "direction": "outbound",
+          "targetType": "DomainEvent",
+          "targetName": "privilegeRevoked",
+          "targetSpecId": "0f6c159f-ef0c-4469-ad35-8fa4e43767e4"
+        },
+        {
+          "direction": "outbound",
+          "targetType": "DomainEvent",
+          "targetName": "rolesAssigned",
+          "targetSpecId": "02c13342-44eb-4b9c-9b8d-c69b8c08695b"
+        },
+        {
+          "direction": "outbound",
+          "targetType": "DomainEvent",
+          "targetName": "rolesRevoked",
+          "targetSpecId": "82221cb6-b1b8-4baf-8b15-43c0debf08a7"
+        },
+        {
+          "direction": "outbound",
+          "targetType": "DomainEvent",
+          "targetName": "userPromoted",
+          "targetSpecId": "1174adb8-418d-4c8f-a200-db124688138f"
+        },
+        {
+          "direction": "outbound",
+          "targetType": "DomainEvent",
+          "targetName": "departmentTransferred",
+          "targetSpecId": "a14fd17a-d9f3-4d4d-a45f-8c9f7f5c2ce2"
+        },
+        {
+          "direction": "outbound",
+          "targetType": "DomainEvent",
+          "targetName": "userAccessProfileCreated",
+          "targetSpecId": "d6cb9bc9-d92a-4e46-9d9f-23b0b1d1115f"
+        }
+      ],
+      "_suggested_queryFunction": "getPermissions.query"
+    }
+  ],
+  "dtos": [
+    {
+      "kind": "DtoSpec",
+      "dtoSpecId": "4a90bb33-e89a-439d-bd80-e5a66caa8444",
+      "name": "EmployeeStatus",
+      "fields": [],
+      "dtoKind": "enum",
+      "cases": [
+        "Active",
+        "Resigned"
+      ],
+      "scope": "aggregate",
+      "usage": "request",
+      "aggregateRef": "UserAccessProfile"
+    },
+    {
+      "kind": "DtoSpec",
+      "dtoSpecId": "dfca9159-6755-4ebc-9455-d05f9cf148c9",
+      "name": "PermissionDto",
+      "fields": [
+        {
+          "name": "userId",
+          "type": "String"
+        },
+        {
+          "name": "permissions",
+          "type": "Array[String]"
+        }
+      ],
+      "scope": "perReadModel",
+      "usage": "response",
+      "readModelRef": "getPermissions"
+    }
+  ]
+}

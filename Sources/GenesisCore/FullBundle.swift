@@ -10,6 +10,20 @@ public struct FullBundle: Sendable, Equatable {
     public let readModels: [ReadModelSpec]
     public let presenters: [PresenterSpec]
 
+    /// All identifiers that Swift codegen should recognize as DTO-derived types.
+    /// Includes both `dto.name` (wire type) and `dto.domainTypeName` (domain type) when distinct.
+    /// Phase 1.l.1: supports Cosmogony schema where DTO wraps a separately-named domain type.
+    public var dtoTypeNames: Set<String> {
+        var names = Set<String>()
+        for dto in dtos {
+            names.insert(dto.name)
+            if let dtn = dto.domainTypeName, !dtn.isEmpty {
+                names.insert(dtn)
+            }
+        }
+        return names
+    }
+
     public init(
         manifestVersion: Int,
         bundleId: String,
@@ -168,6 +182,11 @@ public struct DtoSpec: Sendable, Equatable {
     public let domainTypeName: String?       // domain type for mapper (default: strip "Dto" suffix from name)
     public let isContextShared: Bool?        // Phase 1.n: nil = no explicit marking, resolver Tier 2 介入; non-nil = explicit Tier 1
     public let aggregateRef: String?         // Phase 1.n: explicit per-agg ownership marker (used when isContextShared == false)
+    // Phase 1.l.1.1: Cosmogony v19 schema — explicit scope/usage routing
+    public let scope: String?                // "aggregate" | "perUseCase" | "perReadModel" | "contextShared"
+    public let usage: String?                // "request" | "response" | "both"
+    public let useCaseRef: String?           // for scope=perUseCase
+    public let readModelRef: String?         // for scope=perReadModel; canonicalized by BundleParser via dtoSpecRef
 
     public init(
         dtoSpecId: String,
@@ -178,7 +197,11 @@ public struct DtoSpec: Sendable, Equatable {
         cases: [String] = [],
         domainTypeName: String? = nil,
         isContextShared: Bool? = nil,
-        aggregateRef: String? = nil
+        aggregateRef: String? = nil,
+        scope: String? = nil,
+        usage: String? = nil,
+        useCaseRef: String? = nil,
+        readModelRef: String? = nil
     ) {
         self.dtoSpecId = dtoSpecId
         self.name = name
@@ -189,6 +212,10 @@ public struct DtoSpec: Sendable, Equatable {
         self.domainTypeName = domainTypeName
         self.isContextShared = isContextShared
         self.aggregateRef = aggregateRef
+        self.scope = scope
+        self.usage = usage
+        self.useCaseRef = useCaseRef
+        self.readModelRef = readModelRef
     }
 }
 

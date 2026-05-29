@@ -43,13 +43,18 @@ public enum ApiRenderer {
                 useCase: uc,
                 ucPascal: ucPascal,
                 aggregate: aggregate,
-                sharedImport: sharedImport
+                sharedImport: sharedImport,
+                bundle: bundle
             )
             outputs.append((asPath, content, "applicationService"))
         }
 
         // --- Per-DTO mapper files (per-aggregate only; context-shared handled by SharedTargetRenderer) ---
         for dto in bundle.dtos {
+            // Phase 1.l.1.1: scope-explicit DTOs (aggregate / perUseCase / perReadModel) are
+            // handled by SharedTargetRenderer scope routing. ApiRenderer only handles legacy
+            // ownership-routed DTOs (scope nil) AND scope=contextShared.
+            if let scope = dto.scope, scope != "contextShared" { continue }
             guard case .ownedBy(let aggName) = ownership[dto.name] else { continue }
             let dtoKind = resolveDtoKind(dto)
             if dtoKind == "union" {
@@ -114,7 +119,8 @@ public enum ApiRenderer {
         useCase: UseCaseSpec,
         ucPascal: String,
         aggregate: AggregateSpec,
-        sharedImport: String
+        sharedImport: String,
+        bundle: FullBundle
     ) throws -> String {
         let template = try TemplateLoader.loadTemplate(name: "Api/ApplicationService.swift", ext: "template")
         let aggIdName = aggregate.identityName
@@ -122,9 +128,24 @@ public enum ApiRenderer {
         // Filter Service Input: exclude operatorId (HTTP transport metadata) and aggregate ID (positional)
         let middleFields = useCase.input.filter { $0.name != "operatorId" && $0.name != aggIdName }
 
-        // Resolve raw bundle types (e.g. "Array[String]" → "[String]") via SwiftTypeResolver per existing convention
+        // Phase 1.p D13: build domainTypeName → DTO swap lookup for usage ∈ {request, both} DTOs.
+        // When AS Input field rawType matches a request DTO's domainTypeName, swap to DTO type.
+        // (Domain UseCase Input keeps domain types; AS Input is wire-side, uses Dto types per OC.)
+        let dtoSwapMap: [String: String] = bundle.dtos.reduce(into: [:]) { acc, dto in
+            guard let scope = dto.scope, scope != "contextShared" else { return }
+            let usage = dto.usage ?? "both"
+            guard usage == "request" || usage == "both" else { return }
+            guard let domain = dto.domainTypeName, !domain.isEmpty else { return }
+            acc[domain] = dto.name
+        }
+
+        // Resolve raw bundle types (e.g. "Array[String]" → "[String]") via SwiftTypeResolver per existing convention.
+        // Phase 1.p: if rawType maps to a wire DTO via swap map, use DTO name directly (skip resolve).
         let knownTypes = Set<String>()  // ApiRenderer doesn't track custom types; bundle.dtos[] resolved separately
         let resolvedFields = try middleFields.map { f -> (String, String) in
+            if let dtoName = dtoSwapMap[f.rawType] {
+                return (f.name, dtoName)  // Phase 1.p D13: swapped to wire DTO type
+            }
             let resolved = try SwiftTypeResolver.resolve(rawType: f.rawType, knownCustomTypes: knownTypes)
             return (f.name, resolved)
         }

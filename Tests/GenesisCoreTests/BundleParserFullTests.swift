@@ -338,4 +338,347 @@ final class BundleParserFullTests: XCTestCase {
         let mb = try BundleParser.parseMinimal(at: url)
         XCTAssertEqual(mb.context, "Y")
     }
+
+    // MARK: - Phase 1.l.1 — Cosmogony ReadModel schema adapter
+
+    /// Aggregate with `fooCreated` event declared — needed by links derive cross-ref.
+    private static let aggregateWithEvent = """
+    "aggregates": [{
+        "aggregateSpecId": "agg-1",
+        "aggregate": "Foo",
+        "identity": {"name": "fooId"},
+        "state": [],
+        "invariants": [],
+        "events": [{"name": "fooCreated"}]
+    }]
+    """
+
+    func testReadModelQueryNameAlias() throws {
+        // Cosmogony uses `queryName` (lowerCamelCase) as domain-specific name field.
+        // BundleParser should accept it as alias for `name`, normalizing first char to upper
+        // (Genesis downstream treats name as Swift type prefix → must be UpperCamelCase).
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 1,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateWithEvent),
+          "readModels": [{"queryName": "getFoo"}]
+        }
+        """)
+        let bundle = try BundleParser.parseFull(at: url)
+        XCTAssertEqual(bundle.readModels.count, 1)
+        XCTAssertEqual(bundle.readModels[0].name, "GetFoo",
+            "queryName should be normalized to UpperCamelCase (lowerCamelCase 'getFoo' → 'GetFoo')")
+    }
+
+    func testReadModelMissingBothNameAndQueryNameRejected() throws {
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 1,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateWithEvent),
+          "readModels": [{"comment": "no name no queryName"}]
+        }
+        """)
+        XCTAssertThrowsError(try BundleParser.parseFull(at: url)) { error in
+            guard case .bundleInvalid(let reason) = error as? GenesisError else {
+                return XCTFail("expected bundleInvalid, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("queryName") || reason.contains("Cosmogony"),
+                "error should mention queryName alias hint; got: \(reason)")
+        }
+    }
+
+    func testReadModelLinksToEventsDerive() throws {
+        // Cosmogony emits links[] (generic), Genesis derives events[] (projection view).
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 1,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateWithEvent),
+          "readModels": [{
+            "queryName": "getFoo",
+            "links": [
+              {"direction": "outbound", "targetType": "DomainEvent", "targetName": "fooCreated"},
+              {"direction": "outbound", "targetType": "Aggregate", "targetName": "Foo"}
+            ]
+          }]
+        }
+        """)
+        let bundle = try BundleParser.parseFull(at: url)
+        XCTAssertEqual(bundle.readModels[0].eventNames, ["fooCreated"],
+            "derive only outbound DomainEvent, ignore Aggregate target")
+    }
+
+    func testReadModelLinksUnknownEventRejected() throws {
+        // links references a DomainEvent that no aggregate declares → bundleInvalid
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 1,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateWithEvent),
+          "readModels": [{
+            "queryName": "getFoo",
+            "links": [
+              {"direction": "outbound", "targetType": "DomainEvent", "targetName": "phantomEvent"}
+            ]
+          }]
+        }
+        """)
+        XCTAssertThrowsError(try BundleParser.parseFull(at: url)) { error in
+            guard case .bundleInvalid(let reason) = error as? GenesisError else {
+                return XCTFail("expected bundleInvalid, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("phantomEvent"),
+                "error should name the unknown event; got: \(reason)")
+            XCTAssertTrue(reason.contains("no aggregate"),
+                "error should explain the cross-ref miss; got: \(reason)")
+        }
+    }
+
+    func testReadModelParametersToKeyDerive() throws {
+        // Cosmogony emits parameters[] (API contract), Genesis derives key (projection index).
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 1,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateWithEvent),
+          "readModels": [{
+            "queryName": "getFoo",
+            "parameters": [
+              {"name": "fooId", "type": "String"},
+              {"name": "ignored", "type": "Int"}
+            ]
+          }]
+        }
+        """)
+        let bundle = try BundleParser.parseFull(at: url)
+        guard let key = bundle.readModels[0].key else {
+            return XCTFail("key should be derived from parameters[0]")
+        }
+        XCTAssertEqual(key.field, "fooId")
+        XCTAssertEqual(key.type, "String")
+        XCTAssertEqual(key.fromEventPayload, "fooId",
+            "derive assumes parameter name == event payload field name")
+    }
+
+    func testReadModelReturnTypeFlatten() throws {
+        // Cosmogony emits returnType.fields[] (nested object), Genesis flattens to storedFields[].
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 1,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateWithEvent),
+          "readModels": [{
+            "queryName": "getFoo",
+            "returnType": {
+              "shape": "object",
+              "fields": [
+                {"name": "message", "type": "String"},
+                {"name": "count", "type": "Int", "dtoSpecRef": "ignored"}
+              ]
+            }
+          }]
+        }
+        """)
+        let bundle = try BundleParser.parseFull(at: url)
+        let sf = bundle.readModels[0].storedFields
+        XCTAssertEqual(sf.count, 2)
+        XCTAssertEqual(sf[0].name, "message")
+        XCTAssertEqual(sf[0].type, "String")
+        XCTAssertEqual(sf[1].name, "count")
+        XCTAssertEqual(sf[1].type, "Int")
+    }
+
+    func testReadModelExplicitFieldsPreferredOverDerive() throws {
+        // Backward compat: when both legacy explicit fields AND Cosmogony derive fields present,
+        // explicit wins (no double-emit, no surprise overwrites).
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 1,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateWithEvent),
+          "readModels": [{
+            "name": "explicitName",
+            "queryName": "shouldBeIgnored",
+            "events": [{"name": "fooCreated", "sourceAggregate": "Foo"}],
+            "links": [{"direction": "outbound", "targetType": "DomainEvent", "targetName": "phantomEvent"}],
+            "key": {"field": "explicitKey", "type": "String", "fromEventPayload": "explicitKey"},
+            "parameters": [{"name": "shouldBeIgnored", "type": "Int"}],
+            "storedFields": [{"name": "explicitField", "type": "String"}],
+            "returnType": {"shape": "object", "fields": [{"name": "ignored", "type": "Int"}]}
+          }]
+        }
+        """)
+        let bundle = try BundleParser.parseFull(at: url)
+        XCTAssertEqual(bundle.readModels[0].name, "explicitName",
+            "explicit name wins over queryName")
+        XCTAssertEqual(bundle.readModels[0].eventNames, ["fooCreated"],
+            "explicit events wins over links derive (no phantomEvent cross-ref error)")
+        XCTAssertEqual(bundle.readModels[0].key?.field, "explicitKey",
+            "explicit key wins over parameters derive")
+        XCTAssertEqual(bundle.readModels[0].storedFields.map(\.name), ["explicitField"],
+            "explicit storedFields wins over returnType flatten")
+    }
+
+    // MARK: - Phase 1.p — DTO scope/usage validation (D5 reserved-name / D9+D19 forbidden / D20 strict gate)
+
+    private static func dtoEnvelope(manifestVersion: Int = 1) -> String {
+        """
+        "manifestVersion": \(manifestVersion),
+        "bundleId": "abc",
+        "context": "FooContext",
+        \(Self.aggregateOnly)
+        """
+    }
+
+    func testDtoReservedNameApiErrorSuffixRejected() throws {
+        let url = try writeFixture("""
+        {
+          \(Self.dtoEnvelope()),
+          "dtos": [{
+            "dtoSpecId": "d-1",
+            "name": "UserAccessProfileApiError"
+          }]
+        }
+        """)
+        XCTAssertThrowsError(try BundleParser.parseFull(at: url)) { error in
+            guard case .bundleInvalid(let reason) = error as? GenesisError else {
+                return XCTFail("expected bundleInvalid, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("reserved infra pattern"),
+                "error should mention reserved-name filter; got: \(reason)")
+        }
+    }
+
+    func testDtoReservedNamePlusDomainSuffixRejected() throws {
+        let url = try writeFixture("""
+        {
+          \(Self.dtoEnvelope()),
+          "dtos": [{
+            "dtoSpecId": "d-1",
+            "name": "Foo+Domain"
+          }]
+        }
+        """)
+        XCTAssertThrowsError(try BundleParser.parseFull(at: url)) { error in
+            guard case .bundleInvalid(let reason) = error as? GenesisError else {
+                return XCTFail("expected bundleInvalid, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("+Domain"), "error should name the suffix pattern; got: \(reason)")
+        }
+    }
+
+    func testDtoPerUseCaseResponseForbidden() throws {
+        let url = try writeFixture("""
+        {
+          \(Self.dtoEnvelope()),
+          "dtos": [{
+            "dtoSpecId": "d-1",
+            "name": "FooDto",
+            "scope": "perUseCase",
+            "usage": "response",
+            "useCaseRef": "createFoo"
+          }]
+        }
+        """)
+        XCTAssertThrowsError(try BundleParser.parseFull(at: url)) { error in
+            guard case .bundleInvalid(let reason) = error as? GenesisError else {
+                return XCTFail("expected bundleInvalid, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("perUseCase × response"), "error should name the forbidden combo; got: \(reason)")
+        }
+    }
+
+    func testDtoPerReadModelRequestForbidden() throws {
+        let url = try writeFixture("""
+        {
+          \(Self.dtoEnvelope()),
+          "dtos": [{
+            "dtoSpecId": "d-1",
+            "name": "FooDto",
+            "scope": "perReadModel",
+            "usage": "request",
+            "readModelRef": "getFoo"
+          }]
+        }
+        """)
+        XCTAssertThrowsError(try BundleParser.parseFull(at: url)) { error in
+            guard case .bundleInvalid(let reason) = error as? GenesisError else {
+                return XCTFail("expected bundleInvalid, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("perReadModel × request"), "error should name the forbidden combo; got: \(reason)")
+        }
+    }
+
+    func testDtoContextSharedRequestForbidden() throws {
+        let url = try writeFixture("""
+        {
+          \(Self.dtoEnvelope()),
+          "dtos": [{
+            "dtoSpecId": "d-1",
+            "name": "FooDto",
+            "scope": "contextShared",
+            "usage": "request"
+          }]
+        }
+        """)
+        XCTAssertThrowsError(try BundleParser.parseFull(at: url)) { error in
+            guard case .bundleInvalid(let reason) = error as? GenesisError else {
+                return XCTFail("expected bundleInvalid, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("contextShared × request"), "error should name the forbidden combo; got: \(reason)")
+        }
+    }
+
+    func testDtoStrictGateRaisesOnMissingScope() throws {
+        // manifestVersion: 2 → strict path; missing scope must raise
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 2,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateOnly),
+          "dtos": [{
+            "dtoSpecId": "d-1",
+            "name": "FooDto"
+          }]
+        }
+        """)
+        XCTAssertThrowsError(try BundleParser.parseFull(at: url)) { error in
+            guard case .bundleInvalid(let reason) = error as? GenesisError else {
+                return XCTFail("expected bundleInvalid, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("manifestVersion: 2") || reason.contains("strict path"),
+                "error should mention manifestVersion strict path; got: \(reason)")
+        }
+    }
+
+    func testDtoStrictGateAcceptsExplicitScope() throws {
+        // manifestVersion: 2 + explicit scope → pass
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 2,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateOnly),
+          "dtos": [{
+            "dtoSpecId": "d-1",
+            "name": "FooDto",
+            "scope": "contextShared",
+            "usage": "response"
+          }]
+        }
+        """)
+        let bundle = try BundleParser.parseFull(at: url)
+        XCTAssertEqual(bundle.dtos.count, 1)
+        XCTAssertEqual(bundle.dtos[0].scope, "contextShared")
+    }
 }

@@ -114,7 +114,7 @@ public enum AggregateRenderer {
         sharedImport: String,
         dir: String
     ) throws -> (String, String, String) {
-        let knownCustomTypes = Set(bundle.dtos.map { $0.name } + adapter.customTypes.map { $0.name })
+        let knownCustomTypes = bundle.dtoTypeNames.union(adapter.customTypes.map { $0.name })
         let alias = spec.identityName
 
         // State field declarations (Optional + populated by `when(event:)` in Commands/).
@@ -241,7 +241,7 @@ public enum AggregateRenderer {
         bundle: FullBundle,
         dir: String
     ) throws -> (String, String, String) {
-        let knownCustomTypes = Set(bundle.dtos.map { $0.name } + adapter.customTypes.map { $0.name })
+        let knownCustomTypes = bundle.dtoTypeNames.union(adapter.customTypes.map { $0.name })
         let eventBlockTemplate = try TemplateLoader.loadTemplate(name: "event.yaml.event", ext: "template")
         let alias = spec.identityName
 

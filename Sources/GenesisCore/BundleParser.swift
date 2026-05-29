@@ -24,13 +24,20 @@ public enum BundleParser {
             try decodeUseCaseSpec(raw, idx: idx)
         }
 
-        let dtos = try (envelope.dtos ?? []).enumerated().map { idx, raw -> DtoSpec in
-            try decodeDtoSpec(raw, idx: idx)
+        let rawDtos = try (envelope.dtos ?? []).enumerated().map { idx, raw -> DtoSpec in
+            try decodeDtoSpec(raw, idx: idx, manifestVersion: manifestVersion)
         }
 
         let readModels = try (envelope.readModels ?? []).enumerated().map { idx, raw -> ReadModelSpec in
-            try decodeReadModelSpec(raw, idx: idx)
+            try decodeReadModelSpec(raw, idx: idx, aggregates: aggregates)
         }
+
+        // Phase 1.l.1.1: canonicalize perReadModel DTOs' readModelRef via dtoSpecRef cross-ref
+        let dtos = canonicalizeDtoReadModelRefs(
+            rawDtos,
+            envelopeReadModels: envelope.readModels ?? [],
+            decodedReadModels: readModels
+        )
 
         let presenters = try (envelope.presenters ?? []).enumerated().map { idx, raw -> PresenterSpec in
             try decodePresenterSpec(raw, idx: idx)
@@ -88,6 +95,7 @@ public enum BundleParser {
         let aggregateSpecId: String?
         let aggregateRef: String?
         let name: String?
+        let queryName: String?      // Phase 1.l.1: Cosmogony alias for `name`
         // events 支援三種 schema:
         //   1. events: [{name, sourceAggregate}]  (v1 /readmodel skill new shape)
         //   2. events: [{name}]                    (legacy aggregate.events shape)
@@ -96,12 +104,16 @@ public enum BundleParser {
         let eventsFlat: [String]?
         let eventNames: [String]?
         let key: RawReadModelKey?
+        let parameters: [RawReadModelParameter]?  // Phase 1.l.1: Cosmogony — derive key from parameters[0]
+        let returnType: RawReadModelReturnType?    // Phase 1.l.1: Cosmogony — flatten into storedFields
+        let links: [RawReadModelLink]?              // Phase 1.l.1: Cosmogony — derive events from outbound DomainEvent
         let storedFields: [RawReadModelStoredField]?
         let comment: String?
 
         private enum CodingKeys: String, CodingKey {
-            case readModelSpecId, aggregateSpecId, aggregateRef, name,
-                 events, eventNames, key, storedFields, comment
+            case readModelSpecId, aggregateSpecId, aggregateRef, name, queryName,
+                 events, eventNames, key, parameters, returnType, links,
+                 storedFields, comment
         }
 
         init(from decoder: Decoder) throws {
@@ -110,8 +122,12 @@ public enum BundleParser {
             self.aggregateSpecId = try c.decodeIfPresent(String.self, forKey: .aggregateSpecId)
             self.aggregateRef = try c.decodeIfPresent(String.self, forKey: .aggregateRef)
             self.name = try c.decodeIfPresent(String.self, forKey: .name)
+            self.queryName = try c.decodeIfPresent(String.self, forKey: .queryName)
             self.eventNames = try c.decodeIfPresent([String].self, forKey: .eventNames)
             self.key = try c.decodeIfPresent(RawReadModelKey.self, forKey: .key)
+            self.parameters = try c.decodeIfPresent([RawReadModelParameter].self, forKey: .parameters)
+            self.returnType = try c.decodeIfPresent(RawReadModelReturnType.self, forKey: .returnType)
+            self.links = try c.decodeIfPresent([RawReadModelLink].self, forKey: .links)
             self.storedFields = try c.decodeIfPresent([RawReadModelStoredField].self, forKey: .storedFields)
             self.comment = try c.decodeIfPresent(String.self, forKey: .comment)
             // events: try [RawReadModelEvent] (objects) first, fall back to [String]
@@ -143,6 +159,42 @@ public enum BundleParser {
         let name: String?
         let type: String?
         let `default`: String?
+    }
+
+    /// Phase 1.l.1: Cosmogony returnType.fields lacks `default`; supply sensible primitive defaults
+    /// at flatten time. Returns nil for non-primitive types (downstream auto-infers collections /
+    /// throws bundleInvalid if no inference possible).
+    private static func inferDefaultForPrimitive(_ rawType: String) -> String? {
+        switch rawType.trimmingCharacters(in: .whitespaces) {
+        case "String": return "\"\""
+        case "Int", "Decimal", "Float", "Double": return "0"
+        case "Bool": return "false"
+        default: return nil  // let downstream handle collection / optional / custom type
+        }
+    }
+
+    // Phase 1.l.1: Cosmogony schema adapter types
+    private struct RawReadModelLink: Decodable {
+        let direction: String?    // "outbound" | "inbound"
+        let targetType: String?   // "DomainEvent" | "Aggregate" | ...
+        let targetName: String?
+        let targetSpecId: String?
+    }
+
+    private struct RawReadModelParameter: Decodable {
+        let name: String?
+        let type: String?
+    }
+
+    private struct RawReadModelReturnType: Decodable {
+        let shape: String?  // "object" | ...
+        let fields: [RawReadModelReturnField]?
+    }
+
+    private struct RawReadModelReturnField: Decodable {
+        let name: String?
+        let type: String?
+        let dtoSpecRef: String?  // Cosmogony stable id, Genesis ignores
     }
 
     private static func loadEnvelope(at url: URL) throws -> Envelope {
@@ -244,6 +296,11 @@ public enum BundleParser {
         let domainTypeName: String?
         let isContextShared: Bool?
         let aggregateRef: String?
+        // Phase 1.l.1.1: Cosmogony v19 schema — explicit scope/usage routing
+        let scope: String?
+        let usage: String?
+        let useCaseRef: String?
+        let readModelRef: String?
     }
 
     // Phase 2: /presenter skill v1 — RawPresenter for bundle.presenters[]
@@ -373,9 +430,23 @@ public enum BundleParser {
         )
     }
 
-    private static func decodeReadModelSpec(_ raw: RawReadModel, idx: Int) throws -> ReadModelSpec {
-        guard let name = raw.name, !name.isEmpty else {
-            throw GenesisError.bundleInvalid(reason: "readModels[\(idx)] missing required key 'name'")
+    private static func decodeReadModelSpec(
+        _ raw: RawReadModel,
+        idx: Int,
+        aggregates: [AggregateSpec]
+    ) throws -> ReadModelSpec {
+        // Phase 1.l.1: Cosmogony adapter — name with queryName alias fallback
+        // Cosmogony uses lowerCamelCase for queryName; normalize to UpperCamelCase since
+        // Genesis downstream (ReadModelRenderer) treats name as a Swift type prefix.
+        let name: String
+        if let n = raw.name, !n.isEmpty {
+            name = n  // legacy `name` path assumed already PascalCase
+        } else if let qn = raw.queryName, !qn.isEmpty {
+            name = qn.prefix(1).uppercased() + qn.dropFirst()
+        } else {
+            throw GenesisError.bundleInvalid(
+                reason: "readModels[\(idx)] missing required key 'name' (or 'queryName' Cosmogony alias)"
+            )
         }
         // Phase 2: readModelSpecId 改 optional，缺則 derive from name
         let readModelSpecId = raw.readModelSpecId ?? "rm-\(name)"
@@ -395,6 +466,22 @@ public enum BundleParser {
         } else if let alt = raw.eventNames {
             eventNames = alt
             eventRefs = []
+        } else if let links = raw.links, !links.isEmpty {
+            // Phase 1.l.1: Cosmogony adapter — derive events from outbound DomainEvent links
+            let outbound = links.filter { $0.direction == "outbound" && $0.targetType == "DomainEvent" }
+            let derived: [ReadModelEventRef] = try outbound.compactMap { link -> ReadModelEventRef? in
+                guard let eventName = link.targetName, !eventName.isEmpty else { return nil }
+                // Cross-ref: find which aggregate declares this event
+                guard let agg = aggregates.first(where: { $0.eventNames.contains(eventName) }) else {
+                    throw GenesisError.bundleInvalid(
+                        reason: "readModels[\(idx)] ('\(name)') links to DomainEvent "
+                              + "'\(eventName)' but no aggregate declares it in events[]"
+                    )
+                }
+                return ReadModelEventRef(name: eventName, sourceAggregate: agg.name)
+            }
+            eventNames = derived.map(\.name)
+            eventRefs = derived
         } else {
             // Legacy minimal fixture path: 允許空 events（與 readmodels-bundle.json 對齊）
             eventNames = []
@@ -407,14 +494,68 @@ public enum BundleParser {
            let t = rawKey.type, !t.isEmpty,
            let p = rawKey.fromEventPayload, !p.isEmpty {
             key = ReadModelKey(field: f, type: t, fromEventPayload: p)
+        } else if let params = raw.parameters, let first = params.first,
+                  let fName = first.name, !fName.isEmpty,
+                  let fType = first.type, !fType.isEmpty {
+            // Phase 1.l.1: Cosmogony adapter — derive key from parameters[0]
+            FileHandle.standardError.write(Data(
+                ("⚠ ReadModel '\(name)': derived key from parameters[0] '\(fName)'; "
+                + "verify fromEventPayload assumption (parameter name == event payload field name)\n").utf8
+            ))
+            key = ReadModelKey(field: fName, type: fType, fromEventPayload: fName)
         } else {
             key = nil
         }
 
-        let storedFields: [ReadModelStoredField] = (raw.storedFields ?? []).compactMap { f -> ReadModelStoredField? in
+        let existingSF: [ReadModelStoredField] = (raw.storedFields ?? []).compactMap { f -> ReadModelStoredField? in
             guard let n = f.name, !n.isEmpty else { return nil }
             guard let t = f.type, !t.isEmpty else { return nil }
             return ReadModelStoredField(name: n, type: t, defaultValue: f.default)
+        }
+        let storedFields: [ReadModelStoredField]
+        if !existingSF.isEmpty {
+            storedFields = existingSF
+        } else if let rt = raw.returnType, let rtFields = rt.fields, !rtFields.isEmpty {
+            // Phase 1.l.1: Cosmogony adapter — flatten returnType.fields → storedFields.
+            // Cosmogony returnType doesn't carry `default`; for primitives supply sensible
+            // default; for custom types (likely DTO) mark Optional (nil default auto-inferred
+            // by ReadModelRenderer). Consistent with how aggregate state is treated.
+            storedFields = rtFields.compactMap { f -> ReadModelStoredField? in
+                guard let n = f.name, !n.isEmpty else { return nil }
+                guard let t = f.type, !t.isEmpty else { return nil }
+                if let primDefault = inferDefaultForPrimitive(t) {
+                    return ReadModelStoredField(name: n, type: t, defaultValue: primDefault)
+                } else {
+                    // Wrap non-primitive in Optional — DTOs / custom types default to nil
+                    return ReadModelStoredField(name: n, type: "\(t)?", defaultValue: nil)
+                }
+            }
+        } else {
+            storedFields = []
+        }
+
+        // Phase 1.l.1.1 Option A: derive aggregateRef from eventRefs when explicit ref is missing.
+        // Cosmogony v19 doesn't emit readModel.aggregateRef (v20 will). Genesis can derive it
+        // from eventRefs[*].sourceAggregate when all events share the same owning aggregate.
+        // This prevents downstream renderers (Presenter / ContextProjectionModel) from treating
+        // single-aggregate readModels as context-level (which would split projector files).
+        let derivedAggregateRef: String?
+        if let explicit = raw.aggregateRef, !explicit.isEmpty {
+            derivedAggregateRef = explicit
+        } else if !eventRefs.isEmpty {
+            let sourceAggs = Set(eventRefs.map { $0.sourceAggregate })
+            if sourceAggs.count == 1, let single = sourceAggs.first {
+                derivedAggregateRef = single
+                FileHandle.standardError.write(Data(
+                    ("⚠ ReadModel '\(name)': aggregateRef derived as '\(single)' from eventRefs[*].sourceAggregate "
+                    + "(Cosmogony v20 will provide explicit aggregateRef)\n").utf8
+                ))
+            } else {
+                // Genuinely cross-aggregate readModel — leave aggregateRef nil for context-level placement
+                derivedAggregateRef = nil
+            }
+        } else {
+            derivedAggregateRef = nil
         }
 
         return ReadModelSpec(
@@ -422,7 +563,7 @@ public enum BundleParser {
             aggregateSpecId: raw.aggregateSpecId,
             name: name,
             eventNames: eventNames,
-            aggregateRef: raw.aggregateRef,
+            aggregateRef: derivedAggregateRef,
             key: key,
             storedFields: storedFields,
             eventRefs: eventRefs,
@@ -430,13 +571,61 @@ public enum BundleParser {
         )
     }
 
-    private static func decodeDtoSpec(_ raw: RawDto, idx: Int) throws -> DtoSpec {
+    private static func decodeDtoSpec(_ raw: RawDto, idx: Int, manifestVersion: Int) throws -> DtoSpec {
         guard let dtoSpecId = raw.dtoSpecId, !dtoSpecId.isEmpty else {
             throw GenesisError.bundleInvalid(reason: "dtos[\(idx)] missing required key 'dtoSpecId'")
         }
         guard let name = raw.name, !name.isEmpty else {
             throw GenesisError.bundleInvalid(reason: "dtos[\(idx)] missing required key 'name'")
         }
+
+        // Phase 1.p D5: reserved-name filter — prevent DTO names colliding with Genesis-internal artifacts.
+        if name.hasSuffix("ApiError")
+            || name.hasPrefix("ApiComponents+")
+            || name.hasSuffix("+Schema")
+            || name.hasSuffix("+Domain") {
+            throw GenesisError.bundleInvalid(
+                reason: "dtos[\(idx)].name '\(name)' collides with reserved infra pattern "
+                      + "('*ApiError' / 'ApiComponents+*' / '*+Schema' / '*+Domain'); rename DTO"
+            )
+        }
+
+        // Phase 1.p D20 (supersedes D11): strict gate on manifestVersion >= 2.
+        // When Cosmogony v22 ships manifestVersion: 2, scope becomes required.
+        // For current v19/v20 (manifestVersion: 1), scope stays optional (inference path).
+        if manifestVersion >= 2 && (raw.scope == nil || raw.scope?.isEmpty == true) {
+            throw GenesisError.bundleInvalid(
+                reason: "dtos[\(idx)] missing required key 'scope' under manifestVersion: \(manifestVersion) strict path"
+            )
+        }
+
+        // Phase 1.p D9 + D19: forbidden scope × usage combinations.
+        // Raise loud bundleInvalid with actionable hint instead of silent emit-broken-code.
+        switch (raw.scope, raw.usage) {
+        case ("perUseCase", "response"):
+            throw GenesisError.bundleInvalid(
+                reason: "dtos[\(idx)] perUseCase × response is unusual; use contextShared or aggregate response scope, "
+                      + "or file an OC counterexample to lift this restriction (Phase 1.p D9)"
+            )
+        case ("perReadModel", "request"):
+            throw GenesisError.bundleInvalid(
+                reason: "dtos[\(idx)] perReadModel × request not supported (queries have no request body); "
+                      + "use scope=perUseCase for write-side input DTOs (Phase 1.p D19)"
+            )
+        case ("perReadModel", "both"):
+            throw GenesisError.bundleInvalid(
+                reason: "dtos[\(idx)] perReadModel × both not supported (queries are response-only); "
+                      + "use usage=response (Phase 1.p D19)"
+            )
+        case ("contextShared", "request"):
+            throw GenesisError.bundleInvalid(
+                reason: "dtos[\(idx)] contextShared × request write-DTO not supported in Phase 1.p; "
+                      + "deferred to Phase 1.q"
+            )
+        default:
+            break
+        }
+
         let fields = try (raw.fields ?? []).enumerated().map { fIdx, f in
             try decodeField(f, prefix: "dtos[\(idx)].fields[\(fIdx)]")
         }
@@ -449,8 +638,63 @@ public enum BundleParser {
             cases: raw.cases ?? [],
             domainTypeName: raw.domainTypeName,
             isContextShared: raw.isContextShared,
-            aggregateRef: raw.aggregateRef
+            aggregateRef: raw.aggregateRef,
+            scope: raw.scope,
+            usage: raw.usage,
+            useCaseRef: raw.useCaseRef,
+            readModelRef: raw.readModelRef
         )
+    }
+
+    /// Phase 1.l.1.1: cross-ref canonicalize for DTOs with scope=perReadModel.
+    /// Cosmogony bundle's `dto.readModelRef` may be lowerCamelCase or user-typo'd
+    /// (e.g. `getPromissions` vs `getPermissions`). But every readModel.returnType.fields[]
+    /// that uses a DTO carries `dtoSpecRef: <dto.dtoSpecId>` — that's the stable cross-ref.
+    /// Resolve readModelRef to the canonical readModel.name via dtoSpecRef when available.
+    private static func canonicalizeDtoReadModelRefs(
+        _ dtos: [DtoSpec],
+        envelopeReadModels: [RawReadModel],
+        decodedReadModels: [ReadModelSpec]
+    ) -> [DtoSpec] {
+        // Build dtoSpecRef → canonical readModel name lookup
+        var specIdToRMName: [String: String] = [:]
+        for (rmIdx, rawRm) in envelopeReadModels.enumerated() {
+            guard rmIdx < decodedReadModels.count else { continue }
+            let canonicalName = decodedReadModels[rmIdx].name
+            for f in rawRm.returnType?.fields ?? [] {
+                if let specRef = f.dtoSpecRef, !specRef.isEmpty {
+                    specIdToRMName[specRef] = canonicalName
+                }
+            }
+        }
+
+        return dtos.map { dto -> DtoSpec in
+            guard dto.scope == "perReadModel" else { return dto }
+            guard let canonical = specIdToRMName[dto.dtoSpecId] else { return dto }
+            // Only overwrite if different — preserve dto.readModelRef when no cross-ref typo
+            guard let current = dto.readModelRef,
+                  current.lowercased() != canonical.lowercased() else { return dto }
+            // Typo'd cross-ref detected — canonicalize via dtoSpecRef
+            FileHandle.standardError.write(Data(
+                ("⚠ DTO '\(dto.name)': readModelRef '\(current)' canonicalized to '\(canonical)' "
+                + "via dtoSpecRef cross-ref (user typo in canvas)\n").utf8
+            ))
+            return DtoSpec(
+                dtoSpecId: dto.dtoSpecId,
+                name: dto.name,
+                description: dto.description,
+                fields: dto.fields,
+                dtoKind: dto.dtoKind,
+                cases: dto.cases,
+                domainTypeName: dto.domainTypeName,
+                isContextShared: dto.isContextShared,
+                aggregateRef: dto.aggregateRef,
+                scope: dto.scope,
+                usage: dto.usage,
+                useCaseRef: dto.useCaseRef,
+                readModelRef: canonical
+            )
+        }
     }
 
     // MARK: - Phase 1.k.2 presenter ↔ readModel validations
