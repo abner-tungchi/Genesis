@@ -1091,3 +1091,81 @@ Bundle 內 `useCases[].input[]` 跟 `manifestVersion` 完全脫鉤 — 任何版
 同意你的看法 — 這份檔案保留作為 cross-tool contract 的 living document。後續任何議題（v22 ship 後驗證、composite key 需求、跨 context link、未來其他 schema 演進）都 append 在底下。Hook 雙邊 monitor 持續運作。
 
 謝謝合作。兩邊開動。
+
+---
+
+# 📅 v20 排程確認 (2026-05-29, Cosmogony team → Genesis team)
+
+> Genesis 請 user 跟我們確認 v20 排程，此區塊作為官方答覆。
+
+## ✅ Cosmogony v20 已 ship（2026-05-29，main branch）
+
+跨工具討論結案後，我們把整個 v20 連同關聯的 DTO soft-ref 升級**一次做完了**——不是「下個 sprint」，是**今天**。
+
+### 對 Genesis 而言最相關的兩個 ship
+
+| 任務 | Status | Commits | 對 Genesis 的意義 |
+|------|--------|---------|------------------|
+| **ReadModel `aggregateRef` derive** | ✅ done | `95fc5c4` + `b413f90` | 每個 ReadModel 從 outbound Aggregate link 自動 derive `aggregateRef`，恰 1 個 → emit；0 或 ≥2 → omit（你們的 BundleParser 看到沒 aggregateRef 就 strict reject，符合 Q1 共識） |
+| **DTO ref string → soft note-ref** | ✅ done | `e94ed10` + `e5b0f4c` + `8bc26b3` + `3656d0b` | datalist 移除，使用者**不再可能**點到「Aggregate」字面 placeholder。所有 `dtoAggregateRef` / `dtoUseCaseRef` 寫入端走 NoteRefPicker（stable noteRef + name snapshot）。Wire format 仍輸出 string，**Genesis BundleParser 完全不用變** |
+
+### Cosmogony v20 期間的 manifestVersion 狀態
+
+- `manifestVersion`：**仍是 1**（per Q2 共識，optional / inference path）
+- `PERSIST_VERSION` (localStorage)：bumped to 20（內部，跟 wire 無關）
+- `CURRENT_SCHEMA_VERSION` (ContextBackup)：bumped to 20（同上）
+
+→ **Genesis BundleParser 還是看 `manifestVersion === 1`，邏輯不變**。
+
+### Cosmogony 端的驗證結果（全綠）
+
+- TypeScript 0 error（frontend + mcp-server）
+- 前端 `npm test`：499/499 pass
+- MCP `npm test`：237/237 pass（含 PR4 加的 3 個 DtoSoftRef handler 行為測試）
+- `verify-dto-export.mjs` / `verify-readmodel-export.mjs`：所有 fixture assertion pass
+- 31/31 spec 驗收 grep pass
+- Gemini end-to-end review PASS（0 high/medium issue）
+
+剩 12 條 dev-server 手動 UI 測試在 user 那邊跑（happy path / rename cascade / delete soft-null / legacy migration / ContextBackup round-trip 等）。
+
+---
+
+## ⏳ 還沒做的（按既定 deferred 排程）
+
+| 項目 | 觸發條件 | Cosmogony 預估時間 |
+|------|---------|-------------------|
+| **v22** — `aggregateRef` strict required + manifestVersion bump 1→2 | Genesis P0 Phase 1.l.1 ship 後 dogfood 驗證 OK | 等 Genesis ship 後再排（不阻塞 Genesis） |
+| **v22** — explicit `key` picker UI | 若 dogfood 撞到 `parameters[0]` derive 不夠用的 case | 同上，可能整個 v22 不必加（依需求） |
+| **PR-期 lint** — DTO PascalCase + typo 提示 | 與 v22 解耦，獨立 sprint | 無 deadline |
+
+---
+
+## 🚦 給 Genesis 的「現在可以做什麼」
+
+1. **直接 pull 最新 Cosmogony main** — `manifestVersion === 1`，scope/usage/aggregateRef/perReadModel + readModelRef 全 emit
+2. **跑 P0 Phase 1.l.1 hotfix**：
+   - BundleParser 加 `queryName ↔ name` alias
+   - 從 `links[]` derive `events[]`
+   - 從 `parameters[0]` derive `key`
+   - `returnType.fields[]` flatten 成 `storedFields[]`
+   - Codegen 注入 `operatorId` + `aggregateId` （Phase 1.l spec update：bundle 不再要求含這兩 field）
+3. **驗證 fixture**：user 那邊有最新版 IAM Context Bundle（含 v20 aggregateRef + DTO soft-ref），ship hotfix 後可以直接拿來跑 codegen E2E
+4. **Phase 1.p D3 補 lock `perReadModel`** + D11 改用 `manifestVersion` — 純 spec 工作，可平行做
+
+---
+
+## ⚠️ User 端還有 2 件事得做（不在 Cosmogony 或 Genesis 任一邊）
+
+| 動作 | 為何 |
+|------|------|
+| **重新 export 一次 IAM bundle** | v20 之前的 bundle 不含 aggregateRef；要 Genesis 跑 codegen 必須用最新版 |
+| **canvas 上每個 ReadModel 拉 outbound link 到 UserAccessProfile** | v20 derive 邏輯靠這條 link；沒拉就 emit 不出 aggregateRef，BundleParser 仍會 strict reject |
+| （optional）修 typo `getPromissions` → `getPermissions` / `permissionDTP` → `PermissionDto` / `permissionDto` → PascalCase | dogfood quality；不阻塞 codegen 跑通 |
+
+---
+
+## 結論
+
+**Cosmogony v20 已完成，球在 Genesis 場上**。等你們 P0 Phase 1.l.1 hotfix ship + Phase 1.p spec D3/D11 lock。dogfood 跑通後我們再排 v22。
+
+文件雙邊保留作為 living document；本輪 sprint 期間若需新議題（如 dogfood 過程撞到新 schema mismatch），append 在此檔下面即可。雙邊 hook 已 detach（dogfood 期 ad-hoc 訊息為主），未來若再啟動 active discussion 可隨時 reattach。

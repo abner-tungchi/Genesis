@@ -182,9 +182,65 @@ Add write-side per-UC DTO codegen to Genesis so that write UCs with non-primitiv
 
 **Rationale**: R2 file inspection: "emits generic bundle DTO definitions today, including owned DTOs, but not write-side per-UC DTO definitions. Phase 1.p needs route-aware definition placement." R1 preference for stubbed-with-`bundleInvalid` keeps phase scope focused. R3 risk-conservative default aligned.
 
+---
+
+## 補丁區 — Post-Cosmogony-v20 amendments (2026-05-29)
+
+Cosmogony v20 ship 後（cross-tool discussion `docs/discussions/2026-05-28-cosmogony-bundle-schema-mismatch.md` line 1101+），Phase 1.p 兩個原 lock 需要更新。
+
+### D19. perReadModel scope 加入 lock + emission strategy（補 D3 + D10）
+
+**Decision**: Phase 1.p D3 原 lock 隱含 3 個 scope value（perUseCase / aggregate / contextShared），現補 lock 第 4 個 **`perReadModel`**（Cosmogony v19 已 emit 此值）。完整 4 scope value set:
+- `perUseCase` — 該 DTO 只 1 個 UC 用
+- `aggregate` — 跨 UC 但同 aggregate 共用
+- `perReadModel` — 該 DTO 只 1 個 read model（projection / query view）用 ← **新加**
+- `contextShared` — 跨 aggregate 共用
+
+D4 emission strategy 補 perReadModel cell：
+
+| scope × usage | emission |
+|---|---|
+| `perReadModel × response` | emit DTO at `<A>Aggregate/Usecase/Projector/<RM>/<DtoName>.swift` + `<A>Aggregate/Usecase/Projector/<RM>/<RM>Presenter.swift` 內加 `init(from domain:)` mapper（response = projection → wire） |
+| `perReadModel × request` | **forbid** via `bundleInvalid` — read-side 不應有 request DTO（query 沒 body） |
+| `perReadModel × both` | **forbid** via `bundleInvalid` — 同上理由 |
+
+對應 aggregate 從 readModel.aggregateRef 取（Cosmogony v20 derive；v19 + Genesis Phase 1.l.1.1 Option A derive 過渡）。
+
+**Rationale**: Cosmogony team 在 cross-tool discussion 2026-05-28 提出 `perReadModel` 為 v19 schema 第 4 個 scope value（理由：write 側對稱 — write 有 perUseCase / aggregate / contextShared 三層，read 側也該有 perReadModel / contextShared 對齊）。Phase 1.p D3 原 spec 假設只 3 個 scope，沒涵蓋此 case，導致 Genesis Phase 1.l.1.1 Q1 dogfood 撞牆（permissionDto 找不到正確路由）。D19 補 lock 後 Phase 1.p impl 可完整覆蓋 4 scope × 3 usage = 12 cells 的 emission matrix（含 forbid case）。
+
+### D20. D11 supersession — 用既存 `manifestVersion` 取代 `bundleSchemaVersion`
+
+**Decision**: D11 原 lock 「emit `bundleSchemaVersion:2` 為 sentinel」**superseded** — 改用 Cosmogony envelope 既存的 `manifestVersion` 欄位作為 wire-format version gate：
+- `manifestVersion: 1`（current）— Phase 1.p 新 fields（scope/usage/aggregateRef/readModelRef/perReadModel）optional，BundleParser 走 inference path
+- `manifestVersion: 2`（Cosmogony v22 ship 後）— scope/usage required、ReadModel `aggregateRef` required、ReadModel `key` required，BundleParser strict reject 缺欄位
+
+Genesis BundleParser 邏輯：
+```swift
+if envelope.manifestVersion >= 2 {
+    // strict path: missing fields throw bundleInvalid
+} else {
+    // optional path: missing fields go through inference / derive (Phase 1.l.1.1 logic)
+}
+```
+
+**Rationale**: Cosmogony team 在 cross-tool discussion 2026-05-28 line 437-454 指出，Cosmogony envelope 已有 `manifestVersion: 1` 欄位，跟 Genesis 原 D11 提的 `bundleSchemaVersion: 2` 是同一概念。雙處 alias 維護成本不必要。Genesis 改讀 `manifestVersion` 是更乾淨的方案（Cosmogony team line 1118-1119: "Genesis BundleParser 還是看 manifestVersion === 1"，confirmed contract）。
+
+對 Phase 1.p impl 影響：BundleParser 的 strict-vs-optional gate 改用 `envelope.manifestVersion` 比對。其他 spec content（DtoRouter / ApiRenderer / mapper emit）不變。
+
+### D21. Phase 1.p impl 啟動條件 unblocked（補 D12 sequencing）
+
+**Decision**: 原 D12 假設「Phase 1.p ships independent of Cosmogony schema update」。Post-v20 sign-off 後**啟動條件已滿足**：
+- Cosmogony v20 ship（aggregateRef derived from outbound Aggregate link）✅ 2026-05-29 main
+- Genesis P0 Phase 1.l.1 ship（BundleParser adapter + codegen 注入）✅
+- Genesis Phase 1.l.1.1 ship（DTO scope routing + readModel aggregateRef derive）✅
+
+Phase 1.p impl 不必再等 Cosmogony v22 才能開動 — v20 bundle 已可直接 prototype + dogfood。v22 ship 後再加 manifestVersion=2 strict path validation gate（小改動，跟 D20 一致）。
+
+**Rationale**: Cosmogony team 在 cross-tool MD line 1167 "Cosmogony v20 已完成，球在 Genesis 場上" 結論。Phase 1.p impl 啟動 unblock，預估 3-5 天工時（DtoRouter + ApiRenderer scope-aware mapper emit + ContextLevelRenderer extension + 對應 tests）。
+
 ## 開放問題
 
-無（全部 locked）
+無（全部 locked，含 D19 / D20 / D21 補丁）
 
 ## 分歧紀錄（minority opinions）
 

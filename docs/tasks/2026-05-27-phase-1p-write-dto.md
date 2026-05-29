@@ -2,9 +2,11 @@
 
 ## 來源
 
-討論：`docs/discussions/2026-05-27-phase-1p-write-dto.md`
+討論：`docs/discussions/2026-05-27-phase-1p-write-dto.md`（含 2026-05-29 補丁 D19/D20/D21）+ cross-tool `docs/discussions/2026-05-28-cosmogony-bundle-schema-mismatch.md`（v20 sign-off）
 
-依賴 Phase（全 done）：phase-1l（Usecase Input OC alignment）、phase-1n（type ownership routing）、phase-1o-hygiene（Service struct / Usecase where-clause / event.yaml map shape）。
+依賴 Phase（全 done）：phase-1l（Usecase Input OC alignment）、phase-1l1-codegen-injection-and-readmodel-adapter、phase-1n（type ownership routing）、phase-1o-hygiene（Service struct / Usecase where-clause / event.yaml map shape）。
+
+依賴 Cosmogony（已 ship）：v19（scope/usage/aggregateRef/readModelRef/perReadModel emit）+ v20（aggregateRef derive from outbound Aggregate link）。
 
 合 dogfood findings：F7（Layer 2 re-verify 2026-05-27 — OC `EditBusinessTaxFilingMethod` 含 per-UC DTO 但 Genesis ApplicationService Input 仍走 primitive 型別，未經 DTO 過渡層）。
 
@@ -27,6 +29,7 @@ public struct DtoRoute: Sendable, Equatable {
     public enum Scope: String, Sendable, Equatable {
         case perUseCase
         case aggregate
+        case perReadModel      // D19: Cosmogony v19 4th scope value (cross-tool 2026-05-29)
         case contextShared
     }
     public enum Usage: String, Sendable, Equatable {
@@ -40,6 +43,7 @@ public struct DtoRoute: Sendable, Equatable {
     public let usage: Usage
     public let useCaseRef: String?        // populated when scope == .perUseCase
     public let aggregateRef: String?      // populated when scope == .aggregate / .contextShared with owning agg
+    public let readModelRef: String?      // D19: populated when scope == .perReadModel
 }
 
 public enum DtoRouter {
@@ -61,21 +65,34 @@ public enum DtoRouter {
   - `dto.aggregateRef != nil` 且解析到 aggregate → `.aggregate`
   - 否則 → `.perUseCase`（需要 router 進一步從 useCases.input 推導 `useCaseRef`；若推不出 → emit warning 並 fallback `.aggregate`/`.contextShared` per `ownership`）
 - **usage 推導**：bundle 缺 `usage` 欄位 → 預設 `.both`（D1：default usage=both when missing）。
-- **forbidden combinations（Phase 1.p D10 scope 邊界）**：以下組合 router 不處理，由 `BundleParser` 在 validation 階段 raise `GenesisError.bundleInvalid`：
+- **forbidden combinations（Phase 1.p D10 scope 邊界 + D19 perReadModel 補丁）**：以下組合 router 不處理，由 `BundleParser` 在 validation 階段 raise `GenesisError.bundleInvalid`：
   - `perUseCase × response` — 無 OC counterexample，loud-fail
+  - `perReadModel × request` — read-side 不應有 request DTO（query 沒 body），loud-fail（D19）
+  - `perReadModel × both` — 同上理由，loud-fail（D19）
   - `aggregate × request/response/both` — Phase 1.q 才支援
   - `contextShared × request` — Phase 1.q 才支援
+
+- **supported emission cells（D3 + D19）**：
+
+| scope × usage | emission |
+|---|---|
+| `perUseCase × request` | `<A>Aggregate/Adapter/<UC>/<X>.swift`（DTO def + domain mapper）— D3 mapper-only default + def 條件 |
+| `perReadModel × response` | `<A>Aggregate/Usecase/Projector/<RM>/<X>.swift`（DTO def + domain→DTO mapper）— D19 補 |
+| `contextShared × response` | `<Ctx>Shared/<X>.swift`（DTO def，無 mapper — 由各 aggregate 自行 emit `+Domain.swift`） |
+| `contextShared × both` | 同上，待 Phase 1.q lift |
+
 - **warnings shape**（D14 volume management）：呼叫端 default 將 warnings 摘要成單行 stderr line（"DtoRouter: inferred N DTO routes from legacy bundle"）；`--verbose` 時逐條印出。鏡像 `TypeOwnershipResolver.warnings` 既有 tuple pattern。
 
-### 新增：`BundleParser` 對 `scope` / `usage` / `useCaseRef` 的解析 + reserved-name filter + `bundleSchemaVersion` sentinel
+### 新增：`BundleParser` 對 `scope` / `usage` / `useCaseRef` / `readModelRef` 的解析 + reserved-name filter + `manifestVersion` strict gate
 
-`BundleParser.RawDto` 加 3 個 optional field（`scope: String?`, `usage: String?`, `useCaseRef: String?`），轉成 `DtoSpec` 同名 optional fields。`Envelope` 加 `bundleSchemaVersion: Int?`。
+`BundleParser.RawDto` 加 4 個 optional field（`scope: String?`, `usage: String?`, `useCaseRef: String?`, `readModelRef: String?` — Phase 1.l.1.1 已加完），轉成 `DtoSpec` 同名 optional fields。**Envelope 用既存的 `manifestVersion` 作為 wire-format version gate（D20 supersede D11）**。
 
 合約細則：
 
-- **`bundleSchemaVersion` sentinel（D11）**：
-  - bundle 含 `bundleSchemaVersion: 2` → 進 strict path，三欄缺一律 raise `bundleInvalid("dtos[i] missing required key 'scope' under bundleSchemaVersion:2")`。
-  - bundle 無 `bundleSchemaVersion` 或 `bundleSchemaVersion: 1` → 進 inference path，由 `DtoRouter` 推導 + emit warnings。
+- **`manifestVersion` strict gate（D20，supersedes D11）**：
+  - `envelope.manifestVersion >= 2` → 進 strict path，scope/usage/aggregateRef/readModelRef 缺一律 raise `bundleInvalid("dtos[i] missing required key 'scope' under manifestVersion: \(v) strict path")`。Cosmogony v22 ship 時 bump `manifestVersion: 1 → 2`，此時 strict path 啟用。
+  - `envelope.manifestVersion == 1`（current Cosmogony v19/v20）→ 進 inference path，由 `DtoRouter` 推導 + emit warnings。
+  - `envelope.manifestVersion == nil` → 視為 1（hand-crafted bundle backward compat）。
 
 - **Reserved-name filter（D5）**：任何 `dto.name` match 以下 pattern 即 raise `GenesisError.bundleInvalid(reason: "dtos[i].name '<X>' collides with reserved infra pattern '<pat>'; rename DTO")`：
   - 後綴 `ApiError` （e.g. `UserAccessProfileApiError`）
@@ -84,21 +101,22 @@ public enum DtoRouter {
   - 後綴 `+Domain`
   - Filter 位置：`BundleParser.decodeDtoSpec` 新增 greenfield check（D5 R3 clarification — 不是 `SourceWriter` 路徑碰撞偵測，是 BundleParser name-pattern check）。
 
-- **`useCaseRef` 解析**：若 strict path 含 `useCaseRef`，BundleParser 額外驗證 `useCaseRef ∈ bundle.useCases[].useCase`，否則 raise `bundleInvalid("dtos[i].useCaseRef '<X>' not found in bundle.useCases")`。
+- **`useCaseRef` / `readModelRef` 解析**：若 strict path 含 `useCaseRef`，BundleParser 額外驗證 `useCaseRef ∈ bundle.useCases[].useCase`，否則 raise `bundleInvalid("dtos[i].useCaseRef '<X>' not found in bundle.useCases")`。同理 `readModelRef ∈ bundle.readModels[].name`（D19）— Cosmogony 端 user 可能 typo 的 readModelRef，已由 Phase 1.l.1.1 加的 `canonicalizeDtoReadModelRefs` 用 `dtoSpecRef` cross-ref 修正（保留此 fallback）。
 
-### 修改：`DtoSpec`（`FullBundle.swift`）— 新增 routing-related optional fields
+### 修改：`DtoSpec`（`FullBundle.swift`）— 新增 routing-related optional fields（Phase 1.l.1.1 已實裝）
 
 ```swift
 public struct DtoSpec: Sendable, Equatable {
     // ... existing fields (dtoSpecId, name, description, fields, dtoKind, cases,
     //     domainTypeName, isContextShared, aggregateRef) ...
-    public let scope: String?         // "perUseCase" | "aggregate" | "contextShared" | nil (legacy)
+    public let scope: String?         // "perUseCase" | "aggregate" | "perReadModel" | "contextShared" | nil (legacy)
     public let usage: String?         // "request" | "response" | "both" | nil (default: both)
     public let useCaseRef: String?    // present only when scope=="perUseCase"
+    public let readModelRef: String?  // D19: present only when scope=="perReadModel"
 }
 ```
 
-新欄位皆 optional，舊 fixture / fixture-less init call 不受影響。`init` 加同名 default-nil 參數，保持 source-compat。
+新欄位皆 optional，舊 fixture / fixture-less init call 不受影響。`init` 加同名 default-nil 參數，保持 source-compat。**Phase 1.l.1.1 已 land 4 個欄位**到 `DtoSpec`，Phase 1.p impl 只需要消費它們，不必再新增。
 
 ### 修改：`ApiRenderer.render(...)` — per-UC mapper + AS Input DTO 改型 + structured TODO
 
@@ -143,14 +161,14 @@ if dto.name == domainTypeName(for: dto) { continue }
 |---|---|
 | `Sources/GenesisCore/DtoRouter.swift` | **新檔**：`DtoRoute` struct + `DtoRouter.route(...)` pure function，回 `(routes:, warnings:)` tuple |
 | `Sources/GenesisCore/FullBundle.swift` | `DtoSpec` 加 `scope`/`usage`/`useCaseRef` 3 個 optional fields（init default-nil）|
-| `Sources/GenesisCore/BundleParser.swift` | `RawDto` 加同 3 個 optional + `Envelope` 加 `bundleSchemaVersion`；`decodeDtoSpec` 加 reserved-name filter + strict/inference 分流 + forbidden-combination raise |
+| `Sources/GenesisCore/BundleParser.swift` | `RawDto` 加同 3 個 optional + `Envelope` 加 `manifestVersion`；`decodeDtoSpec` 加 reserved-name filter + strict/inference 分流 + forbidden-combination raise |
 | `Sources/GenesisCore/ApiRenderer.swift` | `render(...)` 加 `routes:` 參數；per-UC mapper emission；AS Input field 型別替換；execute body structured TODO；identity-mapper skip 改 tuple-keyed |
 | `Sources/genesis/Commands/NewCommand.swift` | 在 `TypeOwnershipResolver.resolve` 後、`SharedTargetRenderer.render` 前計算 `DtoRouter.route(...)`；warning 摘要+verbose 輸出；把 `routes` 傳給 `ApiRenderer.render` |
 | `Sources/GenesisCore/Resources/Templates/Api/ApplicationService.swift.template` | 加 `INIT_FROM_INPUT_TODOS` placeholder 用於 structured TODO 行注入 execute body |
 | `Sources/GenesisCore/Resources/Templates/Api/DtoPerUseCaseMapper.swift.template` | **新 template**：per-UC mapper-only / mapper+def 兩段（def section 由 ApiRenderer 條件式組裝） |
 | `tests/GenesisCoreTests/DtoRouterTests.swift` | **新 test 檔**：route 推導 + warning 訊息 + forbidden-combination raise |
 | `tests/GenesisCoreTests/ApiRendererTests.swift` | 加 per-UC mapper emission tests（mapper-only + mapper+def 兩條 path）+ AS Input field 型別替換 test + structured TODO 出現 test |
-| `tests/GenesisCoreTests/BundleParserTests.swift` 或 `BundleParserFullTests.swift` | 加 reserved-name filter raise test + `bundleSchemaVersion:2` strict path test + legacy inference test |
+| `tests/GenesisCoreTests/BundleParserTests.swift` 或 `BundleParserFullTests.swift` | 加 reserved-name filter raise test + `manifestVersion:2` strict path test + legacy inference test |
 | `tests/GenesisIntegrationTests/Fixtures/iam-write-dto-bundle.json` | **新 hand-crafted fixture**：在 iam-bundle 基礎上加一個 `createUserAccessProfile`-like UC 把 `status: EmployeeStatus` 放進 input（觸發 perUseCase × request mapper-only path）|
 | `tests/GenesisIntegrationTests/NewCommandTests.swift` | 加 E2E assertion：跑新 fixture，confirm `Adapter/<UC>/EmployeeStatusDto.swift` 含 mapper extension、無 enum 重宣告、AS Input field 型別 = `EmployeeStatusDto`、execute body 含 structured TODO |
 
@@ -176,28 +194,32 @@ if dto.name == domainTypeName(for: dto) { continue }
 2. `init` 簽名末端加同名 default-nil 參數（順序：`scope: String? = nil, usage: String? = nil, useCaseRef: String? = nil`），body 加 `self.scope = scope` 三行。
 3. 不改動既存 init call sites（既有 fixture / test default-nil 流入 nil）。
 
-### Step 2：`BundleParser.swift` — `RawDto` + `Envelope` 擴充 + 三 validation 加入
+### Step 2：`BundleParser.swift` — `RawDto` validation + `Envelope.manifestVersion` 重用作 strict gate
 
-1. `Envelope` struct 加 `let bundleSchemaVersion: Int?`。
-2. `RawDto` struct 加 `let scope: String?`、`let usage: String?`、`let useCaseRef: String?`。
+> **D20 update**：`Envelope.manifestVersion` 早已存在於 BundleParser（既有 wire-format version field）。Phase 1.l.1 + 1.l.1.1 已將 4 個 routing 欄位（scope/usage/useCaseRef/readModelRef）加入 `RawDto` + `DtoSpec`。Phase 1.p impl 只需要消費它們 + 加 strict-path gate 邏輯。
+
+1. `RawDto` 的 scope/usage/useCaseRef/readModelRef 欄位**已存在**（Phase 1.l.1.1 ship）— 不必再加。
+2. `Envelope.manifestVersion` 欄位**已存在**（既有）— `parseFull` validate core 已讀取，傳給 decodeDtoSpec 改 signature 加 `manifestVersion: Int` 參數。
 3. `decodeDtoSpec` 函數開頭加 **reserved-name filter**（D5）— `name` match 以下任一 pattern → raise `bundleInvalid`：
    - `name.hasSuffix("ApiError")`
    - `name.hasPrefix("ApiComponents+")`
    - `name.hasSuffix("+Schema")`
    - `name.hasSuffix("+Domain")`
    Error message：`"dtos[\(idx)].name '\(name)' collides with reserved infra pattern; rename DTO"`。
-4. `decodeDtoSpec` 加 **strict/inference 分流**：
-   - 若 `envelope.bundleSchemaVersion == 2` 且 `raw.scope == nil` → raise `bundleInvalid("dtos[\(idx)] missing required key 'scope' under bundleSchemaVersion:2")`。
+4. `decodeDtoSpec` 加 **strict/inference 分流**（D20）：
+   - 若 `manifestVersion >= 2` 且 `raw.scope == nil` → raise `bundleInvalid("dtos[\(idx)] missing required key 'scope' under manifestVersion: \(v) strict path")`。
    - 否則接受 nil scope（DtoRouter 端推導）。
 5. `decodeDtoSpec` 加 **`useCaseRef` validation**（strict path 才檢）：
    - 若 `raw.scope == "perUseCase"` 且 `raw.useCaseRef != nil`，pass-through；
    - 若 `raw.scope == "perUseCase"` 且 `raw.useCaseRef == nil` → raise `bundleInvalid("dtos[\(idx)] scope=perUseCase requires useCaseRef")`。
    - `useCaseRef` cross-check（必須 ∈ bundle.useCases[].useCase）放在 `parseFull` 底部 envelope-level validation block（既有 `useCases` aggregateSpecId / emittedEvent cross-check 同位置）。
-6. `decodeDtoSpec` 加 **forbidden combination raise**（D9 / D10）：
+6. `decodeDtoSpec` 加 **forbidden combination raise**（D9 / D10 + D19 補丁）：
    - `scope=="perUseCase" && usage=="response"` → raise `bundleInvalid("dtos[\(idx)] perUseCase × response is unusual; use contextShared or aggregate response scope, or file an OC counterexample to lift this restriction")`。
+   - `scope=="perReadModel" && usage=="request"` → raise `bundleInvalid("dtos[\(idx)] perReadModel × request not supported (queries have no request body); use scope=perUseCase for write-side input DTOs")`（D19）。
+   - `scope=="perReadModel" && usage=="both"` → raise `bundleInvalid("dtos[\(idx)] perReadModel × both not supported (queries are response-only); use usage=response")`（D19）。
    - `scope=="aggregate"` 且 usage 任何值 → raise `bundleInvalid("dtos[\(idx)] aggregate × * write-DTO not supported in Phase 1.p; deferred to Phase 1.q")`。
    - `scope=="contextShared" && usage=="request"` → raise `bundleInvalid("dtos[\(idx)] contextShared × request write-DTO not supported in Phase 1.p; deferred to Phase 1.q")`。
-7. `decodeDtoSpec` 回傳 `DtoSpec` 時填入 `scope: raw.scope, usage: raw.usage, useCaseRef: raw.useCaseRef`。
+7. `decodeDtoSpec` 回傳 `DtoSpec` 時填入 `scope: raw.scope, usage: raw.usage, useCaseRef: raw.useCaseRef, readModelRef: raw.readModelRef`（D19：readModelRef 已 Phase 1.l.1.1 加完）。
 
 ### Step 3：`DtoRouter.swift` — 新檔，pure function
 
@@ -263,7 +285,7 @@ if dto.name == domainTypeName(for: dto) { continue }
            for w in routeWarnings { FileHandle.standardError.write(Data("⚠ DtoRouter: \(w)\n".utf8)) }
        } else {
            FileHandle.standardError.write(Data(
-               "⚠ DtoRouter: inferred \(routeWarnings.count) DTO routes from legacy bundle (run with --verbose for per-DTO detail). Migrate by adding bundleSchemaVersion:2 + explicit scope/usage.\n".utf8))
+               "⚠ DtoRouter: inferred \(routeWarnings.count) DTO routes from legacy bundle (run with --verbose for per-DTO detail). Migrate by adding manifestVersion:2 + explicit scope/usage.\n".utf8))
        }
    }
    ```
@@ -295,13 +317,13 @@ if dto.name == domainTypeName(for: dto) { continue }
 
 1. Copy `tests/GenesisIntegrationTests/Fixtures/iam-bundle.json` → `iam-write-dto-bundle.json`。
 2. 找到既有 `UserAccessProfile` aggregate 的 `createUserAccessProfile` UC，把 input 加一個 `{ "name": "status", "type": "EmployeeStatus" }`。
-3. 既有 `EmployeeStatus` DTO 條目（dtos[]）加 `"scope": "contextShared"`、`"usage": "both"`、`"bundleSchemaVersion": 2`（envelope 層）— 此 fixture 走 strict path 並把 def 留在 contextShared、mapper-only 落在 perUseCase site。
+3. 既有 `EmployeeStatus` DTO 條目（dtos[]）加 `"scope": "contextShared"`、`"usage": "both"`、`"manifestVersion": 2`（envelope 層）— 此 fixture 走 strict path 並把 def 留在 contextShared、mapper-only 落在 perUseCase site。
 4. 額外加一個 fixture 變體（或在同 fixture 加第二個 UC）走 mapper+def 路徑：新增一個 perUseCase-only DTO（不在其他 UC / aggregate state 用到，scope=perUseCase + useCaseRef=指向某個新 UC），測 def-included 分支。
 
 ### Step 8：Tests — DtoRouter + ApiRenderer + BundleParser + E2E
 
 1. **`DtoRouterTests.swift`** 新檔：
-   - `testStrictPathReturnsRouteAsDeclared`：bundleSchemaVersion=2、dto.scope=perUseCase + usage=request → route 三欄如實回傳，warnings 空。
+   - `testStrictPathReturnsRouteAsDeclared`：manifestVersion=2、dto.scope=perUseCase + usage=request → route 三欄如實回傳，warnings 空。
    - `testLegacyInferenceContextShared`：dto.isContextShared=true、無 scope → route.scope=.contextShared，warnings 含對應 line。
    - `testLegacyInferenceAggregate`：dto.aggregateRef=valid agg、無 scope → route.scope=.aggregate。
    - `testDefinitionLocationDivergence`：scope=perUseCase 但 ownership 已標 contextShared → route.scope=.perUseCase, route.definitionLocation=.contextShared, warning 含 "emitting mapper-only".
@@ -316,7 +338,7 @@ if dto.name == domainTypeName(for: dto) { continue }
    - `testReservedNameFilterRejectsApiErrorSuffix`：dto.name = `FooApiError` → raise `bundleInvalid` 含 "reserved infra pattern"。
    - 同檔加 prefix `ApiComponents+`、suffix `+Schema`、`+Domain` 三案。
    - `testBundleSchemaVersion2RequiresExplicitScope`：v2 + dto.scope=nil → raise。
-   - `testLegacyBundleAcceptsMissingScope`：bundleSchemaVersion 缺 + dto.scope=nil → 解 OK（DtoRouter warning path 在 router test 驗）。
+   - `testLegacyBundleAcceptsMissingScope`：manifestVersion 缺 + dto.scope=nil → 解 OK（DtoRouter warning path 在 router test 驗）。
    - `testForbiddenCombinationsRaise`：perUseCase × response / aggregate × * / contextShared × request 三案 raise `bundleInvalid`。
 4. **`NewCommandTests.swift`** 加 E2E：
    - `testGenesisNewWithWriteDtoBundleEmitsPerUcMapperOnly`：跑 `iam-write-dto-bundle.json`，confirm:
@@ -335,13 +357,13 @@ if dto.name == domainTypeName(for: dto) { continue }
 ### Bundle validation fail（`BundleParser`）
 
 - Reserved-name collision：`BundleParser.decodeDtoSpec` raise `GenesisError.bundleInvalid` → `NewCommand` `parseFull` call 不 catch → CLI exit non-zero，print reason 到 stderr。**不可恢復**。
-- `bundleSchemaVersion:2` 缺 `scope`：同上 raise → exit。**不可恢復**（要 user 補 scope 或拿掉 v2 sentinel）。
+- `manifestVersion:2` 缺 `scope`：同上 raise → exit。**不可恢復**（要 user 補 scope 或拿掉 v2 sentinel）。
 - Forbidden combination：`BundleParser` raise → exit。**不可恢復**（要 user 改 bundle scope/usage）。
 - `useCaseRef` 不存在：cross-check 階段 raise → exit。**不可恢復**。
 
 ### Router warning（`DtoRouter`）
 
-- legacy bundle 缺 scope/usage：router emit warning，**不 raise**，沿用 inference 結果繼續 codegen。`NewCommand` stderr 印 summary（或 verbose 詳列）。**可恢復**（user 看到 warning，未來補 bundleSchemaVersion:2 即可消除）。
+- legacy bundle 缺 scope/usage：router emit warning，**不 raise**，沿用 inference 結果繼續 codegen。`NewCommand` stderr 印 summary（或 verbose 詳列）。**可恢復**（user 看到 warning，未來補 manifestVersion:2 即可消除）。
 - `useCaseRef` 反查命中 0 或 >1：router 改 scope 為 `.aggregate`（per ownership）+ warn → 該 type 走 aggregate-shared path（Phase 1.p forbidden combination 觸發 raise 由 BundleParser 階段已擋掉，inference path 不會走到該 forbidden combination 因為 inference 沒有對應 scope marker）。**可恢復**。
 
 ### Rendering fail（`ApiRenderer`）
@@ -372,11 +394,13 @@ if dto.name == domainTypeName(for: dto) { continue }
 - 本 task **不** emit schema mapper（`<X>Dto ↔ Components.Schemas.<X>`）— 等 Phase 1.p.1 `/api` skill + openapi.yaml schema 完備。
 - 本 task **不**支援 `aggregate × request/response/both` 寫側 mapper emission（Phase 1.q）。
 - 本 task **不**支援 `contextShared × request` 寫側 mapper emission（Phase 1.q）。
-- 本 task **不**自動把既有 bundle 加 `scope`/`usage`/`useCaseRef`（Cosmogony Event Storming Tool 端工作）。
-- 本 task **不**改動 Cosmogony bundle 輸出 — Genesis 端 Phase 1.p 必須能獨立 ship、用 hand-crafted fixture 驗證。
+- 本 task **不**支援 `perReadModel × request` / `perReadModel × both`（D19：query 沒 request body，forbid via `bundleInvalid`）。
+- 本 task **不**自動把既有 bundle 加 `scope`/`usage`/`useCaseRef`/`readModelRef`（Cosmogony Event Storming Tool 端工作；v19 已 ship）。
+- 本 task **不**改動 Cosmogony bundle 輸出 — Genesis 端 Phase 1.p 用 v20 bundle 即可驗證（無 hand-crafted fixture 限制：D21 Phase 1.p 已 unblock）。
 - 本 task **不**改變 `TypeOwnership` enum 的二元 case 集合。
-- 本 task **不**處理 read-side DTO（`get*` / `list*` / `find*` UC 仍走既有 read-side path）。
+- 本 task **不**處理 read-side DTO route 推論（`get*` / `list*` / `find*` UC 仍走既有 read-side path）— 但 perReadModel scope explicit-marked 的 DTO 由 Phase 1.p impl 處理。
 - 本 task **不**改變既有 enum DTO 走 `+Domain.swift` 雙向 mapper 的 aggregate-shared 路徑。
+- 本 task **不**啟用 strict path（`manifestVersion ≥ 2`）— 等 Cosmogony v22 ship 後再做 strict-path validation gate（小改動，跟 D20 一致）。
 
 ---
 
@@ -403,8 +427,8 @@ grep -q 'case contextShared' Sources/GenesisCore/TypeOwnershipResolver.swift
 grep -q 'case ownedBy(aggregateName: String)' Sources/GenesisCore/TypeOwnershipResolver.swift
 ! grep -E 'case (perUseCase|aggregate)\b' Sources/GenesisCore/TypeOwnershipResolver.swift
 
-# D11 — bundleSchemaVersion sentinel 接入 BundleParser
-grep -q 'bundleSchemaVersion' Sources/GenesisCore/BundleParser.swift
+# D11 — manifestVersion sentinel 接入 BundleParser
+grep -q 'manifestVersion' Sources/GenesisCore/BundleParser.swift
 
 # D5 — Reserved-name filter 字串在 BundleParser
 grep -q 'reserved infra pattern' Sources/GenesisCore/BundleParser.swift
@@ -425,10 +449,15 @@ grep -q 'Adapter/.*ucPascal.*Dto.swift' Sources/GenesisCore/ApiRenderer.swift
 grep -q 'public let scope: Scope' Sources/GenesisCore/DtoRouter.swift
 grep -q 'public let definitionLocation: Scope' Sources/GenesisCore/DtoRouter.swift
 
-# D9 / D10 — Forbidden combination raise 字串存在 BundleParser
+# D9 / D10 + D19 — Forbidden combination raise 字串存在 BundleParser
 grep -q 'perUseCase × response is unusual' Sources/GenesisCore/BundleParser.swift
+grep -q 'perReadModel × request not supported' Sources/GenesisCore/BundleParser.swift
+grep -q 'perReadModel × both not supported' Sources/GenesisCore/BundleParser.swift
 grep -q 'aggregate × \* write-DTO not supported in Phase 1.p' Sources/GenesisCore/BundleParser.swift
 grep -q 'contextShared × request write-DTO not supported in Phase 1.p' Sources/GenesisCore/BundleParser.swift
+
+# D20 — manifestVersion strict gate (replaces D11 bundleSchemaVersion)
+grep -q 'manifestVersion.*>= *2\|manifestVersion >= 2' Sources/GenesisCore/BundleParser.swift
 
 # E2E — 新 fixture 跑 genesis new
 TMPDIR=$(mktemp -d)
@@ -486,7 +515,7 @@ rm -rf "$TMPDIR" "$TMPDIR2"
 - **`aggregate × *` 與 `contextShared × request` 寫側 mapper 未支援**：Phase 1.p 透過 `bundleInvalid` 顯式 forbid，Phase 1.q 才支援。User 若需此 scope，需暫時走 `contextShared × both`（read+write 共享 def，mapper 由 SharedTargetRenderer 已 emit 的 cross-agg path 處理）或等 Phase 1.q。
 - **`perUseCase × response` 不支援**：透過 `bundleInvalid` 顯式 forbid。OC 無 counterexample；若未來出現案例，flip 改為 inference + emit 是 one-line 改動。
 - **Cosmogony bundle 仍 emit 舊 schema**：Phase 1.p 不 block on Cosmogony；Genesis 端走 `DtoRouter` inference path + warning 通知 user。Cosmogony schema v2 更新是 parallel separate task。
-- **Hand-crafted fixture 為 Phase 1.p 唯一 strict-path 測試**：直到 Cosmogony 更新前，strict-path（bundleSchemaVersion:2 + 顯式 scope/usage）只有 fixture 驗證；real bundle dogfood 走 inference path。
+- **Hand-crafted fixture 為 Phase 1.p 唯一 strict-path 測試**：直到 Cosmogony 更新前，strict-path（manifestVersion:2 + 顯式 scope/usage）只有 fixture 驗證；real bundle dogfood 走 inference path。
 - **無 backward compat 包袱**：Phase 1.l/1.m/1.n/1.o 剛 ship，無「舊版生成的 Genesis project」回收問題。Phase 1.p emit 變更直接覆蓋。
 - **不支援 Service 多 dependency 變體**：與 Phase 1.o 同等限制；OC 部分 Service 帶 `validator` 不在 Phase 1.p scope。
 
@@ -498,4 +527,4 @@ rm -rf "$TMPDIR" "$TMPDIR2"
   - `2026-05-27-phase-1o-hygiene`（Service struct + Usecase where-clause + event.yaml map shape — Phase 1.p emit shape 對齊新 hygiene）
   - `2026-05-26-usecase-skill`（`/usecase` skill marker convention 對齊 — Phase 1.p 不改 `/usecase` skill，但 Phase 1.p emit 的 AS execute body 含 `fatalError("TODO(/api skill)")` 既有 marker）
 - 後續（next phase）：**Phase 1.p.1**（`/api` skill 更新解析 structured TODO + 補 `init(from:)` call insertion + 開始 schema mapper emission）— **must queue immediately**（per D4 約束）。
-- 並行（parallel separate task，不阻塞）：Cosmogony Event Storming Tool bundle schema v2 更新（emit `scope` / `usage` / `useCaseRef` + `bundleSchemaVersion:2` sentinel）。
+- 並行（parallel separate task，不阻塞）：Cosmogony Event Storming Tool bundle schema v2 更新（emit `scope` / `usage` / `useCaseRef` + `manifestVersion:2` sentinel）。
