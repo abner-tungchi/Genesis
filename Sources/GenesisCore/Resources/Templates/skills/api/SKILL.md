@@ -104,24 +104,47 @@ Read 並解析（用語意錨點，勿用行號）：
 
 半填 → **exit 4**：`partial fill detected in <file>; manual repair needed before /api`。
 
-### category 1 — ApplicationService execute()（v6 — Phase 1.l OC pass-through）
+### category 1 — ApplicationService execute()（v7 — Phase 1.p.1 DTO-aware）
 
-**Phase 1.l 後 `<UC>Input` ≡ AS Input**（含 aggId + 業務欄位 + operatorId）。pass-through 全部 fields：
+**Phase 1.l 後 `<UC>Input` ≡ AS Input**（含 aggId + 業務欄位 + operatorId）。**Phase 1.p D13 後**例外：當 AS Input field 型別為 wire DTO（如 `EmployeeStatusDto`）而 `<UC>Input` 同名 field 為 domain type（如 `EmployeeStatus`），call site 必須 wrap `init(from:)`。
 
 Edit 替換 `fatalError("TODO(/api skill): execute body ...")` 整段為（依各 struct 實際欄位）：
 
 ```swift
         let service = <UC>Service(repository: repository)
         _ = try await service.execute(input: .init(
-            <每個 <UC>Input 宣告的 field>: input.<field>
+            <plain field>: input.<field>,
+            <DTO-swapped field>: .init(from: input.<field>)  // ← Phase 1.p.1
         ))
         return .init(<每個 AS Output 宣告的 field>: input.<field>)
 ```
 
-> 實例（createUserAccessProfile, Phase 1.l 後）：`<UC>Input` = `{useraccessprofileId, userId, department, jobTitle, operatorId}` → execute body 為
-> `service.execute(input: .init(useraccessprofileId: input.useraccessprofileId, userId: input.userId, department: input.department, jobTitle: input.jobTitle, operatorId: input.operatorId))` + `return .init(useraccessprofileId: input.useraccessprofileId)`。
+**Marker-driven detection（Phase 1.p.1 D4）**：execute body 內 Genesis emit 的 structured TODO 為 ground truth — 每個 marker 對應一個 DTO-swapped field：
 
-**Stale v4 fill 偵測（audit M5）**：category 1 idempotent invariant 改成 parse 已填 body `.init(...)` 的 argument labels 與**當前** `<UC>Input` 宣告的 fields 比對。若 labels 缺 aggId 或 operatorId → **exit 4 stale v4 fill detected**，hint：「Phase 1.l 後 v4 fill 缺新欄位；manual unfill + 重跑 /api v6」。
+```
+// genesis-todo(phase=1.p.1, kind=dto-init-from-input, field=<f>, dto=<X>Dto)
+```
+
+Skill 處理流程：
+1. Read execute body，grep `genesis-todo(phase=1.p.1, kind=dto-init-from-input,` 找所有 markers
+2. 解析每行的 `field=<name>` 與 `dto=<dtoName>` — `field` 用 `.init(from: input.<field>)` 而非 `input.<field>`
+3. 其餘 field 走 plain pass-through `input.<field>`
+4. Edit 把整段 markers + fatalError 替換為填好的 `service.execute(...)` + `return .init(...)`
+
+> 實例（updateProfile, AS Input 有 `status: EmployeeStatusDto`，`<UC>Input` 有 `status: EmployeeStatus`）：
+> ```swift
+> let service = UpdateProfileService(repository: repository)
+> _ = try await service.execute(input: .init(
+>     useraccessprofileId: input.useraccessprofileId,
+>     status: .init(from: input.status),  // marker-driven wrap
+>     operatorId: input.operatorId
+> ))
+> return .init(useraccessprofileId: input.useraccessprofileId)
+> ```
+
+`.init(from: input.<f>)` 預設依 Swift compiler 推導 target type（call site 是 `<UC>Input.init(status: ...)` 的 status 參數，型別 = `EmployeeStatus`，所以 `.init(from: input.status)` 解析為 `EmployeeStatus.init(from: EmployeeStatusDto)`）。Phase 1.p Genesis 已 emit 此 mapper extension 在 `Adapter/Dto/<X>Dto.swift`，compile-time 解得到。
+
+**Stale v4/v6 fill 偵測（audit M5）**：category 1 idempotent invariant：parse 已填 body `.init(...)` 的 argument labels 與**當前** `<UC>Input` 宣告的 fields 比對。若 labels 缺 aggId / operatorId → **exit 4 stale v4 fill detected**。若 v6 已填但有 marker 殘留（v6 沒讀 Phase 1.p.1 marker，pass-through 了 DTO-swapped field 造成 compile error）→ **exit 4 stale v6 fill**，hint：「Phase 1.p.1 marker not consumed; manual unfill + 重跑 /api v7」。
 
 **server-generated ID（Variant）**：若 `<UC>Input` 有 `*Id` field 但 AS Input 無 → `let <idField> = UUID().uuidString` 先 emit，填進 `<UC>Input.init`。AS Output 維持原 shape。
 

@@ -310,4 +310,82 @@ final class ApiRendererTests: XCTestCase {
         let dto2 = DtoSpec(dtoSpecId: "d", name: "Bar", description: "", fields: [], domainTypeName: "BarDomain")
         XCTAssertEqual(ApiRenderer.domainTypeName(for: dto2), "BarDomain")
     }
+
+    // MARK: - Phase 1.p D13 + Phase 1.p.1 D4 — DTO swap + structured TODO marker
+
+    func testDtoTypeSwapAndStructuredTodoEmitted() throws {
+        // Bundle: UC input contains `status: EmployeeStatus`, dto registers
+        // EmployeeStatusDto with domainTypeName=EmployeeStatus + scope=aggregate + usage=request.
+        // ApiRenderer should:
+        //   (1) Swap AS Input field `status` type from `EmployeeStatus` to `EmployeeStatusDto`
+        //   (2) Emit structured TODO marker `genesis-todo(phase=1.p.1, kind=dto-init-from-input, field=status, dto=EmployeeStatusDto)`
+        let uc = UseCaseSpec(
+            useCaseSpecId: "uc-1", aggregateSpecId: "agg-1",
+            useCase: "updateProfile", aggregate: "UserAccessProfile",
+            input: [
+                FieldSpec(name: "useraccessprofileId", rawType: "String"),
+                FieldSpec(name: "status", rawType: "EmployeeStatus"),
+                FieldSpec(name: "operatorId", rawType: "String"),
+            ],
+            emittedEvent: "profileUpdated",
+            eventPayload: [], preconditions: []
+        )
+        let dto = DtoSpec(
+            dtoSpecId: "d-1", name: "EmployeeStatusDto", description: "",
+            fields: [],
+            dtoKind: "enum",
+            cases: ["active", "resigned"],
+            domainTypeName: "EmployeeStatus",
+            scope: "aggregate",
+            usage: "request",
+            useCaseRef: nil,
+            readModelRef: nil
+        )
+        let bundle = FullBundle(
+            manifestVersion: 1, bundleId: "t", context: "IAMContext",
+            aggregates: [
+                AggregateSpec(
+                    aggregateSpecId: "agg-1", name: "UserAccessProfile",
+                    identityName: "useraccessprofileId", state: [], invariants: [],
+                    eventNames: ["profileUpdated"]
+                )
+            ],
+            useCases: [uc], dtos: [dto], readModels: []
+        )
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle, contextName: "IAMContext", adapter: adapter, ownership: ownership
+        )
+        // Find the AS file
+        guard let asFile = outputs.first(where: { $0.role == "applicationService" }) else {
+            return XCTFail("expected applicationService output")
+        }
+        let c = asFile.content
+
+        // (1) AS Input field swap: type should be EmployeeStatusDto, NOT EmployeeStatus
+        XCTAssertTrue(c.contains("package let status: EmployeeStatusDto"),
+                      "Phase 1.p D13: AS Input field type swapped to wire DTO; got: \(c)")
+        XCTAssertFalse(c.contains("package let status: EmployeeStatus\n"),
+                       "Phase 1.p D13: domain type must NOT appear in AS Input (it's swapped to Dto)")
+
+        // (2) Structured TODO marker (with-space format per D4 R3 lock)
+        XCTAssertTrue(c.contains("// genesis-todo(phase=1.p.1, kind=dto-init-from-input, field=status, dto=EmployeeStatusDto)"),
+                      "Phase 1.p.1 D4: structured TODO marker must be emitted with exact format; got: \(c)")
+    }
+
+    func testNoTodoMarkerWhenNoDtoSwap() throws {
+        // When UC input has only primitive fields (no domain-type swap), no marker emitted.
+        let uc = writeUC()  // all-String input fields
+        let bundle = bundleWith(useCases: [uc])
+        let adapter = defaultAdapter()
+        let (ownership, _) = TypeOwnershipResolver.resolve(bundle: bundle, adapter: adapter)
+        let outputs = try ApiRenderer.render(
+            bundle: bundle, contextName: "IAMContext", adapter: adapter, ownership: ownership
+        )
+        let asFile = outputs.first { $0.role == "applicationService" }
+        XCTAssertNotNil(asFile)
+        XCTAssertFalse(asFile!.content.contains("genesis-todo"),
+                       "no marker when no DTO swap")
+    }
 }

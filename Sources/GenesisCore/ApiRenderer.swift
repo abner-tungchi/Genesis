@@ -140,14 +140,29 @@ public enum ApiRenderer {
         }
 
         // Resolve raw bundle types (e.g. "Array[String]" → "[String]") via SwiftTypeResolver per existing convention.
-        // Phase 1.p: if rawType maps to a wire DTO via swap map, use DTO name directly (skip resolve).
+        // Phase 1.p: if rawType maps to a wire DTO via swap map, use DTO name directly (skip resolve)
+        // AND emit a structured TODO marker so /api skill (Phase 1.p.1) knows to wrap init(from:).
         let knownTypes = Set<String>()  // ApiRenderer doesn't track custom types; bundle.dtos[] resolved separately
+        var swappedFields: [(name: String, dtoName: String)] = []
         let resolvedFields = try middleFields.map { f -> (String, String) in
             if let dtoName = dtoSwapMap[f.rawType] {
+                swappedFields.append((f.name, dtoName))
                 return (f.name, dtoName)  // Phase 1.p D13: swapped to wire DTO type
             }
             let resolved = try SwiftTypeResolver.resolve(rawType: f.rawType, knownCustomTypes: knownTypes)
             return (f.name, resolved)
+        }
+
+        // Phase 1.p.1 D4: emit machine-greppable single-line marker per swapped field, so
+        // /api skill knows to wrap with `init(from:)` when filling execute body.
+        // Format locked in Phase 1.p discussion D4 (with-space variant).
+        let initFromInputTodos: String
+        if swappedFields.isEmpty {
+            initFromInputTodos = ""
+        } else {
+            initFromInputTodos = swappedFields
+                .map { "        // genesis-todo(phase=1.p.1, kind=dto-init-from-input, field=\($0.name), dto=\($0.dtoName))" }
+                .joined(separator: "\n") + "\n"
         }
 
         let inputFields: String = resolvedFields
@@ -177,6 +192,7 @@ public enum ApiRenderer {
             "INIT_PARAMS_MID": initParamsMid,
             "INIT_ASSIGNMENTS": initAssignments,
             "PAYLOAD_INIT_EXTENSION": payloadInitExtension,
+            "INIT_FROM_INPUT_TODOS": initFromInputTodos,
         ]).output
     }
 
