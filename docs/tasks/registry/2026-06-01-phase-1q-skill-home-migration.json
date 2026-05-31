@@ -1,0 +1,58 @@
+{
+  "id": "2026-06-01-phase-1q-skill-home-migration",
+  "file": "docs/tasks/2026-06-01-phase-1q-skill-home-migration.md",
+  "title": "Phase 1.q — Skill home migration 收尾（version drift 偵測 + bundle-parse CLI + project-local 警告）",
+  "status": "done",
+  "created": "2026-06-01",
+  "completed": "2026-06-01",
+  "depends_on": [],
+  "soft_depends_on": [
+    "2026-05-28-phase-1l1-codegen-injection-and-readmodel-adapter",
+    "2026-05-27-phase-1p-write-dto"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-28-phase-1q-bundle-plan-skill-migration.md",
+  "preconditions": [
+    "file:Sources/Genesis/Genesis.swift",
+    "file:Sources/Genesis/Commands/InstallSkillsCommand.swift",
+    "file:Sources/GenesisCore/SkillInstaller.swift",
+    "file:Sources/GenesisCore/FullBundle.swift",
+    "file:Sources/GenesisCore/BundleParser.swift",
+    "file:Tests/GenesisCoreTests/SkillInstallerTests.swift",
+    "file:Tests/GenesisIntegrationTests/Fixtures/iam-cosmogony-bundle.json"
+  ],
+  "verification": [
+    "swift build",
+    "swift test",
+    "swift run genesis --version 2>&1 | grep -q '0.1.0-phase1k2'",
+    "grep -q 'version: GenesisCoreVersion.current' Sources/Genesis/Genesis.swift",
+    "grep -q 'CheckSkillsCommand.self' Sources/Genesis/Genesis.swift",
+    "grep -q 'BundleParseCommand.self' Sources/Genesis/Genesis.swift",
+    "test -f Sources/Genesis/Commands/CheckSkillsCommand.swift",
+    "grep -q 'commandName: \"check-skills\"' Sources/Genesis/Commands/CheckSkillsCommand.swift",
+    "test -f Sources/Genesis/Commands/BundleParseCommand.swift",
+    "grep -q 'commandName: \"bundle-parse\"' Sources/Genesis/Commands/BundleParseCommand.swift",
+    "grep -q 'Encodable' Sources/GenesisCore/FullBundle.swift"
+  ],
+  "tags": [
+    "feature",
+    "cli",
+    "skill-migration",
+    "bundle-parse",
+    "version-check",
+    "phase-1q"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-01T00:00:00Z",
+      "note": "write-spec from discussion MD. 盤點發現 Phase 1.q discussion 的 skill home migration 已實裝 80%（D8 ~/.claude/skills scope / D9 genesis new 不 emit skill / D10 install-skills 命令 / D11 overwrite / Open4 跨 OS 用 $HOME env — 比原推的 homeDirectoryForCurrentUser 好, 可測試覆寫）。剩 3 個 CLI-side delta: (1) version drift 偵測 — genesis --version 修好 + install-skills 寫 sidecar 戳記 + 新 check-skills 命令（Open1 調整: CLI command 而非 per-skill Step 0, 遵守 Non-goal 不改 skill 行為）/ (2) genesis bundle-parse CLI（Open5=c, FullBundle 加 Encodable）/ (3) install-skills project-local skill 警告（D13）. audit-spec --quick: 4b 5/5 PASS, 5b 7/7 PASS（修了 2 finding: FullBundle Encodable 列表補全 16 型別 / ScopeOption nested 引用對齊不移出）. 跳過 external（--quick, 小範圍 CLI 加法）. /bundle-plan skill 本身留 Phase 1.r（bundle-parse 是其前置）. 下一步 /pickup 實作."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-01T01:30:00Z",
+      "completed": "2026-06-01",
+      "note": "**Phase 1.q DONE**（全 Claude direct edit, 6 source + 2 test 檔, 每檔小+線性 fit Phase 1.n 教訓 #2）。實作: (1) FullBundle.swift 16 型別 + Encodable（auto-synth 成功, PresenterOutputKind enum 單獨處理）/ (2) Genesis.swift 加 version: + 註冊 CheckSkills/BundleParse subcommand / (3) 新檔 SkillTargetResolver.swift 抽 target-dir 解析（install/check 共用, ScopeOption 保持 nested 直接引用）/ (4) InstallSkillsCommand 改用 helper + 寫 .genesis-skills-version sidecar（非關鍵路徑 write-fail 只 warn）+ user scope 跑 scanProjectLocalSkills（D13 掃 $HOME/JiaBao 下 .claude/skills, 警告不刪）/ (5) 新檔 CheckSkillsCommand（三態: not-installed exit2 / in-sync exit0 / stale exit2, 精確字串比對）/ (6) 新檔 BundleParseCommand（parseFull → JSONEncoder prettyPrinted+sortedKeys → stdout, error 走既有 GenesisError exit對映）. **Tests**: SkillInstallerTests 7 不動 / InstallSkillsCommandTests +1 sidecar test / 新 CliVersionAndBundleParseTests 7 case（version / check 三態 / bundle-parse valid+invalid+missing）. swift test 250/250 pass 2 skip 0 fail（既有 242 + 8 new）. 9/9 驗收 grep PASS. E2E round-trip（臨時 HOME）: install→sidecar→check in-sync 全 PASS, bundle-parse JSON parse-back context==IAMContext PASS. **Open1 調整生效**: version check 走 CLI check-skills 而非改 skill, 遵守 discussion Non-goal. **Open4 沿用既有 $HOME**（spec 階段確認比原推 homeDirectoryForCurrentUser 好）. **Open5=c bundle-parse** 為 Phase 1.r /bundle-plan 前置 unblock. 下一步: commit + Phase 1.r /bundle-plan skill."
+    }
+  ]
+}
