@@ -78,4 +78,23 @@ final class InstallSkillsCommandTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - Phase 1.q — version sidecar stamp
+
+    func testInstallWritesVersionSidecar() throws {
+        let result = try CLIRunner.run([
+            "install-skills", "--scope", "project", "--project-dir", tmpDir.path,
+        ])
+        XCTAssertEqual(result.exitCode, 0, "stderr: \(result.stderr)")
+        let sidecar = tmpDir.appendingPathComponent(".claude/skills/.genesis-skills-version")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sidecar.path),
+                      "Phase 1.q: install must write .genesis-skills-version sidecar")
+        let content = try String(contentsOf: sidecar, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertFalse(content.isEmpty, "sidecar must contain a version string")
+        // sidecar content must match what `genesis --version` reports
+        let version = try CLIRunner.run(["--version"])
+        XCTAssertEqual(content, version.stdout.trimmingCharacters(in: .whitespacesAndNewlines),
+                       "sidecar version must match binary --version")
+    }
 }

@@ -7,7 +7,13 @@ struct Genesis: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "genesis",
         abstract: "Bootstrap a Swift DDD/ES project from a Cosmogony Event Storming bundle.",
-        subcommands: [NewCommand.self, InstallSkillsCommand.self]
+        version: GenesisCoreVersion.current,
+        subcommands: [
+            NewCommand.self,
+            InstallSkillsCommand.self,
+            CheckSkillsCommand.self,
+            BundleParseCommand.self,
+        ]
     )
 
     // Custom main: map GenesisError → exit codes 1/2/3 and treat all

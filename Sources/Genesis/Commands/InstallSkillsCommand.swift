@@ -23,34 +23,22 @@ struct InstallSkillsCommand: AsyncParsableCommand {
     var force: Bool = false
 
     func run() async throws {
-        // Phase 0: sanity
-        if scope == .user, projectDir != nil {
-            throw GenesisError.bundleInvalid(reason: "--project-dir is only valid with --scope project")
-        }
-
-        // Phase 1: resolve target dir
-        let targetDir: URL
-        switch scope {
-        case .user:
-            // Use $HOME (overridable for tests), NOT homeDirectoryForCurrentUser
-            // which ignores $HOME overrides on macOS.
-            guard let home = ProcessInfo.processInfo.environment["HOME"], !home.isEmpty else {
-                throw GenesisError.bundleInvalid(reason: "$HOME is not set; cannot resolve user scope")
-            }
-            targetDir = URL(fileURLWithPath: home).appendingPathComponent(".claude/skills", isDirectory: true)
-        case .project:
-            let root = URL(fileURLWithPath: projectDir ?? FileManager.default.currentDirectoryPath)
-            var isDir: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDir), isDir.boolValue else {
-                throw GenesisError.bundleInvalid(
-                    reason: "--project-dir does not exist or is not a directory: \(root.path)"
-                )
-            }
-            targetDir = root.appendingPathComponent(".claude/skills", isDirectory: true)
-        }
+        // Phase 1: resolve target dir (shared with check-skills; also validates scope/project-dir)
+        let targetDir = try SkillTargetResolver.resolveTargetDir(scope: scope, projectDir: projectDir)
 
         // Phase 2: install
         let summary = try SkillInstaller.install(into: targetDir, force: force)
+
+        // Phase 2.5 (Phase 1.q): stamp the version sidecar so `check-skills` can detect drift.
+        // Non-critical path — a write failure warns but does not change install exit code.
+        let sidecar = targetDir.appendingPathComponent(".genesis-skills-version", isDirectory: false)
+        do {
+            try "\(GenesisCoreVersion.current)\n".write(to: sidecar, atomically: true, encoding: .utf8)
+        } catch {
+            FileHandle.standardError.write(Data(
+                "⚠ failed to write version sidecar at \(sidecar.path): \(error.localizedDescription)\n".utf8
+            ))
+        }
 
         // Phase 3: report (decide success/failure first, then pick banner)
         let hasFailure = !summary.failed.isEmpty
@@ -84,6 +72,12 @@ struct InstallSkillsCommand: AsyncParsableCommand {
         }
         print(lines.joined(separator: "\n"))
 
+        // Phase 1.q (D13): on user scope, warn about project-local Genesis skills that would
+        // SHADOW the global install. Advisory only — never auto-delete, never affect exit code.
+        if scope == .user {
+            scanProjectLocalSkills()
+        }
+
         if hasFailure {
             for failure in summary.failed {
                 FileHandle.standardError.write(Data(
@@ -91,6 +85,54 @@ struct InstallSkillsCommand: AsyncParsableCommand {
                 ))
             }
             genesisExit(2)
+        }
+    }
+
+    /// Phase 1.q (D13): scan `$HOME/JiaBao/` for project-local Genesis skills that shadow
+    /// the global install. Best-effort — any FS error silently skips (does not abort install).
+    private func scanProjectLocalSkills() {
+        guard let home = ProcessInfo.processInfo.environment["HOME"], !home.isEmpty else { return }
+        guard let bundledNames = try? SkillInstaller.bundledSkillNames(), !bundledNames.isEmpty else { return }
+        let bundledSet = Set(bundledNames)
+        let searchRoot = URL(fileURLWithPath: home).appendingPathComponent("JiaBao", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: searchRoot.path) else { return }
+        guard let enumerator = FileManager.default.enumerator(
+            at: searchRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        // Collect project-local skill dirs grouped by their `.claude/skills` parent.
+        var hitsByParent: [String: [String]] = [:]
+        for case let url as URL in enumerator {
+            // Match `<project>/.claude/skills/<skillName>` where skillName is a bundled Genesis skill.
+            guard url.lastPathComponent == "skills" else { continue }
+            let parent = url.deletingLastPathComponent()  // .../.claude
+            guard parent.lastPathComponent == ".claude" else { continue }
+            // Don't recurse into this skills dir's children via the enumerator's own walk;
+            // instead list its immediate subdirs to find Genesis skill names.
+            guard let entries = try? FileManager.default.contentsOfDirectory(
+                at: url, includingPropertiesForKeys: nil
+            ) else { continue }
+            let found = entries
+                .map { $0.lastPathComponent }
+                .filter { bundledSet.contains($0) }
+                .sorted()
+            if !found.isEmpty {
+                hitsByParent[url.path] = found
+            }
+        }
+
+        for (skillsPath, names) in hitsByParent.sorted(by: { $0.key < $1.key }) {
+            let projectRoot = URL(fileURLWithPath: skillsPath)
+                .deletingLastPathComponent()  // .claude
+                .deletingLastPathComponent()  // project root
+                .path
+            FileHandle.standardError.write(Data((
+                "⚠ Found project-local Genesis skills at \(skillsPath).\n"
+                + "  These will SHADOW global skills. Consider removing manually:\n"
+                + "    rm -rf \(projectRoot)/.claude/skills/{\(names.joined(separator: ","))}\n"
+            ).utf8))
         }
     }
 }

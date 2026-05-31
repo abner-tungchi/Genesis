@@ -1,6 +1,6 @@
 import Foundation
 
-public struct FullBundle: Sendable, Equatable {
+public struct FullBundle: Sendable, Equatable, Encodable {
     public let manifestVersion: Int
     public let bundleId: String
     public let context: String
@@ -45,7 +45,7 @@ public struct FullBundle: Sendable, Equatable {
     }
 }
 
-public struct ReadModelSpec: Sendable, Equatable {
+public struct ReadModelSpec: Sendable, Equatable, Encodable {
     public let readModelSpecId: String
     public let aggregateSpecId: String?
     public let name: String
@@ -81,7 +81,7 @@ public struct ReadModelSpec: Sendable, Equatable {
     }
 }
 
-public struct ReadModelKey: Sendable, Equatable {
+public struct ReadModelKey: Sendable, Equatable, Encodable {
     public let field: String
     public let type: String
     public let fromEventPayload: String
@@ -93,7 +93,7 @@ public struct ReadModelKey: Sendable, Equatable {
     }
 }
 
-public struct ReadModelStoredField: Sendable, Equatable {
+public struct ReadModelStoredField: Sendable, Equatable, Encodable {
     public let name: String
     public let type: String
     public let defaultValue: String?
@@ -105,7 +105,7 @@ public struct ReadModelStoredField: Sendable, Equatable {
     }
 }
 
-public struct ReadModelEventRef: Sendable, Equatable {
+public struct ReadModelEventRef: Sendable, Equatable, Encodable {
     public let name: String
     public let sourceAggregate: String
 
@@ -115,7 +115,7 @@ public struct ReadModelEventRef: Sendable, Equatable {
     }
 }
 
-public struct AggregateSpec: Sendable, Equatable {
+public struct AggregateSpec: Sendable, Equatable, Encodable {
     public let aggregateSpecId: String
     public let name: String
     public let identityName: String
@@ -140,7 +140,7 @@ public struct AggregateSpec: Sendable, Equatable {
     }
 }
 
-public struct UseCaseSpec: Sendable, Equatable {
+public struct UseCaseSpec: Sendable, Equatable, Encodable {
     public let useCaseSpecId: String
     public let aggregateSpecId: String
     public let useCase: String
@@ -171,7 +171,7 @@ public struct UseCaseSpec: Sendable, Equatable {
     }
 }
 
-public struct DtoSpec: Sendable, Equatable {
+public struct DtoSpec: Sendable, Equatable, Encodable {
     public let dtoSpecId: String
     public let name: String
     public let description: String
@@ -219,7 +219,7 @@ public struct DtoSpec: Sendable, Equatable {
     }
 }
 
-public struct FieldSpec: Sendable, Equatable {
+public struct FieldSpec: Sendable, Equatable, Encodable {
     public let name: String
     public let rawType: String
 
@@ -229,7 +229,7 @@ public struct FieldSpec: Sendable, Equatable {
     }
 }
 
-public struct InvariantSpec: Sendable, Equatable {
+public struct InvariantSpec: Sendable, Equatable, Encodable {
     public let id: String
     public let name: String
     public let title: String
@@ -254,7 +254,7 @@ public struct InvariantSpec: Sendable, Equatable {
     }
 }
 
-public struct InvariantRule: Sendable, Equatable {
+public struct InvariantRule: Sendable, Equatable, Encodable {
     public let when: String
     public let rule: String
 
@@ -266,7 +266,7 @@ public struct InvariantRule: Sendable, Equatable {
 
 // MARK: - PresenterSpec (/presenter skill v1)
 
-public struct PresenterSpec: Sendable, Equatable {
+public struct PresenterSpec: Sendable, Equatable, Encodable {
     public let presenterSpecId: String
     public let name: String
     public let readModelRef: String
@@ -297,14 +297,14 @@ public struct PresenterSpec: Sendable, Equatable {
     }
 }
 
-public struct PresenterInput: Sendable, Equatable {
+public struct PresenterInput: Sendable, Equatable, Encodable {
     public let fields: [PresenterInputField]
     public init(fields: [PresenterInputField]) {
         self.fields = fields
     }
 }
 
-public struct PresenterInputField: Sendable, Equatable {
+public struct PresenterInputField: Sendable, Equatable, Encodable {
     public let name: String
     public let type: String
     public let fromPath: String
@@ -315,11 +315,11 @@ public struct PresenterInputField: Sendable, Equatable {
     }
 }
 
-public enum PresenterOutputKind: String, Sendable, Equatable {
+public enum PresenterOutputKind: String, Sendable, Equatable, Encodable {
     case array, single, scalar
 }
 
-public struct PresenterOutput: Sendable, Equatable {
+public struct PresenterOutput: Sendable, Equatable, Encodable {
     public let kind: PresenterOutputKind
     public let elementType: String
     public let elementSource: String
@@ -332,7 +332,7 @@ public struct PresenterOutput: Sendable, Equatable {
     }
 }
 
-public struct PresenterEndpoint: Sendable, Equatable {
+public struct PresenterEndpoint: Sendable, Equatable, Encodable {
     public let path: String
     public let method: String  // "GET" v1
     public init(path: String, method: String = "GET") {
