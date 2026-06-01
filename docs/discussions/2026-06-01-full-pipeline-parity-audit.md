@@ -111,8 +111,9 @@ pipeline_skills: [code-gen (genesis new), bundle-plan, usecase, api, readmodel-m
 | bundle-plan | ✅ 產 task spec（CreateUserAccessProfile / PromoteUser）|
 | `/usecase`（Update, promoteUser）| ✅ 套 Update pattern fill → **swift build EXIT 0**（orchestration 層 find→command→save(userId:)→return+catch ladder 與 OC 對齊且編譯）|
 | `/usecase`（Create, createUserAccessProfile）| ❌ **exit 3**（PA-F2：init 要 permissions/roles/status 非 input）|
-| `/api` | （待跑；結構對齊）|
-| `/readmodel-mutation` / `/presenter-fill` | read 側有 skill（projector when reducer 待填）|
+| `/api`（grantPrivilege）| ✅ **實跑 fill**（AS execute + ApiHandler asInput）→ generated 專案 swift build EXIT 0 |
+| `/readmodel-mutation`（GetPermissions）| ✅ **實跑** → 命中 **exit 3 custom-type wrap**（`permissions: [String]` → `permissionDto: PermissionDto?` 建構無 5-pattern 對應）= read-side human boundary，**與 OC 一致**（OC projector `when` reducer 亦手寫）。human-filled reducer（`readModel.permissionDto = PermissionDto(userId:permissions:)`）swift build EXIT 0 |
+| `/presenter-fill` | N/A（GetPermissions 此 bundle 無 read-side ApplicationService，Presenter-only；非 misalignment，bundle 特性）|
 | `/test-gen` | ✅ Phase 1.s 驗過（編譯 + disabled skip）|
 
 ---
@@ -142,6 +143,8 @@ pipeline_skills: [code-gen (genesis new), bundle-plan, usecase, api, readmodel-m
 
 ## 結論
 
-全 pipeline 跑過（code-gen ✓ / bundle-plan ✓ / **/usecase 實跑 fill ✓** / **/api 實跑 fill ✓** / test-gen ✓ / readmodel 結構對齊 + skill 存在）+ 逐層對比 OC AuditQuotingAggregate 完成。所有**機械可導的** misalignment（PA-F2/F3/F4/F5 + N1/N2）已 discuss（D1-D6 consensus，PA-F5/F2-/usecase 為 forced 機械修）→ write-spec → audit-spec（Codex，每份 HIGH 全修）→ impl（Phase 1.t / 1.t.1 / 1.t.2）→ 驗證 → commit。**capstone：generated IAM 專案（codegen + /usecase + /api fill）swift build EXIT 0**，與 OC 一樣可編譯。殘留 **PA-F1 是三方共識確認的 intended human boundary**（command body / invariant rule body / 非-strict-safe when transition 手寫，對齊 OC 做法），**非待修缺陷**。生成 aggregate 結構現與 OC gold-standard 對齊：class entity + plugin protocol、Usecase triple + protocol-extension execute、Service 殼、Repository、ContextError factory、ensureInvariant commented obligation、strict-safe when reducer / fatalError obligation、create input-only convenience init、openapi array 型別、無 dead scaffold。
+全 pipeline **實跑** + 逐層對比 OC AuditQuotingAggregate 完成：code-gen ✓ / bundle-plan ✓ / **/usecase 實跑 fill ✓** / **/api 實跑 fill ✓** / **/readmodel-mutation 實跑 ✓**（custom-wrap human boundary，human-filled reducer 編譯通過）/ test-gen ✓。（`/presenter-fill` 對 IAM GetPermissions N/A —— 此 bundle read-side 無 ApplicationService。）
+
+**read-side 對齊結論**：read projector `when` reducer = 機械 patterns（/readmodel-mutation 5 patterns：scalar / anchor / append / removeAll / updateAt）+ custom-wrap human（exit 3，如 PermissionDto 建構）—— 與 write-side D1-D6 **同一 honest boundary**，且與 OC（hand-written projector reducer）**一致**。**RM-F1（deferred optional，非 misalignment）**：未來可加第 6 pattern「event fields 精確匹配 struct-DTO init params 時機械建構」（如 PrivilegeGranted→PermissionDto），但「哪個 event 更新哪個 DTO 欄位」屬 read-model 投影語義（human design），故 exit-3-defer-human 為合理預設。所有**機械可導的** misalignment（PA-F2/F3/F4/F5 + N1/N2）已 discuss（D1-D6 consensus，PA-F5/F2-/usecase 為 forced 機械修）→ write-spec → audit-spec（Codex，每份 HIGH 全修）→ impl（Phase 1.t / 1.t.1 / 1.t.2）→ 驗證 → commit。**capstone：generated IAM 專案（codegen + /usecase + /api fill）swift build EXIT 0**，與 OC 一樣可編譯。殘留 **PA-F1 是三方共識確認的 intended human boundary**（command body / invariant rule body / 非-strict-safe when transition 手寫，對齊 OC 做法），**非待修缺陷**。生成 aggregate 結構現與 OC gold-standard 對齊：class entity + plugin protocol、Usecase triple + protocol-extension execute、Service 殼、Repository、ContextError factory、ensureInvariant commented obligation、strict-safe when reducer / fatalError obligation、create input-only convenience init、openapi array 型別、無 dead scaffold。
 
 **test-gen TG-F1/F2**（前 session）屬 test-gen skill polish（非 AuditQuoting domain parity），另行追蹤。
