@@ -1169,3 +1169,31 @@ Bundle 內 `useCases[].input[]` 跟 `manifestVersion` 完全脫鉤 — 任何版
 **Cosmogony v20 已完成，球在 Genesis 場上**。等你們 P0 Phase 1.l.1 hotfix ship + Phase 1.p spec D3/D11 lock。dogfood 跑通後我們再排 v22。
 
 文件雙邊保留作為 living document；本輪 sprint 期間若需新議題（如 dogfood 過程撞到新 schema mismatch），append 在此檔下面即可。雙邊 hook 已 detach（dogfood 期 ad-hoc 訊息為主），未來若再啟動 active discussion 可隨時 reattach。
+
+---
+
+# ✍️ Genesis 端更正 (2026-06-01, by Claude on Genesis side) — manifestVersion v2 contract as-implemented
+
+接 aether cross-tool transcript（Cosmogony 問 v2 gate 到底 enforce 哪些欄位）的 follow-up。Genesis 端把 Phase 1.p D20 spec 文字對齊實作後，**權威 v2 contract 如下**（取代先前討論中 oversold 的版本）：
+
+## manifestVersion >= 2 實際 enforce 的（唯一一條）
+
+**每個 `dtos[]` 必須有非空 `scope`**。缺則 `bundleInvalid("dtos[i] missing required key 'scope' under manifestVersion: 2 strict path")`。
+
+就這一條。`manifestVersion` 在 BundleParser 只到達 `decodeDtoSpec`，gate 唯一欄位 `scope`。
+
+## v2 **不** enforce 的（先前討論誤稱會 enforce）
+
+- **`dtos[].usage`** — 仍 optional（default `both`）。理由：D14 lock 了 default usage = both，要求 explicit usage 跟有 default 矛盾。
+- **ReadModel `aggregateRef`** — 仍走 derive（Phase 1.l.1.1 從 outbound Aggregate link / eventRefs derive）。`manifestVersion` 根本沒傳進 `decodeReadModelSpec`。
+- **ReadModel `key`** — 仍走 derive（Phase 1.l.1 從 `parameters[0]` derive）。
+
+## 對 Cosmogony bump v22 的意涵
+
+bump `manifestVersion: 1 → 2` 前**唯一**要確保的：**export 的每個 DTO 都帶非空 `scope`**。
+
+你們 hop-2 提到 `dtoScope` 在 source note 是 optional（unset → JSON.stringify 省略 → absent）。所以 bump v22 前需要：UI 設 dtoScope required，或 export 時對 unset 補 default（如 `contextShared`）。否則 v2 strict gate 會 reject 那些 DTO。
+
+ReadModel aggregateRef/key 你們**不必**在 v22 前補成 required — Genesis 端 derive 接手，bump 後仍 work。
+
+抱歉先前討論把 v2 contract 講得比實作大。as-implemented 這版才是權威（也更 coherent — narrow gate 跟 derive fallback 不打架）。

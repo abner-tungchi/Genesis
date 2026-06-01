@@ -681,4 +681,52 @@ final class BundleParserFullTests: XCTestCase {
         XCTAssertEqual(bundle.dtos.count, 1)
         XCTAssertEqual(bundle.dtos[0].scope, "contextShared")
     }
+
+    // D20-correction (2026-06-01): manifestVersion>=2 strict gate enforces ONLY dtos[].scope.
+    // usage stays optional (D14 default both) — pin that v2 does NOT require usage.
+    func testDtoStrictGateDoesNotRequireUsage() throws {
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 2,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateOnly),
+          "dtos": [{
+            "dtoSpecId": "d-1",
+            "name": "FooDto",
+            "scope": "contextShared"
+          }]
+        }
+        """)
+        // scope present, usage absent → must still parse (usage not gated at v2)
+        let bundle = try BundleParser.parseFull(at: url)
+        XCTAssertEqual(bundle.dtos.count, 1)
+        XCTAssertEqual(bundle.dtos[0].scope, "contextShared")
+        XCTAssertNil(bundle.dtos[0].usage, "usage stays nil (optional) even under manifestVersion: 2")
+    }
+
+    // D20-correction: manifestVersion>=2 does NOT gate ReadModel aggregateRef/key — they derive.
+    // A v2 bundle with a readModel lacking explicit aggregateRef/key must still parse via derive.
+    func testStrictGateDoesNotForceReadModelAggregateRefOrKey() throws {
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 2,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateWithEvent),
+          "readModels": [{
+            "queryName": "getFoo",
+            "parameters": [{"name": "fooId", "type": "String"}],
+            "links": [
+              {"direction": "outbound", "targetType": "DomainEvent", "targetName": "fooCreated"}
+            ]
+          }]
+        }
+        """)
+        // No explicit aggregateRef / key on the readModel; under v2 these still derive (not gated).
+        let bundle = try BundleParser.parseFull(at: url)
+        XCTAssertEqual(bundle.readModels.count, 1)
+        XCTAssertEqual(bundle.readModels[0].aggregateRef, "Foo", "aggregateRef derived from eventRefs under v2")
+        XCTAssertEqual(bundle.readModels[0].key?.field, "fooId", "key derived from parameters[0] under v2")
+    }
 }

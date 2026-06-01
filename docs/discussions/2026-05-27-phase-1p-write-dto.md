@@ -211,21 +211,20 @@ D4 emission strategy 補 perReadModel cell：
 ### D20. D11 supersession — 用既存 `manifestVersion` 取代 `bundleSchemaVersion`
 
 **Decision**: D11 原 lock 「emit `bundleSchemaVersion:2` 為 sentinel」**superseded** — 改用 Cosmogony envelope 既存的 `manifestVersion` 欄位作為 wire-format version gate：
-- `manifestVersion: 1`（current）— Phase 1.p 新 fields（scope/usage/aggregateRef/readModelRef/perReadModel）optional，BundleParser 走 inference path
-- `manifestVersion: 2`（Cosmogony v22 ship 後）— scope/usage required、ReadModel `aggregateRef` required、ReadModel `key` required，BundleParser strict reject 缺欄位
+- `manifestVersion: 1`（current）— Phase 1.p 新 fields optional，BundleParser 走 inference path
+- `manifestVersion: 2`（Cosmogony v22 ship 後）— strict path 啟用
 
-Genesis BundleParser 邏輯：
-```swift
-if envelope.manifestVersion >= 2 {
-    // strict path: missing fields throw bundleInvalid
-} else {
-    // optional path: missing fields go through inference / derive (Phase 1.l.1.1 logic)
-}
-```
+**Rationale**: Cosmogony team 在 cross-tool discussion 2026-05-28 指出 envelope 已有 `manifestVersion: 1`，跟 Genesis 原 D11 的 `bundleSchemaVersion: 2` 同概念。Genesis 改讀 `manifestVersion` 較乾淨。
 
-**Rationale**: Cosmogony team 在 cross-tool discussion 2026-05-28 line 437-454 指出，Cosmogony envelope 已有 `manifestVersion: 1` 欄位，跟 Genesis 原 D11 提的 `bundleSchemaVersion: 2` 是同一概念。雙處 alias 維護成本不必要。Genesis 改讀 `manifestVersion` 是更乾淨的方案（Cosmogony team line 1118-1119: "Genesis BundleParser 還是看 manifestVersion === 1"，confirmed contract）。
+> **⚠️ D20-correction（2026-06-01，via aether cross-tool transcript）**：D20 原文寫「manifestVersion ≥ 2 → scope/usage required + ReadModel aggregateRef/key required」。實作 (BundleParser.swift) **只 gate 一個欄位** — `decodeDtoSpec` 內 `manifestVersion >= 2 && dtos[].scope 缺 → throw`。其餘 attribution 是 oversold，從未實作，且跟後續決策衝突：
+> - **`usage` 不該 gate** — D14 lock 了「default usage = both when missing」，要求 v2 explicit usage 跟「有 default」自相矛盾。
+> - **ReadModel `aggregateRef` / `key` 不該 gate** — Phase 1.l.1（parameters→key derive）+ Phase 1.l.1.1 Option A（aggregateRef from eventRefs derive）已加 derive fallback；v2 強制 require 會跟 derive 設計打架，且 `manifestVersion` 根本沒傳進 `decodeReadModelSpec`。
+>
+> **As-implemented v2 contract（權威）**：`manifestVersion >= 2` 啟用的唯一 strict 行為是 **每個 `dtos[]` 必須有非空 `scope`**。usage 仍 optional（default both）、ReadModel 欄位仍走 derive。這個 narrow gate 比原 D20 文字更 coherent（它寫在 Phase 1.l.1 derive 邏輯出現之前）。
+>
+> **Cosmogony bump v22 前提**：唯一要滿足的 hard requirement 是「每個 emit 的 DTO 都有非空 scope」。Cosmogony 端 `dtoScope` 目前在 source note 是 optional（unset → JSON 省略）→ bump v22 前需確保 export 時每個 DTO 都帶 scope（UI 設 required 或 export 補 default），否則 strict gate 會 reject。
 
-對 Phase 1.p impl 影響：BundleParser 的 strict-vs-optional gate 改用 `envelope.manifestVersion` 比對。其他 spec content（DtoRouter / ApiRenderer / mapper emit）不變。
+對 Phase 1.p impl 影響：BundleParser 的 strict gate 用 `envelope.manifestVersion >= 2` 在 `decodeDtoSpec` 檢查 scope，其他 spec content 不變。
 
 ### D21. Phase 1.p impl 啟動條件 unblocked（補 D12 sequencing）
 

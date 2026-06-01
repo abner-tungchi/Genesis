@@ -89,10 +89,11 @@ public enum DtoRouter {
 
 合約細則：
 
-- **`manifestVersion` strict gate（D20，supersedes D11）**：
-  - `envelope.manifestVersion >= 2` → 進 strict path，scope/usage/aggregateRef/readModelRef 缺一律 raise `bundleInvalid("dtos[i] missing required key 'scope' under manifestVersion: \(v) strict path")`。Cosmogony v22 ship 時 bump `manifestVersion: 1 → 2`，此時 strict path 啟用。
-  - `envelope.manifestVersion == 1`（current Cosmogony v19/v20）→ 進 inference path，由 `DtoRouter` 推導 + emit warnings。
+- **`manifestVersion` strict gate（D20，supersedes D11；2026-06-01 D20-correction 對齊 as-implemented）**：
+  - `envelope.manifestVersion >= 2` → strict path：**唯一 enforce 的是「每個 `dtos[]` 必須有非空 `scope`」**，缺則 raise `bundleInvalid("dtos[i] missing required key 'scope' under manifestVersion: \(v) strict path")`。**`usage` 不 gate**（D14 default both）、**ReadModel `aggregateRef`/`key` 不 gate**（Phase 1.l.1/1.l.1.1 derive fallback 接手）。Cosmogony v22 ship 時 bump `manifestVersion: 1 → 2` 啟用此 gate。
+  - `envelope.manifestVersion == 1`（current Cosmogony v19/v20）→ inference path，由 `DtoRouter` 推導 + emit warnings。
   - `envelope.manifestVersion == nil` → 視為 1（hand-crafted bundle backward compat）。
+  - ⚠️ D20 原文寫「scope/usage/aggregateRef/key 全 required」是 oversold（從未實作 + 跟 D14 default / Phase 1.l.1 derive 衝突）。as-implemented 只 gate `dtos[].scope`，見 discussion D20-correction。
 
 - **Reserved-name filter（D5）**：任何 `dto.name` match 以下 pattern 即 raise `GenesisError.bundleInvalid(reason: "dtos[i].name '<X>' collides with reserved infra pattern '<pat>'; rename DTO")`：
   - 後綴 `ApiError` （e.g. `UserAccessProfileApiError`）
