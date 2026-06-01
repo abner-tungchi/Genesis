@@ -182,6 +182,39 @@ public enum AggregateRenderer {
         }
         let replayList = payloadFields.map { ",\n            \($0.name): createdEvent.\($0.name)" }.joined()
 
+        // Phase 1.t.1 / D3a: input-only convenience init for the create use-case caller (/usecase Create pattern).
+        // The use-case Input does NOT carry non-input createdEvent payload fields (derived/external domain data),
+        // so deriving them is an honest fatalError TODO. Emit ONLY when derivedFields is non-empty; when input
+        // business fields already cover the whole payload, the designated init's signature == input and a
+        // convenience init would collide. The designated init + rehydration init are UNCHANGED → event replay
+        // is unaffected (this convenience init is never on the replay path; only create callers invoke it).
+        let inputBusinessFields: [(name: String, type: String)] = try createdUseCase.input
+            .filter { $0.name != alias && $0.name != "operatorId" }
+            .map { field in
+                let resolved = try SwiftTypeResolver.resolve(
+                    rawType: field.rawType, knownCustomTypes: knownCustomTypes, adapter: adapter
+                )
+                return (name: field.name, type: resolved)
+            }
+        let inputNames = Set(inputBusinessFields.map { $0.name })
+        let derivedFieldNames = payloadFields.map { $0.name }.filter { !inputNames.contains($0) }
+        let createInputConvenienceInit: String
+        if derivedFieldNames.isEmpty {
+            createInputConvenienceInit = ""
+        } else {
+            let convParams = inputBusinessFields.map { ", \($0.name): \($0.type)" }.joined()
+            let derivedList = derivedFieldNames.joined(separator: ", ")
+            createInputConvenienceInit = """
+                // Create entry point used by the create use-case (/usecase Create pattern). The use-case Input does
+                // NOT carry non-input createdEvent payload field(s) [\(derivedList)], so deriving them is domain logic.
+                package convenience init(id: String\(convParams)) throws {
+                    // GENESIS-TODO: derive non-input createdEvent payload field(s) [\(derivedList)] from input
+                    // and/or an external source, then delegate to the full init (try self.init(id: id, ...)).
+                    fatalError("GENESIS-TODO: derive non-input payload field(s) [\(derivedList)] and delegate to the full init")
+                }
+            """
+        }
+
         let template = try TemplateLoader.loadTemplate(name: "Aggregate.swift", ext: "template")
         let rendered = TemplateRenderer.render(
             template: template,
@@ -197,6 +230,7 @@ public enum AggregateRenderer {
                 "CreatedEventInvocationList": invocationList,
                 "CreatedEventReplayList": replayList,
                 "InvariantObligations": invariantObligations.joined(separator: "\n"),
+                "CreateInputConvenienceInit": createInputConvenienceInit,
             ]
         )
         return ("\(dir)/Entity/\(spec.name).swift", rendered.output, "aggregate")

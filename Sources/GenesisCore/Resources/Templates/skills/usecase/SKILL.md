@@ -51,9 +51,9 @@ Verify `{ucPascal}Input.swift` + `{ucPascal}Output.swift` 存在，否則 exit 1
 
 ## Phase 3 — Parse Input + Aggregate
 
-從 `{ucPascal}Input.swift` 取 fields（Phase 1.l 後含 aggId 首位 + 業務欄位 + operatorId 末位）。設 `<aggId>` = 第一個 field 名（aggregate identityName）。
+從 `{ucPascal}Input.swift` 取 fields。**非 create UC**：含 aggId 首位 + 業務欄位 + operatorId 末位 → 設 `<aggId>` = 第一個 field 名（aggregate identityName）。**create UC（prefix create/establish）：Input 無 aggId**（id 由 service `UUID().uuidString` server-generate，Phase 1.l.1 約定）→ **不設 `<aggId>`**；`<businessFields>` = Input fields 去 operatorId（create 無 aggId 可去）。
 
-從 `Sources/<A>Aggregate/Entity/<A>.swift` 取 `package init(id: String, ...) throws` 簽名（Create pattern 需）。
+從 `Sources/<A>Aggregate/Entity/<A>.swift` 取 create 用的 init 簽名（Create pattern 需）：Phase 1.t.1 後，當 createdEvent payload 含非-input 衍生欄位時，entity emit 一個 **input-only `package convenience init(id: String, <inputBusinessField>: <T>, ...)`**（非-id 參數 == input business fields）；無衍生欄位時則用 designated `init(id: String, ...)`（簽名亦 == input business fields）。兩者皆可由 `try <A>(id: <uuid>, <businessField>: input.<businessField>, ...)` 命中。
 從 `Sources/<A>Aggregate/Entity/Commands/<A>+{ucPascal}.swift` 取 `package func {ucCamel}(<arg1>: <T1>, ...) throws` 簽名（Update pattern 需）。
 
 ## Phase 4 — Pattern detection（structural-first，prefix 只作 hint）
@@ -61,7 +61,7 @@ Verify `{ucPascal}Input.swift` + `{ucPascal}Output.swift` 存在，否則 exit 1
 判定順序：
 
 1. **Delete**：`ucCamel` lowercased prefix `delete` → Delete pattern
-2. **Create**：prefix `create` / `establish` **且** `<A>` 有 `package init(id: String, ...)` 非 default → 逐 non-id init param 驗在 input business fields 同名同型 → 全 OK → Create；任一缺 → exit 3：`Create init expects field '<X>' not in input; manual hand-fill required`
+2. **Create**：prefix `create` / `establish` **且** `<A>` 有 create init（Phase 1.t.1 input-only `convenience init(id:, ...)`，或無衍生欄位時的 designated `init(id:, ...)`）→ 逐 non-id init param 驗在 input business fields 同名同型 → 全 OK → Create；任一缺 → exit 3：`Create init expects field '<X>' not in input; manual hand-fill required`。**create UC 的 id 是 server-generated UUID（input 無 aggId）**，不驗 `input.<aggId>`。
 3. **Update**（structural，無 prefix gate；audit H2）：`<A>+{ucPascal}.swift` 含 `package func {ucCamel}(` → parse method args label list **依簽名順序**，驗每 label 在 input business fields 集合 → 全 OK → Update；任一缺 → exit 3：`Update method '{ucCamel}' expects arg '<X>' not in input; manual hand-fill required`
 4. 都不符（無 init / 無 Command extension）→ exit 3：`pattern not recognized; manual hand-fill required`
 
@@ -71,11 +71,14 @@ Verify `{ucPascal}Input.swift` + `{ucPascal}Output.swift` 存在，否則 exit 1
 
 ### Create pattern
 
+> **id 是 server-generated UUID**（create UC 的 Input 無 aggId）。`<initArgN>` = create init（input-only convenience init 或 designated）的 non-id 參數，逐一由對應 `input.<businessField>` 提供（順序依 init 簽名）。
+
 ```swift
+        let <agg>Id = UUID().uuidString
         do {
-            let <agg> = try <A>(id: input.<aggId>, <initArg1>: input.<initArg1>, ...)
+            let <agg> = try <A>(id: <agg>Id, <initArg1>: input.<initArg1>, <initArg2>: input.<initArg2>, ...)
             try await repository.save(aggregateRoot: <agg>, userId: input.operatorId)
-            return .init(id: <agg>.id, message: nil)
+            return .init(id: <agg>Id, message: nil)
         } catch let error as ContextError<<A>Error> {
             throw error
         } catch let error as DDDError {

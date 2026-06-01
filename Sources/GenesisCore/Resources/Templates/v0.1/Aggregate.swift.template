@@ -21,7 +21,7 @@ package class {Aggregate}: {Aggregate}AggregateProtocol {
         )
         try self.apply(event: event)
     }
-
+{CreateInputConvenienceInit}
     package required convenience init?(first createdEvent: {CreatedEventTypeName}, other events: [any DomainEvent]) throws {
         try self.init(
             id: createdEvent.{CreatedEventAliasName}{CreatedEventReplayList}

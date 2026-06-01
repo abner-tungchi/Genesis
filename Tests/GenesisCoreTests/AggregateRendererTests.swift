@@ -259,4 +259,42 @@ final class AggregateRendererTests: XCTestCase {
         XCTAssertFalse(aggFile.contains("UserAccessProfileID"), "typedStruct ID wrapper must not appear in aggregate body (Phase 1.e deprecation)")
         XCTAssertTrue(aggFile.contains("package let id: String"))
     }
+
+    // MARK: - Phase 1.t.1: create-input convenience init (D3a)
+
+    func testCreateInputConvenienceInitWhenDerivedFields() throws {
+        // iam-bundle create UC: input [userId, department, jobTitle] ⊊ payload [+permissions, roles, status]
+        // → derived fields exist → emit an input-only convenience init (honest fatalError TODO).
+        let bundle = try loadIAMBundle()
+        let aggFile = try render(bundle).first { $0.role == "aggregate" }!.content
+        XCTAssertTrue(
+            aggFile.contains("package convenience init(id: String, userId: String, department: String, jobTitle: String) throws"),
+            "create UC with non-input payload fields should get an input-only convenience init; got:\n\(aggFile)"
+        )
+        XCTAssertTrue(aggFile.contains("GENESIS-TODO: derive non-input"), "convenience init body must be an honest TODO")
+        // designated full-payload init unchanged (replay path)
+        XCTAssertTrue(aggFile.contains("permissions: Set<String>, roles: Set<String>, status: EmployeeStatus) throws"),
+                      "designated full-payload init must remain")
+        // input-only convenience init must NOT carry operatorId
+        XCTAssertFalse(aggFile.contains("jobTitle: String, operatorId"), "operatorId must be filtered out of the convenience init")
+    }
+
+    func testNoConvenienceInitWhenInputCoversPayload() throws {
+        // minimal-bundle create UC: input [bar] == payload [bar] → no derived fields → the designated init's
+        // signature already == input business fields, so emitting a convenience init would COLLIDE → must NOT emit.
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("GenesisIntegrationTests/Fixtures/minimal-bundle.json")
+        let bundle = try BundleParser.parseFull(at: url)
+        let outputs = try AggregateRenderer.render(
+            spec: bundle.aggregates[0], bundle: bundle,
+            adapter: .defaultFor(contextName: "MinimalContext"), contextName: "MinimalContext"
+        )
+        let aggFile = outputs.first { $0.role == "aggregate" }!.content
+        XCTAssertFalse(
+            aggFile.contains("package convenience init(id: String,"),
+            "create UC whose input covers the whole payload must NOT emit an input-only convenience init; got:\n\(aggFile)"
+        )
+    }
 }
