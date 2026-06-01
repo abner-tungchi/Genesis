@@ -212,7 +212,17 @@ public enum OpenApiYamlRenderer {
                 rs.append("      properties:")
                 for field in inputFields {
                     rs.append("        \(field.name):")
-                    rs.append("          type: \(yamlType(for: field.rawType))")
+                    // Phase 1.t.2 / PA-F5: collection fields (Array[X] / Set[X] / [X] / Array<X> / Set<X>) must
+                    // emit `type: array` + `items:` — previously fell through yamlType's fallback to `type: string`
+                    // (yamlType only recognized angle-bracket Array<>/Set<>, not Cosmogony's bracket Array[]/Set[]),
+                    // which broke /api fill (payload.<f>: String vs AS Input [X]) and the generated API contract.
+                    if let elementType = collectionElementType(of: field.rawType) {
+                        rs.append("          type: array")
+                        rs.append("          items:")
+                        rs.append("            type: \(yamlType(for: elementType))")
+                    } else {
+                        rs.append("          type: \(yamlType(for: field.rawType))")
+                    }
                 }
             }
             requestSchemas.append(rs.joined(separator: "\n"))
@@ -321,7 +331,9 @@ public enum OpenApiYamlRenderer {
 
     static func yamlType(for swiftType: String) -> String {
         let t = swiftType.trimmingCharacters(in: .whitespaces)
-        if t.hasPrefix("Array<") || t.hasPrefix("[") || t.hasPrefix("Set<") {
+        // Phase 1.t.2 / PA-F5: recognize bracket notation (Array[X]/Set[X], Cosmogony schema) in addition
+        // to angle (Array<X>/Set<X>) and plain [X], so collections never fall through to the string fallback.
+        if collectionElementType(of: t) != nil {
             return "array"
         }
         let baseType = t.replacingOccurrences(of: "?", with: "")
@@ -333,5 +345,21 @@ public enum OpenApiYamlRenderer {
         case "Date": return "string"        // plugin 1.x limit — no format: date-time
         default: return "string"            // fallback
         }
+    }
+
+    /// Phase 1.t.2 / PA-F5: element Swift type of a collection, or nil if not a collection.
+    /// Handles Cosmogony bracket notation (Array[X] / Set[X]) + angle (Array<X> / Set<X>) + plain [X].
+    static func collectionElementType(of swiftType: String) -> String? {
+        let t = swiftType.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "?", with: "")
+        for prefix in ["Array<", "Set<"] where t.hasPrefix(prefix) && t.hasSuffix(">") {
+            return String(t.dropFirst(prefix.count).dropLast())
+        }
+        for prefix in ["Array[", "Set["] where t.hasPrefix(prefix) && t.hasSuffix("]") {
+            return String(t.dropFirst(prefix.count).dropLast())
+        }
+        if t.hasPrefix("[") && t.hasSuffix("]") {
+            return String(t.dropFirst().dropLast())
+        }
+        return nil
     }
 }
