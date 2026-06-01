@@ -1,0 +1,30 @@
+{
+  "id": "2026-06-02-phase-1t2-openapi-collection-type",
+  "file": "docs/tasks/2026-06-02-phase-1t2-openapi-collection-type.md",
+  "title": "Phase 1.t.2 — OpenAPI collection 型別修正（PA-F5）",
+  "status": "done",
+  "created": "2026-06-02",
+  "completed": "2026-06-02",
+  "depends_on": [],
+  "soft_depends_on": ["2026-06-02-phase-1t-domain-layer-codegen-alignment"],
+  "discussion": "docs/discussions/2026-06-01-full-pipeline-parity-audit.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/OpenApiYamlRenderer.swift",
+    "file:Tests/GenesisIntegrationTests/Fixtures/iam-cosmogony-bundle.json"
+  ],
+  "verification": [
+    "swift build",
+    "swift test (261 pass)",
+    "regen IAM: openapi GrantPrivilegeRequest.permissions = {type: array, items: {type: string}}",
+    "parity-fills2 generated project swift build EXIT 0 (codegen + /usecase + /api fills compile end-to-end)"
+  ],
+  "tags": ["codegen", "openapi", "oc-parity", "bugfix", "phase-1t2"],
+  "status_history": [
+    {
+      "status": "done",
+      "at": "2026-06-02T04:30:00Z",
+      "completed": "2026-06-02",
+      "note": "PA-F5（/api 端到端 dogfood 揪出的 forced 機械 bug，無設計取捨故不另開 /discuss）. root cause: bundle rawType 用 bracket 記法 Array[String]，OpenApiYamlRenderer.yamlType 只認 angle Array<>/Set<>+純[ → bracket collection 落 default fallback type:string → grantPrivilege/assignRoles 的 permissions/roles 在 openapi 生成 type:string → (1) API 契約錯 (2) /api fill 編譯失敗 payload.permissions:String vs AS Input [String]. **fix**: 加 collectionElementType(of:)（angle+bracket+純[，去?）；yamlType array 偵測改用它；requestBody field collection → type:array + items:type:<elem>. **驗證**: swift build EXIT 0；swift test 261 pass（+3 OpenApiYamlRendererTests）；regen IAM openapi permissions = {type:array,items:{type:string}}；**parity-fills2 generated 專案 swift build EXIT 0**（codegen 1.t/1.t.1/1.t.2 + /usecase + /api grantPrivilege fills 對真實 DDDKit+OpenAPI plugin+KurrentDB 全編譯通過 — 全 pipeline 端到端 capstone）. 下一步 commit."
+    }
+  ]
+}
