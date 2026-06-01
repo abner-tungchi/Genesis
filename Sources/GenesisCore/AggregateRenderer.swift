@@ -36,7 +36,7 @@ public enum AggregateRenderer {
             dir: aggregateDir
         ))
 
-        outputs.append(try renderError(spec: spec, dir: aggregateDir))
+        outputs.append(try renderError(spec: spec, contextName: contextName, dir: aggregateDir))
 
         outputs.append(try renderRepository(aggregateName: aggregateName, dir: aggregateDir))
 
@@ -158,6 +158,21 @@ public enum AggregateRenderer {
         // Category prefix: uppercase letters from contextName (e.g. IAMContext → IAMC, QuotationContext → QC).
         let categoryPrefix = String(contextName.filter { $0.isUppercase })
 
+        // Phase 1.t / D4: carry bundle-declared invariants into ensureInvariant() as a commented obligation.
+        // Do NOT emit named check*() stubs (avoids "domain theater"; bundle N invariants ≠ author's M checks)
+        // and do NOT default-throw (DDDKit runs ensureInvariant pre+post on every apply → would break all applies).
+        var invariantObligations: [String] = []
+        for inv in spec.invariants {
+            let ruleText = inv.rules
+                .map { $0.when == "always" ? $0.rule : "[\($0.when)] \($0.rule)" }
+                .joined(separator: "; ")
+                .replacingOccurrences(of: "\n", with: " ")
+            invariantObligations.append("        //   - \(inv.title) (\(inv.errorCode)): \(ruleText)")
+        }
+        if invariantObligations.isEmpty {
+            invariantObligations.append("        //   (none declared in bundle)")
+        }
+
         // Placeholder strings.
         let initParams = payloadFields.map { ", \($0.name): \($0.type)" }.joined()
         let stateAssignments = payloadFields.map { "        self.\($0.name) = \($0.name)" }.joined(separator: "\n")
@@ -181,30 +196,49 @@ public enum AggregateRenderer {
                 "CreatedEventStateAssignments": stateAssignments,
                 "CreatedEventInvocationList": invocationList,
                 "CreatedEventReplayList": replayList,
+                "InvariantObligations": invariantObligations.joined(separator: "\n"),
             ]
         )
         return ("\(dir)/Entity/\(spec.name).swift", rendered.output, "aggregate")
     }
 
-    private static func renderError(spec: AggregateSpec, dir: String) throws -> (String, String, String) {
+    private static func renderError(spec: AggregateSpec, contextName: String, dir: String) throws -> (String, String, String) {
         var seenCodes: Set<String> = []
         var lines: [String] = []
+        var factories: [String] = []
         for invariant in spec.invariants {
             if seenCodes.insert(invariant.errorCode).inserted {
                 let comment = invariant.title.isEmpty ? "" : "  // \(invariant.title)"
                 lines.append("    case \(invariant.errorCode)\(comment)")
+                // Phase 1.t / D2: per-errorCode ContextError factory (OC AuditQuotingError parity).
+                factories.append("    static func \(invariant.errorCode)(function: String = #function, message: String = \"\") -> Self {")
+                factories.append("        .init(error: .\(invariant.errorCode), in: .class(\(spec.name).self, function: function), message: message)")
+                factories.append("    }")
             }
         }
+
+        // Phase 1.t / D2: factory extension. Skip entirely for placeholder-only (no invariants) —
+        // generating a ContextError<…>.placeholder() conflicts with honest-obligation philosophy.
+        let factoryBlock: String
         if lines.isEmpty {
             lines.append("    case placeholder  // GENESIS-STUB: no invariants declared in bundle")
+            factoryBlock = ""
+        } else {
+            factoryBlock = "\nextension ContextError where ErrorType == \(spec.name)Error {\n"
+                + factories.joined(separator: "\n") + "\n}\n"
         }
 
+        // Phase 1.t / N2: ContextError lives in {Ctx}Shared — error file imports it UNCONDITIONALLY
+        // (the Shared target always exists; do NOT gate on needsSharedForImport, which only tracks
+        // whether the aggregate references DTO/customType identifiers).
         let template = try TemplateLoader.loadTemplate(name: "AggregateError.swift", ext: "template")
         let rendered = TemplateRenderer.render(
             template: template,
             vars: [
                 "Aggregate": spec.name,
+                "SharedImport": "import \(contextName)Shared",
                 "ErrorCases": lines.joined(separator: "\n"),
+                "ContextErrorFactories": factoryBlock,
             ]
         )
         return ("\(dir)/\(spec.name)Error.swift", rendered.output, "aggregateError")

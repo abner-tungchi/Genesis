@@ -44,16 +44,25 @@ public enum UseCaseRenderer {
         outputs.append(try renderOutput(uc: ucName, dir: inputDir))
         outputs.append(try renderUsecase(uc: ucName, aggregate: aggregate, sharedImport: sharedImport, dir: inputDir))
         outputs.append(try renderService(uc: ucName, aggregate: aggregate))
-        outputs.append(try renderCommandExtension(
-            uc: ucName,
-            ucCamel: ucCamel,
-            aggregate: aggregate,
-            eventTypeName: eventTypeName,
-            commandFields: useCase.input,
-            adapter: adapter,
-            knownCustomTypes: knownCustomTypes,
-            sharedImport: sharedImport
-        ))
+
+        // Phase 1.t / D6: do NOT generate a command extension for create UCs.
+        // The plugin-generated aggregate protocol does not dispatch the Created event to when(event:)
+        // (Created is handled by the rehydration init), so a create command method + when(Created) is
+        // dead scaffold. OC AuditQuotingAggregate has no create command file either.
+        if !isCreateUseCase {
+            outputs.append(try renderCommandExtension(
+                uc: ucName,
+                ucCamel: ucCamel,
+                aggregate: aggregate,
+                eventTypeName: eventTypeName,
+                commandFields: useCase.input,
+                stateFields: agg.state,
+                payloadFields: useCase.eventPayload,
+                adapter: adapter,
+                knownCustomTypes: knownCustomTypes,
+                sharedImport: sharedImport
+            ))
+        }
 
         return outputs
     }
@@ -147,6 +156,8 @@ public enum UseCaseRenderer {
         aggregate: String,
         eventTypeName: String,
         commandFields: [FieldSpec],
+        stateFields: [FieldSpec],
+        payloadFields: [FieldSpec],
         adapter: Adapter,
         knownCustomTypes: Set<String>,
         sharedImport: String
@@ -160,6 +171,14 @@ public enum UseCaseRenderer {
         }
         let commandParams = paramParts.joined(separator: ", ")
 
+        let whenBody = try buildWhenBody(
+            eventTypeName: eventTypeName,
+            stateFields: stateFields,
+            payloadFields: payloadFields,
+            adapter: adapter,
+            knownCustomTypes: knownCustomTypes
+        )
+
         let template = try TemplateLoader.loadTemplate(name: "CommandExtension.swift", ext: "template")
         let rendered = TemplateRenderer.render(
             template: template,
@@ -169,9 +188,57 @@ public enum UseCaseRenderer {
                 "useCaseCamelCase": ucCamel,
                 "CommandParams": commandParams,
                 "EventTypeName": eventTypeName,
+                "WhenBody": whenBody,
             ]
         )
         let path = "Sources/\(aggregate)Aggregate/Entity/Commands/\(aggregate)+\(uc).swift"
         return (path, rendered.output, "commandExtension")
+    }
+
+    /// Phase 1.t / D5: emit a strict-safe scalar reducer body, else an honest fatalError obligation.
+    /// strict-safe = every event-payload field 1:1-maps to a mutable aggregate state field:
+    /// same name, same resolved type, NOT a collection (Set/Array), NOT a `new*`/`old*` semantic-rename.
+    /// If ALL payload fields are strict-safe → `self.<f> = event.<f>` for each; otherwise the whole
+    /// reducer becomes `fatalError("GENESIS-TODO: ...")` (a replay-time crash beats silent state corruption).
+    private static func buildWhenBody(
+        eventTypeName: String,
+        stateFields: [FieldSpec],
+        payloadFields: [FieldSpec],
+        adapter: Adapter,
+        knownCustomTypes: Set<String>
+    ) throws -> String {
+        var stateTypeByName: [String: String] = [:]
+        for f in stateFields {
+            stateTypeByName[f.name] = try SwiftTypeResolver.resolve(
+                rawType: f.rawType, knownCustomTypes: knownCustomTypes, adapter: adapter
+            )
+        }
+
+        var assignments: [String] = []
+        var allStrictSafe = !payloadFields.isEmpty
+        for p in payloadFields {
+            let resolved = try SwiftTypeResolver.resolve(
+                rawType: p.rawType, knownCustomTypes: knownCustomTypes, adapter: adapter
+            )
+            let lname = p.name.lowercased()
+            let isCollection = resolved.contains("Set<") || resolved.contains("[")
+            let isSemanticRename = lname.hasPrefix("new") || lname.hasPrefix("old")
+            guard let stateType = stateTypeByName[p.name],
+                  stateType == resolved,
+                  !isCollection,
+                  !isSemanticRename
+            else {
+                allStrictSafe = false
+                break
+            }
+            assignments.append("        self.\(p.name) = event.\(p.name)")
+        }
+
+        if allStrictSafe {
+            return assignments.joined(separator: "\n")
+        }
+        return "        // GENESIS-TODO: \(eventTypeName) state transition is not strict-safe "
+            + "(collection / type-mismatch / new-old semantic). Implement by hand.\n"
+            + "        fatalError(\"GENESIS-TODO: implement state transition for \(eventTypeName)\")"
     }
 }

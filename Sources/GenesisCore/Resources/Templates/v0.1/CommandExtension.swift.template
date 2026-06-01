@@ -8,8 +8,8 @@ extension {Aggregate} {
     }
 
     // Called by the plugin-generated when(happened:) dispatch when event matches {EventTypeName}.
+    // ⚠️ this is the file where state actually changes during replay; do NOT mutate in {useCaseCamelCase}().
     package func when(event: {EventTypeName}) throws {
-        // GENESIS-STUB: mutate state from event.<payload-fields>, e.g. `self.foo = event.foo`.
-        // ⚠️ this is the file where state actually changes during replay; do NOT mutate in {useCaseCamelCase}().
+{WhenBody}
     }
 }
