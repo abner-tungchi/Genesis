@@ -1,0 +1,54 @@
+{
+  "id": "2026-06-01-phase-1r-bundle-plan-skill",
+  "file": "docs/tasks/2026-06-01-phase-1r-bundle-plan-skill.md",
+  "title": "Phase 1.r — /bundle-plan skill（bundle → N 份 per-UC task spec）",
+  "status": "done",
+  "created": "2026-06-01",
+  "completed": "2026-06-01",
+  "depends_on": [],
+  "soft_depends_on": [
+    "2026-06-01-phase-1q-skill-home-migration",
+    "2026-05-27-phase-1p-write-dto"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-05-28-phase-1q-bundle-plan-skill-migration.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md",
+    "file:Sources/GenesisCore/SkillInstaller.swift",
+    "file:Sources/Genesis/Commands/BundleParseCommand.swift",
+    "file:Tests/GenesisCoreTests/SkillInstallerTests.swift",
+    "file:Tests/GenesisIntegrationTests/InstallSkillsCommandTests.swift"
+  ],
+  "verification": [
+    "swift build",
+    "swift test",
+    "test -f Sources/GenesisCore/Resources/Templates/skills/bundle-plan/SKILL.md",
+    "grep -q 'name: bundle-plan' Sources/GenesisCore/Resources/Templates/skills/bundle-plan/SKILL.md",
+    "grep -q 'disable-model-invocation: true' Sources/GenesisCore/Resources/Templates/skills/bundle-plan/SKILL.md",
+    "grep -q 'genesis bundle-parse' Sources/GenesisCore/Resources/Templates/skills/bundle-plan/SKILL.md",
+    "grep -q 'useCaseSpecId' Sources/GenesisCore/Resources/Templates/skills/bundle-plan/SKILL.md",
+    "grep -q 'needs-update' Sources/GenesisCore/Resources/Templates/skills/bundle-plan/SKILL.md",
+    "grep -q 'superseded' Sources/GenesisCore/Resources/Templates/skills/bundle-plan/SKILL.md"
+  ],
+  "tags": [
+    "feature",
+    "skill",
+    "bundle-plan",
+    "task-spec",
+    "planner",
+    "phase-1r"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-01T02:00:00Z",
+      "note": "write-spec from Phase 1.q discussion MD（D1-D7 locked /bundle-plan 設計）. 本 task 收斂 4 個 open question（user 全接受建議）: Open2.1 UC identity = useCaseSpecId UUID（rename 不破壞 mapping）/ Open2.2 內容 diff 逐欄比對 input/emittedEvent/eventPayload / Open2.3 done task 對應 UC 改了 → amendment task + 原 spec needs-update（不無聲改已 ship code 對應 spec）/ Open3 與 write-ddd-spec 分流（bundle-plan 批次吃 bundle、write-ddd-spec 無 bundle manual single-UC；bundle-plan 自實作 method X 不包 write-ddd-spec）. 設計: skill 住 Templates/skills/bundle-plan/SKILL.md, plan-only（D1）, per-UC（D2）, sequential create-first（D3）, method X gap fill（D5 §1/2/3/7 機械 + §5/6 LLM 推測+逐UC確認）, task spec 雙角色 runbook+skill input（D6）, 寫到 generated project docs/tasks（D7）, 用 genesis bundle-parse 當權威 parser（Phase 1.q ship 的 Open5=c）. --replan diff by specId（D4 + Open2）. audit-spec --quick: 4b 5/5 PASS（無 line-anchor / SR-only / counting threshold）, 5b PASS（code-fidelity 對 SkillInstaller auto-scan / test count 9→10,8→9 / bundle-parse 存在 / read+create UC prefix 對齊真實 code 全核對 / 目標 vs Non-goals 互斥 / soft_depends phase-1q done）. 跳過 external（--quick）. 實作主要是 1 個 SKILL.md（markdown）+ 3 處 skill count test 更新. 下一步 /pickup 或手動實作."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-01T02:30:00Z",
+      "completed": "2026-06-01",
+      "note": "**Phase 1.r DONE**（全 Claude direct edit）. 實作: (1) 新 SKILL.md `Templates/skills/bundle-plan/`（Phase 0-6 完整指示: Phase 0 用 genesis bundle-parse 拿權威 parse / Phase 1 定位 generated project / Phase 2 write UC 篩選+create-first 排序 / Phase 3 §1/2/3/7 機械填 / Phase 4 method X §5/6 LLM 推測+逐UC確認 / Phase 5 寫 task spec MD frontmatter 含 useCaseSpecId+order+status+runbook / Phase 6 --replan diff by specId: added→append, modified→ready重寫|非ready amendment+needs-update, removed→superseded不刪, unchanged→skip）/ (2) SkillInstallerTests 3 處 count 更新（name set +bundle-plan / installIntoEmptyDir 9→10 / installSkipsExisting 8→9）. SkillInstaller.bundledSkillNames() auto-scan 自動納入新 skill, 無需改 installer 邏輯. **Tests**: swift test 250/250 pass 2 skip 0 fail（既有 + skill count 更新）. 8/8 verification grep PASS（4 個收斂決策關鍵字 useCaseSpecId/needs-update/superseded/plan-only 全在）. install-skills 確認 bundle-plan 進安裝名單 + SKILL.md 落地. **Human dogfood 待做**（spec Human 補做段）: 拿真實 Cosmogony bundle 跑 /bundle-plan 驗 7 UC task spec 產出 + §5/6 推測品質 + --replan + 下游 fill skill 消費. 下一步: commit."
+    }
+  ]
+}
