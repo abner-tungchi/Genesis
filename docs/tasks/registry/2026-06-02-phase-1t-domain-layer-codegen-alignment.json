@@ -1,0 +1,46 @@
+{
+  "id": "2026-06-02-phase-1t-domain-layer-codegen-alignment",
+  "file": "docs/tasks/2026-06-02-phase-1t-domain-layer-codegen-alignment.md",
+  "title": "Phase 1.t — domain-layer codegen alignment（vs OC AuditQuotingAggregate）",
+  "status": "done",
+  "created": "2026-06-02",
+  "completed": "2026-06-02",
+  "depends_on": [],
+  "soft_depends_on": [],
+  "discussion": "docs/discussions/2026-06-01-domain-layer-codegen-gap.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/AggregateRenderer.swift",
+    "file:Sources/GenesisCore/UseCaseRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/AggregateError.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Aggregate.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/CommandExtension.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Shared/ContextError.swift.template",
+    "file:Tests/GenesisIntegrationTests/Fixtures/minimal-bundle.json",
+    "file:Tests/GenesisIntegrationTests/Fixtures/iam-cosmogony-bundle.json"
+  ],
+  "verification": [
+    "swift build",
+    "swift test",
+    "grep -q 'extension ContextError where ErrorType == UserAccessProfileError' <regen>/Sources/UserAccessProfileAggregate/UserAccessProfileError.swift",
+    "grep -q 'import IAMContextShared' <regen IAM error file>",
+    "grep -q 'import MinimalContextShared' <regen minimal error file>  (N2 primitive-only)",
+    "grep -q 'GENESIS-TODO: implement aggregate invariants' <regen entity>",
+    "! test -f <regen>/.../Commands/UserAccessProfile+CreateUserAccessProfile.swift  (D6)",
+    "grep -q 'GENESIS-TODO: implement state transition' <regen>/.../Commands/UserAccessProfile+PromoteUser.swift  (D5)",
+    "UseCaseRendererTests: strict-safe → self.foo = event.foo; non-strict → fatalError TODO (D5 positive path)"
+  ],
+  "tags": ["codegen", "domain-layer", "oc-parity", "renderer", "phase-1t"],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-02T01:00:00Z",
+      "note": "write-spec from domain-layer-codegen-gap discussion（D1-D6 consensus R2 lock）. 範圍: D2(ContextError factory)+N2(無條件 SharedImport)+D4(ensureInvariant commented obligation, runnable no-op 不預設 throw — DDDKit pre/post-apply 約束)+D5(when strict-safe scalar assignment 否則 fatalError)+D6(移 dead create command scaffold). **D3(create-init split) defer 到 Phase 1.t.1** —— entangle 新發現的 /usecase Create pattern misalignment（create input 無 aggId、id 由 service UUID 生，但 skill emit input.<aggId>），高風險獨立. 哲學: scaffold 可導、honest-obligation 不可導（對齊 test-gen Phase 1.s）. **audit-spec（external Codex --effort high）**: 內部 4b PASS（無 line-anchor/counting/SR-only, 9 段+Non-goals, Verification 分執行者）. 外部 Codex NEEDS FIX 2 HIGH+1 MED+4 LOW, **全處理**: (HIGH1) Step4 `\\(eventTypeName)` 歧義 → 釐清 {WhenBody} 為 renderer-side 字串組裝嵌入已解析 event 名、type-equality 比 model resolved type 非 property T?; (HIGH2) 驗收缺口 → N2 改用 minimal-bundle(primitive-only, MinimalContext) regen grep import MinimalContextShared（IAM 有 DTO 抓不到 N2 bug）+ D5 positive path 改靠新增 UseCaseRendererTests（IAM 無 strict-safe UC 命中 assignment 分支）; (MED) D5 驗收覆蓋 → 同上 unit test; (LOW) placeholder case → skip factory extension（非生 placeholder factory）, ContextError API 已驗 .init(error:in:message:)+.class 正確, D4/D6 成立確認, 舊 usecase-skill doc create-command drift 記為 follow-up. 實作順序 D2→D6→D4→D5（Codex 確認無 reorder blocker）. 下一步 impl."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-02T02:00:00Z",
+      "completed": "2026-06-02",
+      "note": "**Phase 1.t DONE**（全 Claude direct edit）. 實作: (D2/N2) AggregateError.swift.template 加 {SharedImport}（無條件）+ {ContextErrorFactories}；AggregateRenderer.renderError 加 contextName、per-errorCode 生 `.init(error:.x, in:.class(<A>.self, function:), message:)` factory、placeholder-only skip extension. (D4) Aggregate.swift.template ensureInvariant 加 {InvariantObligations}；renderAggregate 算 bundle invariant 註解, runnable no-op 不 throw. (D5) CommandExtension.swift.template when body → {WhenBody}；renderCommandExtension 加 stateFields+payloadFields, buildWhenBody strict-safe 判定（name 在 state + resolved type 相等 + 非 Set/Array + 非 new/old → self.f=event.f；否則 fatalError obligation）. (D6) UseCaseRenderer.render create UC skip command extension. **驗證**: swift build EXIT 0；swift test 256 pass（252+4 新 UseCaseRendererTests）0 fail. **regen 端到端**: IAM — D2 factory 3+N2 import / D4 ensureInvariant 3 invariant 註解 / D6 無 CreateUserAccessProfile 有 PromoteUser / D5 UserPromoted→fatalError. minimal-bundle primitive-only — N2 真驗 FooAggregate 無 DTO 仍 import MinimalContextShared. **deferred**: D3 create-init split + /usecase Create pattern misalignment → Phase 1.t.1. 下一步 commit."
+    }
+  ]
+}
