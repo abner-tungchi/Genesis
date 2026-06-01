@@ -81,7 +81,12 @@ public enum PackageRenderer {
         }
 
         let testTargetTemplate = try TemplateLoader.loadTemplate(name: "PackageTestTarget.swift", ext: "template")
-        let testDeps = bundle.aggregates.map { "\"\($0.name)Aggregate\"" }.joined(separator: ", ")
+        // Phase 1.s / D9: test target gains TestUtility (DDDKit's withTestBundle harness).
+        // TestUtility itself depends on the KurrentDB product, so this also brings KurrentDBClient
+        // into the test target's module graph — no extra package declaration needed.
+        let testDeps = (bundle.aggregates.map { "\"\($0.name)Aggregate\"" }
+            + ["\n                .product(name: \"TestUtility\", package: \"swift-ddd-kit\")"])
+            .joined(separator: ", ")
         let testBlock = TemplateRenderer.render(
             template: testTargetTemplate,
             vars: [
