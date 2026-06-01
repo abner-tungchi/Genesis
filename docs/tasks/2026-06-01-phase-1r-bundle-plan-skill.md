@@ -70,14 +70,16 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 - **§3 Invariants**：從 `aggregates[].invariants[]` 機械填（該 UC 所屬 aggregate 的 invariants，列 name + errorCode + rules）。
 - **§7 Cross-aggregate Effects**：從 bundle 結構推（同 emittedEvent 被哪些 ReadModel / 其他 aggregate 訂閱 — 從 readModels[].eventRefs 反查）。
 
-### Phase 4 — §5/§6 LLM 推測 + 逐 UC 確認（method X，D5）
+### Phase 4 — §5 機械產出 + §6 method-X 確認（D5；2026-06-01 dogfood F1 修正）
 
-對每個 write UC（**plan 階段批次思考，一次處理完所有 UC 的確認**）：
-- **§5 Error Cases**：LLM 依 §3 invariants 推一版 error case 表（每 invariant → 一個 domain error case + 對應 HTTP status；加 `aggregateNotFound` 若非 create UC）。印給 user → user 確認 / 修改 → 寫入。
-- **§6 Gherkin Scenarios**：LLM 推 happy path（Scenario Outline + Examples）+ 每個 §5 error 一個 `@error Scenario`。印給 user → 確認 / 修改 → 寫入。
-- user 完全沒補某段（直接 enter 跳過）→ 標 `TODO` 不留空白。
+> **dogfood F1 修正**：§5 原設計為 method-X（LLM 推 + user 確認），但 invariant 是 aggregate 守護的不變量（OC `ensureInvariant()` 每次 mutation 全檢，非 per-UC 子集）→ §5 改**機械產出**，不需 user 確認。只有 §6 留 method-X。
 
-確認流程一次走完所有 UC（method X：plan 是 batch 思考時機，不在後續 execute 時零碎打斷）。
+對每個 write UC：
+- **§5 Error Cases（機械，不問 user）**：列 aggregate 的**全部** invariant（每條 `title | ContextError<<A>Error>.<errorCode> | 422`）+ 非 create UC 加 `DDDError.aggregateNotFound | 404`（走 `repository.find`）。create UC 不加 aggregateNotFound。同 aggregate 的 UC §5 幾乎一致 — 預期行為（aggregate-wide invariant）。
+- **§6 Gherkin Scenarios（method-X：LLM 推 + user 逐 UC 確認）**：LLM 推 happy path（Scenario Outline + Examples）+ 每個 §5 error 一個 `@error Scenario`。**behavior-level**（含 operator + aggId，與 §2 business input 分層）。印給 user → 確認 / 修改 → 寫入。Examples 真實值 + error scenario 具體 `Given` 由 user 在確認時補（LLM 先放 placeholder）。
+- user 跳過 §6 → 標 `TODO` 不留空白。
+
+§6 確認一次走完所有 UC（method X：plan 是 batch 思考時機，不在後續 execute 時零碎打斷）。
 
 ### Phase 5 — 寫 task spec MD
 

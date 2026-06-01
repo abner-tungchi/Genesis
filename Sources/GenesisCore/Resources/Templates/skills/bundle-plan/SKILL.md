@@ -80,24 +80,35 @@ genesis bundle-parse <bundle.json>
 ### §7 Cross-aggregate Effects
 從 bundle 結構推：掃 `readModels[].eventRefs[]`，若某 readModel 訂閱本 UC 的 `emittedEvent`（`eventRefs[].name == emittedEvent`）→ 列「此 event 被 ReadModel <name> 訂閱」。無 → 標 `（無跨 aggregate 訂閱）`。
 
-## Phase 4 — §5 / §6 推測 + 逐 UC 確認（method X）
+## Phase 4 — §5 機械產出 + §6 method-X 確認
 
-**一次處理完所有 write UC 的確認**（plan 是 batch 思考時機，不留到 execute 才零碎問）。對每個 UC：
+§5 是機械的（不需 user 確認）；§6 才走 method-X（LLM 推 + user 逐 UC 確認）。
 
-### §5 Error Cases（你先推一版）
-依 §3 invariants 推：每個 invariant → 一個 domain error case + HTTP status（三欄表 `條件 | Domain Error | HTTP Status`）。非 create UC 必加一條 `aggregateNotFound → 404`。印給 user：
+### §5 Error Cases（機械產出，不問 user）
+
+> **invariant 是 aggregate 守護的不變量**：domain 的 `ensureInvariant()` 把**全部** invariant check 一次跑、**每次 mutation 後都呼叫**（OC `AuditQuoting.ensureInvariant()` 為證；每個 check 內部自己有 state guard 可能 no-op，但全部都被呼叫）。所以**每個 write UC 都可能 throw 任一 aggregate invariant** — §5 不是 per-UC 子集，是全集。
+
+機械規則（無 LLM 猜測、無 user 確認）：
+- 列 aggregate 的**全部** invariant，每條一列：`條件=invariant.title | Domain Error=ContextError<<A>Error>.<errorCode> | HTTP=422 unprocessableContent`。
+- **非 create UC**（useCase 非 `create`/`establish` 開頭）→ 加一列 `aggregate 不存在 | DDDError.aggregateNotFound | 404 notFound`（走 `repository.find` 會 throw）。create UC 不加（aggregate 由 `UUID()` 新生，無 not-found）。
+
+7 個同 aggregate 的 UC → §5 內容幾乎一致（只差 create 那個沒 aggregateNotFound）。這是預期的（aggregate-wide invariant）。
+
+### §6 Gherkin Scenarios（method-X：LLM 推一版 → user 逐 UC 確認）
+
+推 happy path（`Scenario Outline` + `Examples` 跑多組合法 input）+ 每個 §5 error 一個 `@error Scenario`。印給 user 確認 / 修改 / skip：
 
 ```
-[<ucPascal>] §5 推測的 error cases：
-| 條件 | Domain Error | HTTP |
-| ... |
+[<ucPascal>] §6 推測的 Gherkin：
+<scenario outline + examples + @error scenarios>
 確認 / 修改？（enter 接受 / 輸入修正 / skip 跳過標 TODO）
 ```
 
-### §6 Gherkin Scenarios（你先推一版）
-推 happy path（`Scenario Outline` + `Examples` 跑多組合法 input）+ 每個 §5 error 一個 `@error Scenario`。印給 user 同樣確認 / 修改 / skip。
+**Gherkin 寫 behavior-level**：含 `operator` + aggId（`<aggIdName>`，如 `userAccessProfileId`），因為那是 API 真實樣子 — 與 §2 Bundle Reference（純 business input）刻意分層，此落差非 bug（codegen 注入 operatorId + aggId）。
 
-user `skip` 或直接 enter 跳過某段 → 該段標 `TODO`，不留空白。
+**Examples 值 + error scenario 的 `Given`**：這正是 method-X 要 user 補的 — LLM 先放 placeholder（如 `<userId>` 範例值、抽象 Given），user 確認時填真實合法值 + 具體 setup（如 `Given status is "resigned"` 對應 employeeNotActive，而非抽象 title）。**批次跑時別跳過這步**，否則 Examples 停在 placeholder、Given 停在抽象（dogfood 教訓）。
+
+user `skip` 或直接 enter 跳過 §6 → 標 `TODO`，不留空白。**一次處理完所有 write UC 的 §6**（plan 是 batch 思考時機，不留到 execute 才零碎問）。
 
 ## Phase 5 — 寫 task spec MD
 
@@ -133,7 +144,7 @@ runbook:
 （可選，user 補；未補標 TODO）
 
 ## 5. Error Cases
-<§5 確認後>
+<§5 機械產出：全 invariant + create/update 決定 aggregateNotFound>
 
 ## 6. Test Scenarios (Gherkin)
 ```gherkin
