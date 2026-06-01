@@ -1,0 +1,61 @@
+{
+  "id": "2026-06-01-phase-1s-test-gen-skill",
+  "file": "docs/tasks/2026-06-01-phase-1s-test-gen-skill.md",
+  "title": "Phase 1.s — test-gen skill（task spec §6 → two-file-split Swift Testing 測試骨架）",
+  "status": "done",
+  "created": "2026-06-01",
+  "completed": "2026-06-01",
+  "depends_on": [],
+  "soft_depends_on": [
+    "2026-06-01-phase-1r-bundle-plan-skill",
+    "2026-06-01-phase-1q-skill-home-migration"
+  ],
+  "supersedes": [],
+  "discussion": "docs/discussions/2026-06-01-test-gen-skill-design.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/skills/bundle-plan/SKILL.md",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/TestPlaceholder.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiHandler.swift.template",
+    "file:Sources/GenesisCore/PackageRenderer.swift",
+    "file:Sources/GenesisCore/SkillInstaller.swift",
+    "file:Tests/GenesisCoreTests/SkillInstallerTests.swift",
+    "file:Tests/GenesisIntegrationTests/InstallSkillsCommandTests.swift"
+  ],
+  "verification": [
+    "swift build",
+    "swift test",
+    "test -f Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "grep -q 'name: test-gen' Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "grep -q 'disable-model-invocation: true' Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "grep -q '.generated.swift' Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "grep -q '.authored.swift' Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "grep -q 'Issue.record' Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "grep -q '.disabled' Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "grep -q 'withTestBundle' Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "grep -q 'import Testing' Sources/GenesisCore/Resources/Templates/v0.1/TestPlaceholder.swift.template",
+    "! grep -q 'import XCTest' Sources/GenesisCore/Resources/Templates/v0.1/TestPlaceholder.swift.template",
+    "grep -q 'TestUtility' Sources/GenesisCore/PackageRenderer.swift"
+  ],
+  "tags": [
+    "feature",
+    "skill",
+    "test-gen",
+    "swift-testing",
+    "two-file-split",
+    "codegen",
+    "phase-1s"
+  ],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-01T05:00:00Z",
+      "note": "write-spec from test-gen-skill-design discussion MD（D1-D9 consensus, R3 lock）. 設計: test-gen = scaffold emitter（D3）非 full codegen, 獨立 skill（D1）, two-file split .generated（機器全重生）/.authored（機器永不寫）（D7）, pending stub MUST .disabled+Issue.record 防 test theater（D6）, 對齊 Swift Testing 全換 XCTest（D8）, infra 鎖 real KDB+withTestBundle 砍 in-memory（D9）, assertion 來自 spec/signature 來自 code 不讀 execute body（D2）. 收斂 3 open question: Open#1 read-model lane OUT of scope（defer）/ Open#2 D4(c) 只預填單步 fixture skeleton 多步留 authored / Open#4 fixture library human-authored test-gen 只 reference. 含 2 codegen 前置: D8 TestPlaceholder.template→Swift Testing, D9 PackageRenderer testDeps +TestUtility（TestUtility target 自帶 KurrentDB dep → import KurrentDB 經其可達）. skill count 10→11. **audit-spec（external Codex, --effort high）**: 內部 4b 全 PASS（無 line-anchor / counting threshold / SR-only, 目標vs Non-goals 互斥, 8 段齊, Verification 分執行者）, 內部 5b PASS（所有權唯一=two-file ownership, 無新 enum, 依賴 phase-1r/1q done）. 外部 Codex 抓 3 HIGH+1 MED+3 LOW, **3 HIGH 全修**: (Axis3) D9 KurrentDB 推理改正——原誤寫『aggregate target transitive』+ 錯 package identity, 改成 grounded『TestUtility target 自身依賴 KurrentDB product』+ 不硬鎖 identity（版本相依, impl 以編譯為準）; (Axis4) verify 指令 genesis new flag 修正為真實介面 `genesis new <Pascal> --from-bundle <path> --output <dir> --skip-build`（移除假 --bundle + || true mask）; (Axis5) reconcile 機制補載重點互斥規則——一 scenario 只存在一檔, test-gen 讀 .authored 既有 @Test 名 authoredNames, generated emit 時跳過 ∈authoredNames 者避免重複 emit/編譯衝突; key 用 title-derived 名（bundle-plan 無 scenario id, stable-id 待上游, 預留 // test-gen-scenario-id 註解）; 解 空殼vs placeholder 歧義（.authored 純空殼, fixture 缺失提示放 generated disabled stub 註解內）. MED（Axis6）補輸入正規化 subsection（ucFull/ucCamel〔create 判定用後綴非全字串〕/ucPascal/contextName/operatorIdField/aggIdField/固定輸出路徑 Tests/<ctx>Tests/）. LOW 採納（目標補 only-create-fully-emitted, citation 屬實無修, {GenesisVersion} raw-copy 行為屬實）. 實作主要 1 SKILL.md（markdown）+ TestPlaceholder.template 換框架 + PackageRenderer testDeps 一行 + 3 處 skill count test. 下一步 /pickup 或手動實作."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-01T06:00:00Z",
+      "completed": "2026-06-01",
+      "note": "**Phase 1.s DONE**（全 Claude direct edit）. 實作: (1) 新 SKILL.md `Templates/skills/test-gen/`（Phase 0-4 完整: Phase 0 讀 task spec §3/§5/§6, §6 整段空才 fail-loud / Phase 1 定位 project + 讀 Input/Service/Output signature 不讀 execute body / reconcile key=title-derived 名 預留 test-gen-scenario-id / Phase 2 emit .generated.swift〔@Suite(.serialized)+kdbClient+repository init recipe / create UC 完整 happy-path / 其餘 @Test(.disabled)+Issue.record 結構 stub / 互斥: 讀 authoredNames 跳過已 author 的〕/ Phase 3 .authored.swift 不存在建空殼 已存在永不動 / Phase 4 reconcile 報告 pending/authored/orphaned 不寫 authored）. (2) D8: TestPlaceholder.swift.template XCTest→Swift Testing（import Testing + @Suite struct {ContextName}PlaceholderTests + @Test(.disabled)+Issue.record 反假綠, 移除 XCTAssertTrue(true) tautology）. (3) D9: PackageRenderer testDeps 加 .product(name:\"TestUtility\", package:\"swift-ddd-kit\")（TestUtility 自帶 KurrentDB dep）. (4) SkillInstallerTests 3 處（name set +test-gen / installIntoEmptyDir 10→11 / installSkipsExisting 9→10）. **Tests**: swift build PASS, swift test 252 pass / 2 skip / 0 fail. **驗收 grep 全 PASS**（D2/D6/D7/D9 關鍵字 + D8 import Testing 有/import XCTest 無 + D9 PackageRenderer TestUtility）. install-skills 含 test-gen（11 skills）. **端到端 genesis new 實跑驗證**: 生成 IAMContext test target deps=`[\"UserAccessProfileAggregate\", .product(name:\"TestUtility\", package:\"swift-ddd-kit\")]`（D9 ✓）, Tests/IAMContextTests/PlaceholderTests.swift=import Testing+@Suite+Issue.record 無 XCTest（D8 ✓）. dogfood 回修 spec verify 指令（補 --no-git + --output 是 project root 非 /IAMContext 子目錄）. **Human dogfood 待做**: 拿真 IAM task spec 跑 /test-gen 驗 two-file 產出 + create happy-path 可跑（需 localhost KDB）+ pending .disabled 不假綠 + --regen 不洗 authored. 下一步: commit."
+    }
+  ]
+}
