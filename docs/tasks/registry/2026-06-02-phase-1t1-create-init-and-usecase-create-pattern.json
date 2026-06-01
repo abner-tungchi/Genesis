@@ -1,0 +1,35 @@
+{
+  "id": "2026-06-02-phase-1t1-create-init-and-usecase-create-pattern",
+  "file": "docs/tasks/2026-06-02-phase-1t1-create-init-and-usecase-create-pattern.md",
+  "title": "Phase 1.t.1 — create-init 對齊 input + /usecase Create pattern 修正",
+  "status": "done",
+  "created": "2026-06-02",
+  "completed": "2026-06-02",
+  "depends_on": [],
+  "soft_depends_on": ["2026-06-02-phase-1t-domain-layer-codegen-alignment"],
+  "discussion": "docs/discussions/2026-06-01-domain-layer-codegen-gap.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/AggregateRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Aggregate.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md",
+    "file:Tests/GenesisCoreTests/AggregateRendererTests.swift",
+    "file:Tests/GenesisIntegrationTests/Fixtures/minimal-bundle.json",
+    "file:Tests/GenesisIntegrationTests/Fixtures/iam-bundle.json"
+  ],
+  "verification": [
+    "swift build",
+    "swift test (258 pass)",
+    "regen IAM: input-only convenience init(id:userId:department:jobTitle:) + GENESIS-TODO + designated full-payload init + rehydration unchanged",
+    "minimal-bundle (input==payload): NO convenience init (boundary)",
+    "/usecase SKILL.md Create pattern uses UUID().uuidString, no input.<aggId> in Create block"
+  ],
+  "tags": ["codegen", "domain-layer", "oc-parity", "create-init", "usecase-skill", "phase-1t1"],
+  "status_history": [
+    {
+      "status": "done",
+      "at": "2026-06-02T03:30:00Z",
+      "completed": "2026-06-02",
+      "note": "write-spec → audit-spec → impl 一輪完成（Phase 1.t deferred 的 D3）. 解 PA-F2（create-init/input 脫節 → /usecase Create exit 3）+ 連帶 /usecase Create pattern misalignment（create input 無 aggId、id 由 UUID 生）. **設計（低風險）**: 保留 designated full-payload init + rehydration init 不動（replay 安全）；新增 input-only convenience init（簽名=input business fields 去 operatorId，body=honest fatalError TODO，只 create caller 呼叫不在 replay path）；僅 derivedFields 非空才生（input==payload 不生避免簽名衝突）. /usecase skill Create pattern 改 UUID + input-only init + Phase 3/4 prose 同步. **audit-spec（external Codex high）**: 內部 4b PASS. Codex NEEDS FIX 1 HIGH+2 MED+2 LOW, **全處理**: (HIGH) input business fields 計算漏 filter operatorId → 改 `filter {name != alias && name != operatorId}`、邊界改 derivedFields.isEmpty; (MED) /usecase prose 範圍擴及 frontmatter/intro/Phase 3 + 註明 Phase 2 detector 不壞; (MED) 驗收收緊（精確簽名 grep + operatorId negative + designated 精確 + SKILL UUID/Create-block input.<aggId> negative + boundary renderer test）; (LOW) Swift 合法性〔fatalError-only convenience init 合法、overload 不 ambiguous、replay 不受影響〕Codex 確認無缺陷. **impl + 驗證**: swift build EXIT 0；swift test 258 pass（256+2 新 AggregateRendererTests: derived→convenience init / input==payload→no convenience）0 fail. regen IAM: convenience init(id:userId:department:jobTitle:)+TODO、designated full-payload 不變、rehydration 不變. minimal-bundle boundary: 無 convenience init. /usecase Create block 無 input.<aggId>、用 UUID. **Human 補做**: 對 regen 跑 /usecase createUserAccessProfile 驗不再 exit 3 + 手填 convenience init derive+delegate 後 swift build + replay 測試(需 KDB). 下一步 commit."
+    }
+  ]
+}

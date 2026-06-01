@@ -1,8 +1,8 @@
 ---
 topic: "Genesis 全 pipeline 架構對齊驗證（vs OC AuditQuotingAggregate）"
-status: in-progress
+status: resolved
 created: "2026-06-01"
-updated: "2026-06-01"
+updated: "2026-06-02"
 validation_target: "OC Sources/AuditQuotingAggregate（gold standard）"
 test_project: "/tmp/genesis-testgen-dogfood（從 Cosmogony IAMContext.json 生成）"
 pipeline_skills: [code-gen (genesis new), bundle-plan, usecase, api, readmodel-mutation, presenter-fill, test-gen]
@@ -127,7 +127,16 @@ pipeline_skills: [code-gen (genesis new), bundle-plan, usecase, api, readmodel-m
   - **D5**：when reducer strict-safe scalar → `self.<f>=event.<f>`、否則 fatalError obligation。IAM UserPromoted（new/old）→ fatalError ✓；4 個 UseCaseRendererTests（strict-safe assign / collection / new-old / create-skip）全綠。
   - **D6**：移除 dead create command scaffold。IAM 無 `+CreateUserAccessProfile.swift`、有 `+PromoteUser.swift` ✓。
   - swift build ✓ / swift test 256 pass（252 + 4 新）/ 0 fail。
-- **剩餘（deferred）**：
-  - **PA-F2 / D3 → Phase 1.t.1**：create-init split 對齊 input + 新發現的 **/usecase Create pattern misalignment**（create UC input 無 aggId、id 由 service UUID 生，但 skill emit `input.<aggId>`）。entangled + 高風險，獨立處理。
-  - **PA-F1 殘留**：command method body + invariant rule body 仍 honest TODO（intended human boundary，三方共識不自動填）。
-  - **test-gen dogfood TG-F1/TG-F2**（前 session）：create happy-path 結構完整非語意免費 / create aggId cleanup（withTestBundle 無法 pre-register UUID-minted stream）。屬 test-gen skill 後續。
+- 2026-06-02：**Phase 1.t.1 實作 + 驗證完成**（write-spec → audit-spec〔Codex 1 HIGH+2 MED 全修〕→ impl）。解 **PA-F2**（create-init/input 脫節）+ 連帶 /usecase Create pattern misalignment：
+  - **D3a**：新增 input-only convenience init（簽名 = create UC input business fields 去 operatorId，body = honest fatalError TODO）；designated full-payload init + rehydration init **不動**（replay 安全 — Codex 確認 fatalError-only convenience init 合法、overload 不 ambiguous、不在 replay path）。僅 derivedFields 非空才生（input==payload 不生，避免簽名衝突）。
+  - **D3b**：/usecase skill Create pattern 改 `id = UUID().uuidString` + call input-only init；Phase 3/4 + frontmatter prose 同步（create UC 無 aggId）。
+  - swift build ✓ / swift test 258 pass / regen IAM convenience init ✓ / minimal-bundle boundary（無 convenience）✓ / Create block 無 input.<aggId> ✓.
+  - → **PA-F2 解決：create UC 現可被 /usecase Create pattern 機械 fill 到 orchestration 層**（entity convenience init body 仍 honest TODO，create domain logic 仍 human）。
+
+- **剩餘（非 actionable / follow-up，非未對齊缺陷）**：
+  - **PA-F1 殘留 = intended human boundary**：command method body + invariant rule body + when 非-strict-safe transition = honest TODO/fatalError（三方 R2 consensus D1/D6：domain rule 不可機械導、不自動填；OC 也是手寫）。**這不是「未對齊」—— 是刻意的 codegen/human 邊界**。
+  - **test-gen dogfood TG-F1/TG-F2**（前 session，test-gen skill 範疇）：create happy-path 結構完整非語意免費 / create aggId cleanup。屬 test-gen 後續 polish，非 domain parity。
+
+## 結論
+
+全 pipeline 跑過 + 逐層對比 OC AuditQuotingAggregate 完成。所有**機械可導的** misalignment（PA-F2/F3/F4 + N1/N2）已 discuss（D1-D6 consensus）→ write-spec → audit-spec（Codex）→ impl（Phase 1.t + 1.t.1）→ 驗證 → commit。殘留 PA-F1 是三方共識確認的 intended human boundary（domain rule body 手寫，對齊 OC 做法），非待修缺陷。生成的 aggregate 結構現與 OC gold-standard 對齊（class entity + plugin protocol、Usecase triple + protocol-extension execute、Service 殼、Repository、ContextError factory、ensureInvariant obligation、strict-safe when reducer、create input-only init、無 dead scaffold）。
