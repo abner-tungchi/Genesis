@@ -1,0 +1,36 @@
+{
+  "id": "2026-06-02-phase-1v-readmodel-dto-convert-pattern",
+  "file": "docs/tasks/2026-06-02-phase-1v-readmodel-dto-convert-pattern.md",
+  "title": "Phase 1.v — /readmodel-mutation Dto-convert pattern（A2）",
+  "status": "done",
+  "created": "2026-06-02",
+  "completed": "2026-06-02",
+  "depends_on": [],
+  "soft_depends_on": ["2026-06-02-phase-1u-command-scaffold-and-error-holes"],
+  "discussion": "docs/discussions/2026-06-02-domain-scaffold-emitter.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/skills/readmodel-mutation/SKILL.md"
+  ],
+  "verification": [
+    "grep Dto-convert + emit shape in SKILL.md",
+    "grep replace-safe whitelist (Created/Set/Edited/Updated/Renamed) + delta blacklist (Granted/Revoked/Added/Removed/Deleted/Assigned)",
+    "grep single-writer/projector-wide + overload/non-throwing + search-scope (Adapter/Dto, +Domain)",
+    "no '5 patterns' drift",
+    "install-skills includes readmodel-mutation with Dto-convert; swift build + test green (count unchanged)",
+    "A2 discussion text no longer claims 解 GetPermissions exit-3"
+  ],
+  "tags": ["skill", "readmodel-mutation", "dto-convert", "type-closure", "oc-parity", "phase-1v"],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-02T10:00:00Z",
+      "note": "write-spec A2 from domain-scaffold-emitter（D2 locked 兩次）. /readmodel-mutation 加第 6 pattern Dto-convert: readModel field 型別 <X>Dto + 唯一 non-throwing init(from:<D>) + event 有 <D> field → readModel.f = XDto(from: event.g). **邊界修正**: A2 不解 GetPermissions exit-3（PermissionDto memberwise 無 init(from:) + grant/revoke multi-writer = domain，留 A5）;只解 OC enum/value-Dto-convert 大宗（IndustrialType 等）. **audit-spec（external Codex high）**: 內部 4b PASS. Codex NEEDS FIX 2 HIGH+2 MED, **全處理**: (HIGH3) type-closure 必要非充分 → 安全 = conversion-closure ∧ replace-verb ∧ single-writer 三條件; (HIGH1) multi-event-same-field guard 改可執行（projector-wide field-writer map）非註解; (MED2) DTO 搜尋改 grep symbol + scope Adapter/Dto+projector/**+<X>Dto+Domain + 唯一 non-throwing overload 排除; (MED4) 驗收加 ordering/verb/single-writer/scope grep + 修『5 patterns』漂移 + 對齊 A2 討論文字（不再宣稱解 GetPermissions）. 改動: /readmodel-mutation SKILL.md（markdown，LLM-executed）. 下一步 impl."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-02T10:30:00Z",
+      "completed": "2026-06-02",
+      "note": "**Phase 1.v DONE**. 實作: /readmodel-mutation SKILL.md 加第 6 pattern Dto-convert（三條件 conversion-closure ∧ replace-verb ∧ single-writer 全可執行檢查）+ Phase 3 補 Dto initializer grep（scope projector/**+Adapter/Dto+<X>Dto+Domain、唯一 non-throwing overload 排除）+ projector-wide field-writer map + priority（Dto-convert 先於 anchor/scalar、collection 仍優先）+ 修『5 patterns』措辭漂移（description/你的任務）+ 對齊 domain-scaffold-emitter A2 文字. **驗證**: 9 spec 驗收 grep 全 PASS（Dto-convert/emit/replace 白名單/delta 黑名單/single-writer/overload/scope/boundary/no-5-patterns-drift）; swift build EXIT 0; swift test 264 pass（skill count 不變，編輯既有）; install-skills 含 Dto-convert. 邊界確立: GetPermissions（memberwise+grant/revoke multi-writer）正確不 match，留 A5. 後續: A5（intent-elicitation domain-fill skill，處理 GetPermissions 等 domain case）/ A4."
+    }
+  ]
+}
