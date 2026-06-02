@@ -647,16 +647,16 @@ final class NewCommandTests: XCTestCase {
             "--output", tmpDir.path,
             // no --skip-build: exercise the full resolve + build pipeline
         ])
-        // Phase 1.u: a fresh gen with unfilled domain #error holes MUST NOT build green.
-        // The contract is: package resolve succeeds (deps fetch), but `swift build` fails — and the
-        // ONLY thing blocking the build is the GENESIS-TODO #error holes (not a dep/resolve error).
-        XCTAssertNotEqual(result.exitCode, 0,
-                          "fresh gen with #error domain holes must fail swift build (Phase 1.u honest signal); stderr: \(result.stderr)")
-        XCTAssertTrue(result.stderr.contains("swift build failed"),
-                      "failure must be at the build step (resolve should have succeeded); stderr: \(result.stderr)")
-        XCTAssertTrue(result.stderr.contains("GENESIS-TODO"),
-                      "build must fail on the GENESIS-TODO #error holes; stderr: \(result.stderr)")
-        XCTAssertFalse(result.stderr.contains("swift package resolve failed"),
-                       "resolve must succeed — only domain #error holes should block; stderr: \(result.stderr)")
+        // Phase 1.u.1: a fresh gen has #error domain holes so `swift build` fails — but because the
+        // failure is ONLY GENESIS-TODO holes, genesis new treats it as success-with-holes: exit 0,
+        // the project is KEPT (not rolled back), and stdout reports the remaining holes.
+        XCTAssertEqual(result.exitCode, 0,
+                       "holes-only build failure → success-with-holes (Phase 1.u.1); stderr: \(result.stderr)")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: tmpDir.appendingPathComponent("Package.swift").path),
+            "project must be kept (not rolled back) when only #error domain holes remain"
+        )
+        XCTAssertTrue(result.stdout.contains("domain hole"),
+                      "stdout should report remaining domain holes; stdout: \(result.stdout)")
     }
 }
