@@ -1,0 +1,32 @@
+{
+  "id": "2026-06-02-phase-1t3-create-id-caller-provided",
+  "file": "docs/tasks/2026-06-02-phase-1t3-create-id-caller-provided.md",
+  "title": "Phase 1.t.3 — create id 對齊 caller-provided（PA-F6）",
+  "status": "done",
+  "created": "2026-06-02",
+  "completed": "2026-06-02",
+  "depends_on": [],
+  "soft_depends_on": ["2026-06-02-phase-1t1-create-init-and-usecase-create-pattern"],
+  "discussion": "docs/discussions/2026-06-01-full-pipeline-parity-audit.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/UseCaseRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/skills/usecase/SKILL.md",
+    "file:Tests/GenesisIntegrationTests/NewCommandTests.swift"
+  ],
+  "verification": [
+    "swift build",
+    "swift test (261 pass)",
+    "regen IAM: CreateUserAccessProfileInput fields == [userAccessProfileId, userId, department, jobTitle, operatorId]",
+    "convenience init (1.t.1) still emitted; D6 no create command extension",
+    "/usecase Create pattern uses input.<aggId>, no UUID"
+  ],
+  "tags": ["codegen", "usecase-skill", "oc-parity", "create-id", "phase-1t3", "revert-1t1-partial"],
+  "status_history": [
+    {
+      "status": "done",
+      "at": "2026-06-02T06:00:00Z",
+      "completed": "2026-06-02",
+      "note": "PA-F6（full skill-run dogfood 揪出：create id 模型與 OC 反向）. **user 拍板 caller-provided（對齊 OC）** → 跳過 /discuss（方向已定）, write-spec → audit-spec → impl. 部分撤回 1.t.1: (1) UseCaseRenderer.renderInput 移除 create isCreateUseCase aggId-skip → create Input = [aggId]+business+[operatorId]（撤 Phase 1.l.1 create-skip）；移除 renderInput 的 isCreateUseCase 參數（render() D6 command-skip 保留）. (2) /usecase SKILL.md Create pattern id 改 input.<aggId>（撤 1.t.1 UUID）+ Phase 3/4 prose create-has-aggId. **保留** 1.t.1 convenience init（IAM derived 欄位仍不在 input, honest TODO；caller 傳 id）. **audit-spec（Codex high）**: 0 HIGH+2 MED+3 LOW, 核心撤回 Codex 確認 sound（isCreateUseCase 乾淨分離 / convenience init 不受影響〔讀 bundle input 非生成 file〕/ api 無誤觸發）. 2 MED 修: 測試路徑改指 NewCommandTests（非 GenesisCoreTests）+ 驗收改精確 field-order + D6 absence. **impl + 驗證**: swift build EXIT 0；swift test 261 pass（NewCommandTests testCreateUseCaseInputOmitsAggId→testCreateUseCaseInputContainsAggId 反轉 + testCosmogonyBundleEndToEnd create-has-aggId）. regen: create Input order [userAccessProfileId,userId,department,jobTitle,operatorId]、convenience init 在、D6 無 create command、Create pattern caller-provided 無 UUID. 全鏈一致: openapi path aggId→ApiHandler→AS Input→usecase input.aggId→init id. 下一步 commit + 重建完整 7/7 review 專案."
+    }
+  ]
+}

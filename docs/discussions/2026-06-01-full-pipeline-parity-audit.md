@@ -148,3 +148,23 @@ pipeline_skills: [code-gen (genesis new), bundle-plan, usecase, api, readmodel-m
 **read-side 對齊結論**：read projector `when` reducer = 機械 patterns（/readmodel-mutation 5 patterns：scalar / anchor / append / removeAll / updateAt）+ custom-wrap human（exit 3，如 PermissionDto 建構）—— 與 write-side D1-D6 **同一 honest boundary**，且與 OC（hand-written projector reducer）**一致**。**RM-F1（deferred optional，非 misalignment）**：未來可加第 6 pattern「event fields 精確匹配 struct-DTO init params 時機械建構」（如 PrivilegeGranted→PermissionDto），但「哪個 event 更新哪個 DTO 欄位」屬 read-model 投影語義（human design），故 exit-3-defer-human 為合理預設。所有**機械可導的** misalignment（PA-F2/F3/F4/F5 + N1/N2）已 discuss（D1-D6 consensus，PA-F5/F2-/usecase 為 forced 機械修）→ write-spec → audit-spec（Codex，每份 HIGH 全修）→ impl（Phase 1.t / 1.t.1 / 1.t.2）→ 驗證 → commit。**capstone：generated IAM 專案（codegen + /usecase + /api fill）swift build EXIT 0**，與 OC 一樣可編譯。殘留 **PA-F1 是三方共識確認的 intended human boundary**（command body / invariant rule body / 非-strict-safe when transition 手寫，對齊 OC 做法），**非待修缺陷**。生成 aggregate 結構現與 OC gold-standard 對齊：class entity + plugin protocol、Usecase triple + protocol-extension execute、Service 殼、Repository、ContextError factory、ensureInvariant commented obligation、strict-safe when reducer / fatalError obligation、create input-only convenience init、openapi array 型別、無 dead scaffold。
 
 **test-gen TG-F1/F2**（前 session）屬 test-gen skill polish（非 AuditQuoting domain parity），另行追蹤。
+
+---
+
+## PA-F6 — create id 模型與 OC 反向（2026-06-02，full skill-run dogfood 揪出）
+
+跑完整 7 UC skill-fill（6 Update 成功 + create 卡住）暴露:
+
+| | OC AuditQuoting（驗證目標）| Genesis 現狀 |
+|---|---|---|
+| create Input | **有 aggId**（`quotingId`，caller-provided）| **無** aggId（UseCaseRenderer `isCreateUseCase` skip）|
+| usecase create id | `input.quotingId`（caller）| 1.t.1 用 `UUID()`（server-gen）|
+| adapter（AS Input / ApiHandler path / openapi）| 有 aggId | **也有**（已照 OC）|
+
+證據:OC `CreateAuditQuotingInput` 有 `quotingId`、`CreateAuditQuotingUsecase` 用 `let quotingId = input.quotingId` → `AuditQuoting(id: quotingId, ...)` → `return .init(id: quotingId)`（非 UUID）。Genesis adapter 層已照 OC（AS Input + ApiHandler `input.path.userAccessProfileId`），但 usecase 層（UseCaseRenderer aggId-skip）+ 1.t.1（UUID）走 server-gen → 全鏈不一致。
+
+**user 拍板（2026-06-02）= caller-provided（對齊 OC）** → **Phase 1.t.3**:
+- 撤回 UseCaseRenderer 的 create `isCreateUseCase` aggId-skip（create Input 加 aggId 首位，同非-create）。
+- 撤回 1.t.1 /usecase Create pattern 的 UUID → 改 `input.<aggId>`；Phase 3/4 prose 同步（create UC 有 aggId）。
+- **保留** 1.t.1 的 input-only convenience init（IAM derived 欄位 permissions/roles/status 仍不在 input → 仍需 honest TODO；但 caller 提供 id，convenience init 的 `id:` 參數由 caller 傳）。
+- adapter 層 + D6 command-skip 不動（已對）。
