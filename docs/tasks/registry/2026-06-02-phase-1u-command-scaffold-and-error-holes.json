@@ -2,8 +2,9 @@
   "id": "2026-06-02-phase-1u-command-scaffold-and-error-holes",
   "file": "docs/tasks/2026-06-02-phase-1u-command-scaffold-and-error-holes.md",
   "title": "Phase 1.u — command precondition scaffold + #error domain holes",
-  "status": "ready",
+  "status": "done",
   "created": "2026-06-02",
+  "completed": "2026-06-02",
   "depends_on": [],
   "soft_depends_on": [
     "2026-06-02-phase-1t-domain-layer-codegen-alignment",
@@ -38,7 +39,13 @@
     {
       "status": "ready",
       "at": "2026-06-02T08:00:00Z",
-      "note": "write-spec from domain-scaffold-emitter discussion（R2 consensus D1-D9）. 實作 ADD 清單 C1+C2+A1（scaffold-emitter 第一批，codegen 本地化）. C1+A1: command body emit bundle precondition 註解 scaffold（useCase.preconditions）+ build-event frame 註解 + #error（取代 fatalError not-implemented）;errorCode 不自動接（D5）. C2: 非-strict-safe when fatalError→#error+structure 註解（scalar codegen-fill 不變）. #error 機制 probe 實證（function body 內乾淨、多重性、不影響 resolve）. **audit-spec（external Codex high）**: 內部 4b PASS. Codex NEEDS FIX 1 HIGH+3 MED+1 LOW, **全處理**: (HIGH) 撤回 empty-payload→no-op（空 payload 仍可能 mutate → 維持 #error fail-loud，回兩分支）; (MED1) narrow #error claim 到實際 throws/Void shape + probe 證多重性; (MED4) e2e 斷言改 exit2+'swift build failed'+'GENESIS-TODO'+非'resolve failed'（genesis new 包裝 build 失敗，'僅含 GENESIS-TODO'不可靠）; (MED5a) 加 CLAUDE.md.template stub 描述改 #error; (MED5b) **ensureInvariant honest-hole 拉進本 phase**（有宣告 invariant→#error、無→no-op）—— D4 拒的是 runtime throw（DDDKit pre+post），#error 編譯期不衝突，故不違反 lock; (LOW3) renderError errorCode-manual sentence（生成 enum 只含 invariant case）. 改動: CommandExtension/Aggregate/CLAUDE.md template + UseCaseRenderer（renderCommandExtension +preconditions 參數、buildWhenBody fatalError→#error）+ AggregateRenderer（ensureInvariant conditional #error）+ 3 test 檔. **已知限制**: fresh gen 不再 build green（capstone reversal，intended honest signal）. 下一步 impl 或 user review."
+      "note": "[ready] write-spec from domain-scaffold-emitter discussion（R2 consensus D1-D9）. 實作 ADD 清單 C1+C2+A1（scaffold-emitter 第一批，codegen 本地化）. C1+A1: command body emit bundle precondition 註解 scaffold（useCase.preconditions）+ build-event frame 註解 + #error（取代 fatalError not-implemented）;errorCode 不自動接（D5）. C2: 非-strict-safe when fatalError→#error+structure 註解（scalar codegen-fill 不變）. #error 機制 probe 實證（function body 內乾淨、多重性、不影響 resolve）. **audit-spec（external Codex high）**: 內部 4b PASS. Codex NEEDS FIX 1 HIGH+3 MED+1 LOW, **全處理**: (HIGH) 撤回 empty-payload→no-op（空 payload 仍可能 mutate → 維持 #error fail-loud，回兩分支）; (MED1) narrow #error claim 到實際 throws/Void shape + probe 證多重性; (MED4) e2e 斷言改 exit2+'swift build failed'+'GENESIS-TODO'+非'resolve failed'（genesis new 包裝 build 失敗，'僅含 GENESIS-TODO'不可靠）; (MED5a) 加 CLAUDE.md.template stub 描述改 #error; (MED5b) **ensureInvariant honest-hole 拉進本 phase**（有宣告 invariant→#error、無→no-op）—— D4 拒的是 runtime throw（DDDKit pre+post），#error 編譯期不衝突，故不違反 lock; (LOW3) renderError errorCode-manual sentence（生成 enum 只含 invariant case）. 改動: CommandExtension/Aggregate/CLAUDE.md template + UseCaseRenderer（renderCommandExtension +preconditions 參數、buildWhenBody fatalError→#error）+ AggregateRenderer（ensureInvariant conditional #error）+ 3 test 檔. **已知限制**: fresh gen 不再 build green（capstone reversal，intended honest signal）. 下一步 impl 或 user review."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-02T09:00:00Z",
+      "completed": "2026-06-02",
+      "note": "**Phase 1.u DONE**（全 Claude direct edit；user 拍板接受 #error capstone reversal）. 實作: (C1+A1) CommandExtension.swift.template command body → {PreconditionScaffold} + build-event frame 註解 + post-condition 提示 + #error；UseCaseRenderer.renderCommandExtension 加 preconditions 參數 + buildPreconditionScaffold（NL comment + DOMAIN marker，errorCode 不自動接）. (C2) buildWhenBody 非-strict-safe fatalError → #error + structure 註解（scalar codegen-fill 不變；空 payload 維持 fail-loud 不 no-op）. (ensureInvariant) AggregateRenderer 算 ensureInvariantBody conditional：有 invariant → 註解 + #error；無 → empty no-op；Aggregate.swift.template 用 {EnsureInvariantBody} 單一 placeholder. (CLAUDE.md.template) stub 描述改 #error compile-time hole. **驗證**: swift build EXIT 0；swift test 264 pass（+3：2 command precondition + 1 ensureInvariant #error；when 測 2 處 rename fatalError→#error）0 fail. regen IAM: promoteUser command 含 precondition `status == Active` + #error 無 legacy fatalError；when(UserPromoted) #error；ensureInvariant #error(3 invariants)；create 無 command；CLAUDE.md #error 描述. e2e test 改契約（exit≠0 + 'swift build failed' + 'GENESIS-TODO' + 非 resolve failed）. 後續: A2 Dto-convert / A5 intent-elicitation domain-fill skill."
     }
   ]
 }
