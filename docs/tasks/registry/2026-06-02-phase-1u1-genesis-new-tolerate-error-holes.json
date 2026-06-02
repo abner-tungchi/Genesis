@@ -1,0 +1,35 @@
+{
+  "id": "2026-06-02-phase-1u1-genesis-new-tolerate-error-holes",
+  "file": "docs/tasks/2026-06-02-phase-1u1-genesis-new-tolerate-error-holes.md",
+  "title": "Phase 1.u.1 — genesis new tolerate #error domain holes (fix rollback regression)",
+  "status": "done",
+  "created": "2026-06-02",
+  "completed": "2026-06-02",
+  "depends_on": [],
+  "soft_depends_on": ["2026-06-02-phase-1u-command-scaffold-and-error-holes"],
+  "discussion": "（無獨立 discussion;user 拍板 tolerate-#error;regression 於 README 更新時發現）",
+  "preconditions": [
+    "file:Sources/Genesis/Commands/NewCommand.swift",
+    "file:Sources/GenesisCore/GenesisError.swift"
+  ],
+  "verification": [
+    "swift build",
+    "swift test (BuildFailureClassifierTests false-positive shapes)",
+    "BuildFailureClassifier in GenesisCore + NewCommand references it",
+    "Human: genesis new (no --skip-build) → exit 0 + project kept + 'domain holes remain'; planted real syntax error → rollback"
+  ],
+  "tags": ["cli", "regression-fix", "error-holes", "rollback", "phase-1u1"],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-02T13:00:00Z",
+      "note": "fix Phase 1.u regression（README 更新時發現）: genesis new 預設跑 swift build，#error 洞 → build 失敗 → rollback 自己輸出（範例 genesis new 留不下東西）. user 拍板 tolerate-#error. fix: build 失敗只因 GENESIS-TODO #error → success-with-holes 不 rollback;其他 error → 維持 rollback（保留 codegen 編譯驗證）. **audit-spec（external Codex high）**: 內部 4b PASS. Codex NEEDS FIX 1 HIGH+2 MED+1 LOW, **全處理**: (HIGH) classifier 不靠 stderr 子字串 → source-line cross-check（每 error diagnostic 必須 file:line:col: error: GENESIS-TODO: 且該 source 行真含 #error(\"GENESIS-TODO;任何 plain error/ld:/linker/timeout/spoof → rollback;保守原則看不懂就 rollback）+ 移 classifier 到 GenesisCore（可單元測，MED#4）; (MED3) 測試加 false-positive shapes（ld:/timeout/spoof）+ .build 視 optional evidence; (LOW) rollback 措辭精確化（只清 writer-tracked，SwiftPM 副作用本就不在管轄）. 改動: 新 BuildFailureClassifier.swift（GenesisCore）+ NewCommand build 分支 + BuildFailureClassifierTests + NewCommandTests e2e 改回 success. 下一步 impl."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-02T13:30:00Z",
+      "completed": "2026-06-02",
+      "note": "**Phase 1.u.1 DONE**. 實作: 新 GenesisCore/BuildFailureClassifier.swift（source-line cross-check：每 error diagnostic 必須 file:line:col: error: GENESIS-TODO: 且該 source 行真含 #error(\"GENESIS-TODO;ld:/linker/plain-error/timeout/spoof/unreadable → false 保守 rollback）+ NewCommand build 分支（holes-only → domainHolesRemain 不 rollback + success print holes count;否則 throw rollback）+ countDomainHoles helper（source grep）. **驗證**: swift build EXIT 0; swift test 272 pass（+8 BuildFailureClassifierTests: holes-only/mixed/plain/ld:/timeout/spoof/unreadable/no-error）0 fail; NewCommandTests e2e 改 assert exit0+專案保留+holes 提示. 修好 regression: genesis new 不再刪自己輸出. **Human 補做**: 有網路跑 genesis new（不 --skip-build）驗專案保留 + holes 提示;植入真語法錯驗 rollback."
+    }
+  ]
+}
