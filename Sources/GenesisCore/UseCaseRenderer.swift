@@ -37,7 +37,6 @@ public enum UseCaseRenderer {
         outputs.append(try renderInput(
             uc: ucName, fields: useCase.input,
             aggIdName: aggIdName,
-            isCreateUseCase: isCreateUseCase,
             adapter: adapter, knownCustomTypes: knownCustomTypes,
             sharedImport: sharedImport, dir: inputDir
         ))
@@ -71,25 +70,20 @@ public enum UseCaseRenderer {
         uc: String,
         fields: [FieldSpec],
         aggIdName: String,
-        isCreateUseCase: Bool,
         adapter: Adapter,
         knownCustomTypes: Set<String>,
         sharedImport: String,
         dir: String
     ) throws -> (String, String, String) {
         // Phase 1.l (audit M4): canonical ordering — aggId first, business fields middle, operatorId last.
-        // Phase 1.l.1: create UC skips aggId injection — aggregate id 由 Service UUID() 生成。
+        // Phase 1.t.3 / PA-F6: create UC Input ALSO carries aggId (caller-provided id, aligned with OC
+        // CreateAuditQuotingInput.quotingId; reverts the Phase 1.l.1 create aggId-skip). The /usecase Create
+        // pattern uses input.<aggId>; the id is caller-provided, not server-generated.
         // Filter dedupes user-supplied aggId/operatorId in useCase.input[] to avoid double-emit.
         let businessFields = fields.filter { $0.name != aggIdName && $0.name != "operatorId" }
         let operatorIdField = FieldSpec(name: "operatorId", rawType: "String")
-        let canonicalFields: [FieldSpec]
-        if isCreateUseCase {
-            // inject operatorId only — no aggId for create UC
-            canonicalFields = businessFields + [operatorIdField]
-        } else {
-            let aggIdField = FieldSpec(name: aggIdName, rawType: "String")
-            canonicalFields = [aggIdField] + businessFields + [operatorIdField]
-        }
+        let aggIdField = FieldSpec(name: aggIdName, rawType: "String")
+        let canonicalFields: [FieldSpec] = [aggIdField] + businessFields + [operatorIdField]
 
         var decls: [String] = []
         var initParamsParts: [String] = []
