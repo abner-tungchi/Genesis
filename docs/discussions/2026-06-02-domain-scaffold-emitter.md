@@ -151,7 +151,7 @@ premises:
 | # | 項目 | 位置 | 內容 |
 |---|---|---|---|
 | A1 | **command precondition scaffold** | `UseCaseRenderer.renderCommandExtension` + `CommandExtension.swift.template` | 每個 `useCase.preconditions` → emit `// PRECONDITION(bundle): <NL>` + `// DOMAIN: implement guard + pick ContextError` + 結構 guard skeleton;errorCode 不自動接 |
-| A2 | **read-side Dto-convert pattern** | `/readmodel-mutation` SKILL.md（第 6 pattern）| `readModel.x = <X>Dto(from: event.y)`（型別可閉合;解 GetPermissions exit-3）|
+| A2 | **read-side Dto-convert pattern** | `/readmodel-mutation` SKILL.md（第 6 pattern）| `readModel.x = <X>Dto(from: event.y)`（型別可閉合;解 OC enum/value-Dto-convert reducer 大宗〔IndustrialType 等〕。**註（Phase 1.v 修正）**：不解 GetPermissions exit-3 —— PermissionDto memberwise 無 init(from:) + grant/revoke multi-writer = domain，屬 A5）|
 | **A5** | **intent-elicitation domain-fill skill**（user refinement 救回）| 新 skill（如 `/domain-fill` 或 `/command`）| 對 codegen 留的 `#error` 洞（command precondition predicate / 非-scalar when key·wrapper / ensureInvariant body）：攤開 scaffold + bundle precondition 註解 → **問人 domain 意圖** → LLM 就著 scaffold 寫 → 移除該 `#error`。**不機械猜**（缺的 judgment 人供）= method-X 套 domain code。**人意圖沒涵蓋的洞不准 fabricate，留 `#error`**（honest-hole 紅線）。這是「人填」的實際機制 |
 | A3 *(defer)* | **`/command` retrofit skill** | 新 skill | 後補**全新** command 進既有 aggregate（emit 新 scaffold；與 A5「填既有洞」不同）。非首要 |
 | A4 *(另議)* | **generated error enum 補 generic-guard cases** | `AggregateRenderer.renderError` | 現只從 invariants 生;generic guard（dup-id/missing-field）需 case 才能 throw —— 需 bundle 來源或 convention,另議 |

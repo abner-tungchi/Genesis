@@ -1,6 +1,6 @@
 ---
 name: readmodel-mutation
-description: Genesis fill-in skill for projector when() bodies. Sibling of /api (write-side) and /presenter-fill (read-side AS). Inside a Genesis-bootstrapped project, /readmodel-mutation <presenterName> fills the `_ = readModel; _ = event;` stubs that Phase 1.g leaves inside `<presenterName>Presenter.swift` — choosing one of 5 mutation patterns (set scalar / set anchor / append struct / removeAll / updateAt) per event by matching event name + payload fields against readModel storedField types. Only fills when() bodies; never touches ReadModel.swift, framework wiring, or anything outside the projector file.
+description: Genesis fill-in skill for projector when() bodies. Sibling of /api (write-side) and /presenter-fill (read-side AS). Inside a Genesis-bootstrapped project, /readmodel-mutation <presenterName> fills the `_ = readModel; _ = event;` stubs that Phase 1.g leaves inside `<presenterName>Presenter.swift` — choosing a mutation pattern (set scalar / set anchor / append struct / removeAll / updateAt / assignList / Dto-convert) per event by matching event name + payload fields against readModel storedField types. Only fills when() bodies; never touches ReadModel.swift, framework wiring, or anything outside the projector file.
 argument-hint: [presenterName]
 disable-model-invocation: true
 allowed-tools: Read, Edit, Glob, Grep
@@ -13,7 +13,7 @@ allowed-tools: Read, Edit, Glob, Grep
 ## 你的任務
 
 對 `<presenterName>Presenter.swift` 內每個 `when(readModel: inout ReadModelType, event: <E>) throws` 方法，把 Phase 1.g 留下的 `_ = readModel; _ = event;` stub 替換為實際 mutation body。
-依 5 patterns（set scalar / set anchor / append struct / removeAll predicate / updateAt by id）+ assignList Set 對應 event payload 與 readModel storedFields 推測。
+依 mutation patterns（set scalar / set anchor / append struct / removeAll predicate / updateAt by id / assignList Set / **Dto-convert**）對應 event payload 與 readModel storedFields 推測。
 
 ### 絕對約束（不可違反）
 
@@ -48,10 +48,16 @@ Glob 兩種 module 路徑合併（Phase 1.k.2 後 cross-agg projector 在 contex
 
 Read `<presenterName>Presenter.swift`，抽出所有 `package func when(readModel: inout ReadModelType, event: <E>) throws` 方法及其 body block。記每個 method 的 `<EventTypeName>` (e.g. `UserAccessProfileCreated`, `RolesAssigned`)。
 
-## Phase 3 — Parse ReadModel + event payloads
+## Phase 3 — Parse ReadModel + event payloads + Dto-convert 偵測輸入
 
-- Read `<readModelTypeName>.swift`：取所有 stored properties（`package var <field>: <type>`）。記名稱 + Swift 型別（含區分 scalar / collection: `[X]` / `Set<X>` / nested struct）。
+- Read `<readModelTypeName>.swift`：取所有 stored properties（`package var <field>: <type>`）。記名稱 + Swift 型別（含區分 scalar / collection: `[X]` / `Set<X>` / nested struct / **`<X>Dto`**）。
 - 對每個 `<EventTypeName>`，從 `event.yaml`（per-agg：`Sources/<A>Aggregate/event.yaml`；context-level：`Sources/<contextName>/event.yaml`）讀其 payload fields（name + type）。plugin 已 emit 對應 Swift type；本 skill 只看 yaml field declaration。
+
+### Dto-convert 偵測輸入（為第 6 pattern 準備）
+- 對每個型別名以 `Dto` 結尾的 stored field `<X>Dto`：**grep symbol**（**非** 要求 local type decl）找其 initializer，範圍 `Sources/**/Usecase/Projector/**/*.swift` + `Sources/**/Adapter/Dto/**/*Dto*.swift`（含 `<X>Dto+Domain.swift` 的 extension initializer）。
+  - 鎖定**唯一一個 non-throwing 單參數** `init(from <label>: <D>)`（`<D>` = domain 型別）。
+  - 若有**多個** `init(from:)` overload（如 schema + domain 兩個、或 `init(from decoder:) throws`）→ 除非能精確鎖定「參數型別 == 下方 event field type 且 non-throwing」的唯一一個，否則標該 field「**不可 Dto-convert**」。
+- **建 projector-wide field-writer map**：掃當前 presenter 全部 `when(...event:)`，記每個 readModel field 被哪些 event 寫（供 single-writer 檢查）。
 
 ## Phase 4 — Idempotent per-method + pattern detection + emit body
 
@@ -68,11 +74,31 @@ Read `<presenterName>Presenter.swift`，抽出所有 `package func when(readMode
 1. 名含 `Removed` / `Deleted` 且 event 有 `*Id` 對應某 collection elem id → **removeAll**
 2. 名含 `Edited` / `Updated` / `Renamed` 且 event 有 `*Id` locator + 其他 fields → **updateAt**
 3. 名含 `Added` 且 payload fields ⊇ collection elem fields 全集（同名同型）→ **append struct**
-4. 名含 `Created`（anchor）→ **set anchor 多 field**（即使有 collection storedField，初始空，**不**在 anchor event append）
-5. 名含 `Set` / `Edited` 但 payload 全 scalar 直對 readModel scalar storedField → **set scalar**
-6. event 有單一 `[X]` field 對應 readModel `Set<X>` storedField → **assignList**
+4. **target field 型別是 `<X>Dto`（單一，非 collection）→ 試 Dto-convert（見下三條件）**。先於 anchor/scalar 判（`<X>Dto` field 用 scalar `self.x = event.x` 會型別不符）。
+5. 名含 `Created`（anchor）→ **set anchor 多 field**（即使有 collection storedField，初始空，**不**在 anchor event append）
+6. 名含 `Set` / `Edited` 但 payload 全 scalar 直對 readModel scalar storedField → **set scalar**
+7. event 有單一 `[X]` field 對應 readModel `Set<X>` storedField → **assignList**
 
-### 5 patterns emit templates
+### Dto-convert（第 6 pattern）— conversion-closure ∧ replace-verb ∧ single-writer
+
+> **type-closure 是必要非充分**：`<X>Dto.init(from: <D>)` 存在只證明「**可轉型**」，不證明「**該覆寫此 field**」。`GetPermissions.permissionDto` 示範:payload 帶相關型別 ≠ replace 語意（grant 加、revoke 移除）。故 Dto-convert 安全需**三條件全成立**（皆可執行檢查，非 domain 猜測）：
+
+**A. conversion-closure**（Phase 3 已備）：target field 型別（去 `?`）= `<X>Dto`；`<X>Dto` 有**唯一 non-throwing** `init(from: <D>)`；當前 event 有**唯一** `<D>` 型別 payload field `<g>`。
+
+**B. replace-verb 白名單**：當前 event 名 verb ∈ `Created | Set | Edited | Updated | Renamed`（replace 語意）。若 ∈ **delta 黑名單** `Granted | Revoked | Added | Removed | Deleted | Assigned`（delta/transition，非 replace）→ **不 match → exit 3**。
+
+**C. single-writer**（projector-wide map）：該 readModel field 僅被**單一** event 寫。若同一 field 被多個 event 寫（如 `GetPermissions.permissionDto` 掛 grant/revoke/assign…）→ 該 field 一律**不 match → exit 3**（多 writer = domain 語意）。
+
+三條件全過 → emit：
+```swift
+        readModel.<field> = <X>Dto(from: event.<g>)
+```
+
+**不 match（→ exit 3 / 既有 pattern，留 human / A5）**：memberwise DTO 無 `init(from:)`（如 `PermissionDto`）/ 多 `init(from:)` overload 無法精確鎖定 / throwing init / delta-verb event / 同 field 多 writer。
+
+> OC ground truth：`readModel.industrialType = IndustrialTypeDto(from: event.industrialType)`（`IndustrialTypeEdited`=Edited replace ✓、`industrialType` 單一 writer ✓、`IndustrialTypeDto` enum + 唯一 non-throwing `init(from: IndustrialType)` ✓）。反例：`GetPermissions.permissionDto`（`PermissionDto` memberwise 無 `init(from:)` ✗ + grant/revoke multi-writer ✗）→ 不 match，留 human/A5。
+
+### emit templates（既有 6 + Dto-convert）
 
 **set scalar** — 對每個同名 event field f 對應 readModel.f 同型：
 ```swift
