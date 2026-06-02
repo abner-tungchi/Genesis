@@ -158,19 +158,32 @@ public enum AggregateRenderer {
         // Category prefix: uppercase letters from contextName (e.g. IAMContext → IAMC, QuotationContext → QC).
         let categoryPrefix = String(contextName.filter { $0.isUppercase })
 
-        // Phase 1.t / D4: carry bundle-declared invariants into ensureInvariant() as a commented obligation.
-        // Do NOT emit named check*() stubs (avoids "domain theater"; bundle N invariants ≠ author's M checks)
-        // and do NOT default-throw (DDDKit runs ensureInvariant pre+post on every apply → would break all applies).
-        var invariantObligations: [String] = []
-        for inv in spec.invariants {
-            let ruleText = inv.rules
-                .map { $0.when == "always" ? $0.rule : "[\($0.when)] \($0.rule)" }
-                .joined(separator: "; ")
-                .replacingOccurrences(of: "\n", with: " ")
-            invariantObligations.append("        //   - \(inv.title) (\(inv.errorCode)): \(ruleText)")
-        }
-        if invariantObligations.isEmpty {
-            invariantObligations.append("        //   (none declared in bundle)")
+        // Phase 1.t / D4 + Phase 1.u / C-ensureInvariant: carry bundle-declared invariants into
+        // ensureInvariant() as a commented obligation. Do NOT emit named check*() stubs (avoids "domain
+        // theater"; bundle N invariants ≠ author's M checks).
+        // honest-hole (Phase 1.u): an aggregate WITH declared-but-unimplemented invariants must NOT silently
+        // compile as a no-op → emit `#error` (compile-time hole). This does NOT conflict with D4's "no runtime
+        // throw" (DDDKit runs ensureInvariant pre+post every apply): `#error` is a compile-time directive, never
+        // executed at runtime, so it has no pre+post effect — once filled, runtime behavior matches D4.
+        // An aggregate with NO declared invariants keeps an empty no-op (legitimately checks nothing).
+        let ensureInvariantBody: String
+        if spec.invariants.isEmpty {
+            ensureInvariantBody = "        // No invariants declared in bundle for this aggregate."
+        } else {
+            var lines: [String] = [
+                "        // GENESIS-TODO: implement aggregate invariants (DDDKit apply() runs this before & after every event).",
+                "        // Bundle-declared invariants:",
+            ]
+            for inv in spec.invariants {
+                let ruleText = inv.rules
+                    .map { $0.when == "always" ? $0.rule : "[\($0.when)] \($0.rule)" }
+                    .joined(separator: "; ")
+                    .replacingOccurrences(of: "\n", with: " ")
+                lines.append("        //   - \(inv.title) (\(inv.errorCode)): \(ruleText)")
+            }
+            lines.append("        // Throw ContextError<\(spec.name)Error>.<errorCode>(message:) on violation.")
+            lines.append("        #error(\"GENESIS-TODO: implement ensureInvariant (\(spec.invariants.count) declared invariants)\")")
+            ensureInvariantBody = lines.joined(separator: "\n")
         }
 
         // Placeholder strings.
@@ -229,7 +242,7 @@ public enum AggregateRenderer {
                 "CreatedEventStateAssignments": stateAssignments,
                 "CreatedEventInvocationList": invocationList,
                 "CreatedEventReplayList": replayList,
-                "InvariantObligations": invariantObligations.joined(separator: "\n"),
+                "EnsureInvariantBody": ensureInvariantBody,
                 "CreateInputConvenienceInit": createInputConvenienceInit,
             ]
         )

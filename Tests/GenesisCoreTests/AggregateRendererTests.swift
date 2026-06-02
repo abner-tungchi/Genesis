@@ -297,4 +297,19 @@ final class AggregateRendererTests: XCTestCase {
             "create UC whose input covers the whole payload must NOT emit an input-only convenience init; got:\n\(aggFile)"
         )
     }
+
+    // MARK: - Phase 1.u: ensureInvariant honest-hole (#error when invariants declared)
+
+    func testEnsureInvariantErrorHoleWhenInvariantsDeclared() throws {
+        // IAM UserAccessProfile declares 3 invariants → ensureInvariant must be a compile-time #error hole
+        // (not a silent no-op), carrying the bundle invariants as comments.
+        let bundle = try loadIAMBundle()
+        let aggFile = try render(bundle).first { $0.role == "aggregate" }!.content
+        XCTAssertTrue(aggFile.contains("#error(\"GENESIS-TODO: implement ensureInvariant (3 declared invariants)\")"),
+                      "aggregate with declared invariants must #error in ensureInvariant; got:\n\(aggFile)")
+        XCTAssertTrue(aggFile.contains("// Bundle-declared invariants:"), "must carry invariant comments")
+        // the old runnable-no-op NOTE must be gone
+        XCTAssertFalse(aggFile.contains("keep this body runnable (no default throw/fatalError)"),
+                       "Phase 1.u: ensureInvariant with invariants is now an #error hole, not a runnable no-op")
+    }
 }

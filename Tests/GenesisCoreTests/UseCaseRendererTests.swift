@@ -61,31 +61,61 @@ final class UseCaseRendererTests: XCTestCase {
         let b = bundle(aggState: [FieldSpec(name: "bar", rawType: "String")], useCase: uc)
         let cmd = try XCTUnwrap(commandExtension(try render(b)))
         XCTAssertTrue(cmd.contains("self.bar = event.bar"), "strict-safe scalar payload→state should emit assignment; got:\n\(cmd)")
-        XCTAssertFalse(cmd.contains("fatalError(\"GENESIS-TODO: implement state transition"), "strict-safe should NOT fatalError")
+        XCTAssertFalse(cmd.contains("#error(\"GENESIS-TODO: implement when"), "strict-safe should NOT #error")
     }
 
-    // MARK: - D5 negative: collection / type-mismatch / new-old → fatalError obligation
+    // MARK: - C2 negative: collection / type-mismatch / new-old → #error hole (Phase 1.u)
 
-    func testWhenCollectionPayloadEmitsFatalError() throws {
+    func testWhenCollectionPayloadEmitsErrorHole() throws {
         let uc = useCase("assignTags", event: "tagsAssigned",
                          payload: [FieldSpec(name: "tags", rawType: "Set[String]")],
                          input: [FieldSpec(name: "tags", rawType: "Set[String]")])
         let b = bundle(aggState: [FieldSpec(name: "tags", rawType: "Set[String]")], useCase: uc)
         let cmd = try XCTUnwrap(commandExtension(try render(b)))
-        XCTAssertTrue(cmd.contains("fatalError(\"GENESIS-TODO: implement state transition for TagsAssigned\")"),
-                      "collection payload is not strict-safe → fatalError; got:\n\(cmd)")
+        XCTAssertTrue(cmd.contains("#error(\"GENESIS-TODO: implement when(TagsAssigned) state transition\")"),
+                      "collection payload is not strict-safe → #error; got:\n\(cmd)")
         XCTAssertFalse(cmd.contains("self.tags = event.tags"))
     }
 
-    func testWhenNewOldSemanticRenameEmitsFatalError() throws {
+    func testWhenNewOldSemanticRenameEmitsErrorHole() throws {
         // payload `newName` does not 1:1-map to state `name` → not strict-safe.
         let uc = useCase("renameFoo", event: "fooRenamed",
                          payload: [FieldSpec(name: "newName", rawType: "String")],
                          input: [FieldSpec(name: "newName", rawType: "String")])
         let b = bundle(aggState: [FieldSpec(name: "name", rawType: "String")], useCase: uc)
         let cmd = try XCTUnwrap(commandExtension(try render(b)))
-        XCTAssertTrue(cmd.contains("fatalError(\"GENESIS-TODO: implement state transition for FooRenamed\")"),
-                      "new*/old* semantic rename is not strict-safe → fatalError; got:\n\(cmd)")
+        XCTAssertTrue(cmd.contains("#error(\"GENESIS-TODO: implement when(FooRenamed) state transition\")"),
+                      "new*/old* semantic rename is not strict-safe → #error; got:\n\(cmd)")
+    }
+
+    // MARK: - C1 + A1: command body precondition scaffold + #error hole (Phase 1.u)
+
+    func testCommandBodyEmitsPreconditionScaffoldAndErrorHole() throws {
+        var uc = useCase("editBar", event: "barEdited",
+                         payload: [FieldSpec(name: "bar", rawType: "String")],
+                         input: [FieldSpec(name: "bar", rawType: "String")])
+        uc = UseCaseSpec(useCaseSpecId: uc.useCaseSpecId, aggregateSpecId: uc.aggregateSpecId,
+                         useCase: uc.useCase, aggregate: uc.aggregate, input: uc.input,
+                         emittedEvent: uc.emittedEvent, eventPayload: uc.eventPayload,
+                         preconditions: ["bar must be non-empty"])
+        let b = bundle(aggState: [FieldSpec(name: "bar", rawType: "String")], useCase: uc)
+        let cmd = try XCTUnwrap(commandExtension(try render(b)))
+        XCTAssertTrue(cmd.contains("// PRECONDITION (from bundle): bar must be non-empty"),
+                      "command body should carry bundle precondition as comment; got:\n\(cmd)")
+        XCTAssertTrue(cmd.contains("#error(\"GENESIS-TODO: editBar"),
+                      "command body should #error hole; got:\n\(cmd)")
+        XCTAssertFalse(cmd.contains("fatalError(\"not implemented\")"), "legacy fatalError must be gone")
+    }
+
+    func testCommandBodyNoPreconditionsShowsNoneDeclared() throws {
+        // useCase(...) helper sets preconditions: [] → scaffold should say "none declared"
+        let uc = useCase("editBar", event: "barEdited",
+                         payload: [FieldSpec(name: "bar", rawType: "String")],
+                         input: [FieldSpec(name: "bar", rawType: "String")])
+        let b = bundle(aggState: [FieldSpec(name: "bar", rawType: "String")], useCase: uc)
+        let cmd = try XCTUnwrap(commandExtension(try render(b)))
+        XCTAssertTrue(cmd.contains("// PRECONDITION (from bundle): none declared."),
+                      "no preconditions → 'none declared'; got:\n\(cmd)")
     }
 
     // MARK: - D6: create UC emits no command extension

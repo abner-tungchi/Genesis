@@ -57,6 +57,7 @@ public enum UseCaseRenderer {
                 commandFields: useCase.input,
                 stateFields: agg.state,
                 payloadFields: useCase.eventPayload,
+                preconditions: useCase.preconditions,
                 adapter: adapter,
                 knownCustomTypes: knownCustomTypes,
                 sharedImport: sharedImport
@@ -152,6 +153,7 @@ public enum UseCaseRenderer {
         commandFields: [FieldSpec],
         stateFields: [FieldSpec],
         payloadFields: [FieldSpec],
+        preconditions: [String],
         adapter: Adapter,
         knownCustomTypes: Set<String>,
         sharedImport: String
@@ -164,6 +166,8 @@ public enum UseCaseRenderer {
             paramParts.append("\(field.name): \(resolved)")
         }
         let commandParams = paramParts.joined(separator: ", ")
+
+        let preconditionScaffold = buildPreconditionScaffold(preconditions: preconditions, aggregate: aggregate)
 
         let whenBody = try buildWhenBody(
             eventTypeName: eventTypeName,
@@ -182,6 +186,7 @@ public enum UseCaseRenderer {
                 "useCaseCamelCase": ucCamel,
                 "CommandParams": commandParams,
                 "EventTypeName": eventTypeName,
+                "PreconditionScaffold": preconditionScaffold,
                 "WhenBody": whenBody,
             ]
         )
@@ -189,11 +194,29 @@ public enum UseCaseRenderer {
         return (path, rendered.output, "commandExtension")
     }
 
-    /// Phase 1.t / D5: emit a strict-safe scalar reducer body, else an honest fatalError obligation.
+    /// Phase 1.u / A1: emit bundle `preconditions` into the command body as comment scaffold + a DOMAIN marker.
+    /// errorCode is NOT auto-wired (D5): precondition NL → ContextError case is a semantic, not structural,
+    /// mapping, and generated ContextError factories come only from aggregate invariants — auto-wiring would
+    /// invent/guess a case that may not exist. The human/LLM picks the case when filling the #error hole.
+    private static func buildPreconditionScaffold(preconditions: [String], aggregate: String) -> String {
+        guard !preconditions.isEmpty else {
+            return "        // PRECONDITION (from bundle): none declared."
+        }
+        var lines: [String] = []
+        for p in preconditions {
+            let oneLine = p.replacingOccurrences(of: "\n", with: " ")
+            lines.append("        // PRECONDITION (from bundle): \(oneLine)")
+        }
+        lines.append("        // DOMAIN: implement the guard(s) above; throw the matching ContextError<\(aggregate)Error> case.")
+        return lines.joined(separator: "\n")
+    }
+
+    /// Phase 1.t / D5 + Phase 1.u / C2: emit a strict-safe scalar reducer body, else an honest `#error` hole.
     /// strict-safe = every event-payload field 1:1-maps to a mutable aggregate state field:
     /// same name, same resolved type, NOT a collection (Set/Array), NOT a `new*`/`old*` semantic-rename.
-    /// If ALL payload fields are strict-safe → `self.<f> = event.<f>` for each; otherwise the whole
-    /// reducer becomes `fatalError("GENESIS-TODO: ...")` (a replay-time crash beats silent state corruption).
+    /// If ALL payload fields are strict-safe → `self.<f> = event.<f>` for each; otherwise (incl. empty payload —
+    /// a zero-payload event may still need a deterministic state change, so it stays fail-loud) the reducer
+    /// becomes a structure comment + `#error("GENESIS-TODO: ...")` (compile-time hole beats silent corruption).
     private static func buildWhenBody(
         eventTypeName: String,
         stateFields: [FieldSpec],
@@ -231,8 +254,9 @@ public enum UseCaseRenderer {
         if allStrictSafe {
             return assignments.joined(separator: "\n")
         }
-        return "        // GENESIS-TODO: \(eventTypeName) state transition is not strict-safe "
-            + "(collection / type-mismatch / new-old semantic). Implement by hand.\n"
-            + "        fatalError(\"GENESIS-TODO: implement state transition for \(eventTypeName)\")"
+        return "        // \(eventTypeName) state transition is not strict-safe "
+            + "(empty payload / collection / type-mismatch / new-old rename / nested).\n"
+            + "        // DOMAIN: assign the relevant self.<field> from event.<field> (with any needed conversion / collection op).\n"
+            + "        #error(\"GENESIS-TODO: implement when(\(eventTypeName)) state transition\")"
     }
 }

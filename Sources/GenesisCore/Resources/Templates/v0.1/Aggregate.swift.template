@@ -31,10 +31,6 @@ package class {Aggregate}: {Aggregate}AggregateProtocol {
     }
 
     package func ensureInvariant() throws {
-        // GENESIS-TODO: implement aggregate invariants (DDDKit apply() runs this before & after every event).
-        // Bundle-declared invariants:
-{InvariantObligations}
-        // Throw ContextError<{Aggregate}Error>.<errorCode>(message:) on violation.
-        // NOTE: keep this body runnable (no default throw/fatalError) — it runs pre+post on EVERY apply.
+{EnsureInvariantBody}
     }
 }

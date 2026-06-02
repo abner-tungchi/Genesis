@@ -1,6 +1,6 @@
 # Claude Code project guide — {ContextName}
 
-This project was bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`. The generated code has stubs (`fatalError("not implemented")`); business logic lives in `.ai/contexts/{ContextName}/<Aggregate>/`.
+This project was bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`. The generated domain code marks unfilled business logic with compile-time holes (`#error("GENESIS-TODO: ...")`) — the project will NOT compile until each hole is filled (this is intentional: an aggregate with unimplemented domain logic should not build). Fill the holes (say the domain logic, the skill/LLM writes it) and the `#error`s disappear; business-logic guidance lives in `.ai/contexts/{ContextName}/<Aggregate>/`.
 
 ## How to fill in business logic
 

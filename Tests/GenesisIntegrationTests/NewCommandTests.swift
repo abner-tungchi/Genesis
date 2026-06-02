@@ -647,11 +647,16 @@ final class NewCommandTests: XCTestCase {
             "--output", tmpDir.path,
             // no --skip-build: exercise the full resolve + build pipeline
         ])
-        XCTAssertEqual(result.exitCode, 0, "stderr: \(result.stderr)")
-        let buildDir = tmpDir.appendingPathComponent(".build/release")
-        XCTAssertTrue(
-            FileManager.default.fileExists(atPath: buildDir.path),
-            ".build/release directory must exist after successful swift build"
-        )
+        // Phase 1.u: a fresh gen with unfilled domain #error holes MUST NOT build green.
+        // The contract is: package resolve succeeds (deps fetch), but `swift build` fails — and the
+        // ONLY thing blocking the build is the GENESIS-TODO #error holes (not a dep/resolve error).
+        XCTAssertNotEqual(result.exitCode, 0,
+                          "fresh gen with #error domain holes must fail swift build (Phase 1.u honest signal); stderr: \(result.stderr)")
+        XCTAssertTrue(result.stderr.contains("swift build failed"),
+                      "failure must be at the build step (resolve should have succeeded); stderr: \(result.stderr)")
+        XCTAssertTrue(result.stderr.contains("GENESIS-TODO"),
+                      "build must fail on the GENESIS-TODO #error holes; stderr: \(result.stderr)")
+        XCTAssertFalse(result.stderr.contains("swift package resolve failed"),
+                       "resolve must succeed — only domain #error holes should block; stderr: \(result.stderr)")
     }
 }
