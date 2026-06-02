@@ -127,6 +127,24 @@ premises:
 
 ---
 
+### Round 2 — User refinement（「人填」= 人說邏輯 → LLM 寫，非人手打字）
+
+**user 澄清**:「人填 domain 洞」不是人手打 Swift，而是**人用 skill / 對話跟 LLM 說 domain 邏輯，LLM 寫**。不衝突 —— 精煉了模型的軸。
+
+**精煉軸（取代「機器 vs 人」）**:整條 pipeline 都是 LLM 在寫，差別在 **judgment 從哪來**:
+- **deterministic fill**:judgment 從 code+bundle 可機械導出（SKILL.md 編碼確定轉換）→ skill 自動（/usecase、/api、scalar when、Dto-convert）。
+- **intent-driven fill**:judgment 在人腦（config-replace key/wrapper、precondition predicate、invariant body）→ **人說意圖、LLM 寫**。
+- 「config-replace 不可機械化」真義 = 「不能從 bundle/code 自動導出 → 需人供 domain 意圖」，**非**「必須人手打字」。
+
+**三個影響（強化，非衝突）**:
+1. **`#error` 對 LLM filler 更有用**:精準、可 grep、編譯期 gated 的「填這裡」合約 → LLM `grep '#error'` → 看 scaffold+bundle 註解 → 用人意圖填 → build 綠 = 確定填完。勝 fatalError。
+2. **scaffold = LLM filler 的 prompt context（不只給人看）**:codegen emit 的 structure + bundle precondition 註解 + DOMAIN marker = 填洞 LLM 的輸入 → **scaffold 品質標準提高（machine-consumed）**。
+3. **救回 domain-fill skill —— 形式從『機械猜』改『intent-elicitation』**:前輪否決是因它機械猜 config-replace（silent corruption）。新形式:skill 攤開 scaffold+bundle precondition → **問人** predicate/key/wrapper → LLM 就著 scaffold 寫。**沒猜 = 沒 silent corruption**（缺的 judgment 人補）= method-X 套 domain code。
+
+**紅線**:LLM 填 domain 時，**人意圖沒涵蓋的洞不准 fabricate → 留 `#error`**。把 Gemini「不要 silent 猜」延伸到「LLM 意圖不足時也不腦補」，區分 intent-driven（安全）vs 機械猜（危險）。
+
+---
+
 ## 要補的（ADD）/ 要改的（CHANGE）清單
 
 ### ADD（要補）
@@ -134,7 +152,8 @@ premises:
 |---|---|---|---|
 | A1 | **command precondition scaffold** | `UseCaseRenderer.renderCommandExtension` + `CommandExtension.swift.template` | 每個 `useCase.preconditions` → emit `// PRECONDITION(bundle): <NL>` + `// DOMAIN: implement guard + pick ContextError` + 結構 guard skeleton;errorCode 不自動接 |
 | A2 | **read-side Dto-convert pattern** | `/readmodel-mutation` SKILL.md（第 6 pattern）| `readModel.x = <X>Dto(from: event.y)`（型別可閉合;解 GetPermissions exit-3）|
-| A3 *(defer)* | **`/command` retrofit skill** | 新 skill | 後補 command 進既有 aggregate（codegen-time 為主後的補充,非首要）|
+| **A5** | **intent-elicitation domain-fill skill**（user refinement 救回）| 新 skill（如 `/domain-fill` 或 `/command`）| 對 codegen 留的 `#error` 洞（command precondition predicate / 非-scalar when key·wrapper / ensureInvariant body）：攤開 scaffold + bundle precondition 註解 → **問人 domain 意圖** → LLM 就著 scaffold 寫 → 移除該 `#error`。**不機械猜**（缺的 judgment 人供）= method-X 套 domain code。**人意圖沒涵蓋的洞不准 fabricate，留 `#error`**（honest-hole 紅線）。這是「人填」的實際機制 |
+| A3 *(defer)* | **`/command` retrofit skill** | 新 skill | 後補**全新** command 進既有 aggregate（emit 新 scaffold；與 A5「填既有洞」不同）。非首要 |
 | A4 *(另議)* | **generated error enum 補 generic-guard cases** | `AggregateRenderer.renderError` | 現只從 invariants 生;generic guard（dup-id/missing-field）需 case 才能 throw —— 需 bundle 來源或 convention,另議 |
 
 ### CHANGE（要改）
@@ -180,6 +199,7 @@ premises:
 | D6 | generic-guard 選單至多極小 primitive;OC ~73 多 OC-specific → marker | 2026-06-02 | R2 | 避 domain theater |
 | D7 | when：scalar 留 codegen-fill（1.t D5）;非 scalar → guided scaffold（commented structure + `#error`）,不 auto-fill;rich nested defer | 2026-06-02 | R2 | append-factory generic 不 auto |
 | D8 | execute 不動（/usecase）;read-side Dto-convert（前輪 D2）擴 /readmodel-mutation | 2026-06-02 | R2 | |
+| D9 | **「人填」= 人說意圖 → LLM 寫（intent-driven fill）,非人手打字**。軸 = deterministic（skill 自動）vs intent-driven（人供 judgment、LLM 寫）,兩者皆 LLM。`#error` = LLM filler 的完成合約;scaffold = LLM filler 的 prompt context。**救回 domain-fill skill 為 intent-elicitation 形式（A5，問人不機械猜）**。紅線:意圖沒涵蓋的洞不准 fabricate，留 `#error` | 2026-06-02 | R2-addendum | user refinement;不衝突、強化 |
 
 ---
 
