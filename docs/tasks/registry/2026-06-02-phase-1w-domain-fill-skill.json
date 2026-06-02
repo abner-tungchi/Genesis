@@ -1,0 +1,40 @@
+{
+  "id": "2026-06-02-phase-1w-domain-fill-skill",
+  "file": "docs/tasks/2026-06-02-phase-1w-domain-fill-skill.md",
+  "title": "Phase 1.w — /domain-fill skill（intent-elicitation domain fill，A5）",
+  "status": "done",
+  "created": "2026-06-02",
+  "completed": "2026-06-02",
+  "depends_on": [],
+  "soft_depends_on": [
+    "2026-06-02-phase-1u-command-scaffold-and-error-holes",
+    "2026-06-02-phase-1v-readmodel-dto-convert-pattern"
+  ],
+  "discussion": "docs/discussions/2026-06-02-intent-elicitation-domain-fill-skill.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/CommandExtension.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Aggregate.swift.template",
+    "file:Sources/GenesisCore/SkillInstaller.swift",
+    "file:Tests/GenesisCoreTests/SkillInstallerTests.swift"
+  ],
+  "verification": [
+    "swift build",
+    "swift test (skill count 11→12)",
+    "domain-fill/SKILL.md exists + frontmatter + core constraints (transcription-only / admissibility / per-hole / context-firewall / 先語意後語法 / version-aware / AskUserQuestion / provenance / 半填 exit4 / signature-first / convenience-init scope)",
+    "install-skills includes domain-fill"
+  ],
+  "tags": ["skill", "domain-fill", "intent-elicitation", "transcription-only", "honest-hole", "phase-1w"],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-02T11:30:00Z",
+      "note": "write-spec A5 from intent-elicitation discussion（R2 consensus D1-D7）. /domain-fill = intent-driven 對偶 of deterministic fills;填 entity-layer #error 洞（command precondition/build-event、非-type-closure when、ensureInvariant）. 核心: Transcription-only（LLM 秘書非參謀，絕不推第一版）+ admissibility gate（無 dictation 物理留 #error）+ 嚴格 per-hole + context firewall（不讀 sibling body）+ 先語意後語法 + 兩層完成 + version-aware. **audit-spec（external Codex high）**: 內部 4b PASS. Codex NEEDS FIX 1 HIGH+3 MED+1 LOW, **全處理**: (HIGH) 『結構保證』overclaim → 誠實降級『best-achievable 非分離 enforcer』+ 加 AskUserQuestion（harness 物理 block 等人，最接近結構）+ provenance log; (MED2) 加 AskUserQuestion 到 allowed-tools + 互動改用它（對齊 /readmodel /presenter，非 bundle-plan prose 式 rubber-stamp）; (MED4) 加 idempotent tri-state invariant（filled/unfilled/partial）+ 半填 exit 4（對齊既有 fill skill）; (MED5) scope 誠實邊界（create convenience-init fatalError〔Phase 1.t.1〕+ legacy fatalError 仍非 #error → v1 不含，follow-up 遷）+ 收緊驗收 grep; (LOW3) 分類 signature-first（scaffold 註解當 integrity check）. 改動: 新 domain-fill/SKILL.md + SkillInstallerTests count 11→12. 下一步 impl."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-02T12:00:00Z",
+      "completed": "2026-06-02",
+      "note": "**Phase 1.w DONE**. 實作: 新 domain-fill/SKILL.md（Transcription-only + AskUserQuestion harness pause + admissibility gate + 嚴格 per-hole + context firewall + 先語意後語法 + provenance log + idempotent tri-state〔半填 exit4〕+ signature-first 分類 + version-aware〔只 #error，warn legacy/convenience-init fatalError〕+ 兩層完成）+ SkillInstallerTests count 11→12（name set +domain-fill / installIntoEmptyDir 11→12 / installSkipsExisting 10→11）. **驗證**: swift build EXIT 0; swift test 264 pass 0 fail（skill count）; 12 spec 驗收 grep 全 PASS（含 AskUserQuestion in allowed-tools / provenance / tri-state / signature-first / convenience-scope）; install-skills 納入 domain-fill. **Human dogfood 待做**: regen IAM → /domain-fill 對 promoteUser precondition 洞 dictate→回述→transcribe;skip 洞驗 #error 保留;填完 build 綠 + /test-gen 驗語意. 後續: read-side domain 納入 / create convenience-init + legacy fatalError 遷 #error / A4."
+    }
+  ]
+}
