@@ -100,7 +100,7 @@ final class UseCaseRendererTests: XCTestCase {
         let b = bundle(aggState: [FieldSpec(name: "bar", rawType: "String")], useCase: uc)
         let cmd = try XCTUnwrap(commandExtension(try render(b)))
         XCTAssertTrue(cmd.contains("self.bar = event.bar"), "strict-safe scalar payload→state should emit assignment; got:\n\(cmd)")
-        XCTAssertFalse(cmd.contains("#error(\"GENESIS-TODO: implement when"), "strict-safe should NOT #error")
+        XCTAssertFalse(cmd.contains("throw GenesisTODO.notImplemented(\"when"), "strict-safe should NOT throw GenesisTODO")
     }
 
     // MARK: - C2 negative: collection / type-mismatch / new-old → #error hole (Phase 1.u)
@@ -111,7 +111,7 @@ final class UseCaseRendererTests: XCTestCase {
                          input: [FieldSpec(name: "tags", rawType: "Set[String]")])
         let b = bundle(aggState: [FieldSpec(name: "tags", rawType: "Set[String]")], useCase: uc)
         let cmd = try XCTUnwrap(commandExtension(try render(b)))
-        XCTAssertTrue(cmd.contains("#error(\"GENESIS-TODO: implement when(TagsAssigned) state transition\")"),
+        XCTAssertTrue(cmd.contains("throw GenesisTODO.notImplemented(\"when(TagsAssigned) state transition\")"),
                       "collection payload is not strict-safe → #error; got:\n\(cmd)")
         XCTAssertFalse(cmd.contains("self.tags = event.tags"))
     }
@@ -123,7 +123,7 @@ final class UseCaseRendererTests: XCTestCase {
                          input: [FieldSpec(name: "newName", rawType: "String")])
         let b = bundle(aggState: [FieldSpec(name: "name", rawType: "String")], useCase: uc)
         let cmd = try XCTUnwrap(commandExtension(try render(b)))
-        XCTAssertTrue(cmd.contains("#error(\"GENESIS-TODO: implement when(FooRenamed) state transition\")"),
+        XCTAssertTrue(cmd.contains("throw GenesisTODO.notImplemented(\"when(FooRenamed) state transition\")"),
                       "new*/old* semantic rename is not strict-safe → #error; got:\n\(cmd)")
     }
 
@@ -141,8 +141,8 @@ final class UseCaseRendererTests: XCTestCase {
         let cmd = try XCTUnwrap(commandExtension(try render(b)))
         XCTAssertTrue(cmd.contains("// PRECONDITION (from bundle): bar must be non-empty"),
                       "command body should carry bundle precondition as comment; got:\n\(cmd)")
-        XCTAssertTrue(cmd.contains("#error(\"GENESIS-TODO: editBar"),
-                      "command body should #error hole; got:\n\(cmd)")
+        XCTAssertTrue(cmd.contains("throw GenesisTODO.notImplemented(\"editBar"),
+                      "command body should throw GenesisTODO hole; got:\n\(cmd)")
         XCTAssertFalse(cmd.contains("fatalError(\"not implemented\")"), "legacy fatalError must be gone")
     }
 

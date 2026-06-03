@@ -8,7 +8,7 @@ extension {Aggregate} {
         //   let event = {EventTypeName}(<map command args>)
         //   try self.apply(event: event)
         // Post-conditions are enforced by ensureInvariant() (DDDKit runs it pre+post every apply) — do NOT add post-checks here.
-        #error("GENESIS-TODO: {useCaseCamelCase} — implement precondition guard(s) + build & apply {EventTypeName}")
+        throw GenesisTODO.notImplemented("{useCaseCamelCase}: precondition guard(s) + build & apply {EventTypeName}")
     }
 
     // Called by the plugin-generated when(happened:) dispatch when event matches {EventTypeName}.

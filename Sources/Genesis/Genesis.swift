@@ -13,6 +13,7 @@ struct Genesis: AsyncParsableCommand {
             InstallSkillsCommand.self,
             CheckSkillsCommand.self,
             BundleParseCommand.self,
+            VerifyCommand.self,
         ]
     )
 

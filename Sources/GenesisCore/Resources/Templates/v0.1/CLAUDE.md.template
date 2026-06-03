@@ -1,6 +1,6 @@
 # Claude Code project guide — {ContextName}
 
-This project was bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`. The generated domain code marks unfilled business logic with compile-time holes (`#error("GENESIS-TODO: ...")`) — the project will NOT compile until each hole is filled (this is intentional: an aggregate with unimplemented domain logic should not build). Fill the holes (say the domain logic, the skill/LLM writes it) and the `#error`s disappear; business-logic guidance lives in `.ai/contexts/{ContextName}/<Aggregate>/`.
+This project was bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`. The generated domain code marks unfilled business logic with runtime holes (`throw GenesisTODO.notImplemented(...)`) — the project **compiles**, but the test for each unfilled feature is **RED** until you fill it (intentional, TDD-first: write the test, see it red, implement, watch it go green, one feature at a time). `grep GenesisTODO.notImplemented` to find unfilled holes; `genesis verify` FAILS while any remain (or while any declared invariant has no enabled test) — wire it into CI so unfilled domain logic cannot ship. Fill the holes (say the domain logic, the skill/LLM writes it via `/domain-fill`); business-logic guidance lives in `.ai/contexts/{ContextName}/<Aggregate>/`.
 
 ## How to fill in business logic
 

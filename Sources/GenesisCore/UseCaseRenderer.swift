@@ -157,7 +157,13 @@ public enum UseCaseRenderer {
         // useCase.input = aggId + business (no operatorId; renderInput synthesizes operatorId into Input).
         let businessFields = commandFields.filter { $0.name != aggIdName && $0.name != "operatorId" }
 
+        // Phase 1.y: rethrow GenesisTODO BEFORE the catch-all, else the marker is wrapped into
+        // DDDError.executeUsecaseFailed and the test sees an opaque DDDError instead of the distinctive
+        // GenesisTODO type (the #expect(throws: ContextError<X>) red would then be indistinguishable from a
+        // real failure). One shared ladder covers create/delete/update — this single rethrow fixes all three.
         let catchLadder = """
+                } catch let error as GenesisTODO {
+                    throw error
                 } catch let error as ContextError<\(A)Error> {
                     throw error
                 } catch let error as DDDError {
@@ -333,6 +339,6 @@ public enum UseCaseRenderer {
         return "        // \(eventTypeName) state transition is not strict-safe "
             + "(empty payload / collection / type-mismatch / new-old rename / nested).\n"
             + "        // DOMAIN: assign the relevant self.<field> from event.<field> (with any needed conversion / collection op).\n"
-            + "        #error(\"GENESIS-TODO: implement when(\(eventTypeName)) state transition\")"
+            + "        throw GenesisTODO.notImplemented(\"when(\(eventTypeName)) state transition\")"
     }
 }

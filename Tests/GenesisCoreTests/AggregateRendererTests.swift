@@ -271,7 +271,9 @@ final class AggregateRendererTests: XCTestCase {
             aggFile.contains("package convenience init(id: String, userId: String, department: String, jobTitle: String) throws"),
             "create UC with non-input payload fields should get an input-only convenience init; got:\n\(aggFile)"
         )
-        XCTAssertTrue(aggFile.contains("GENESIS-TODO: derive non-input"), "convenience init body must be an honest TODO")
+        XCTAssertTrue(aggFile.contains("throw GenesisTODO.notImplemented(\"UserAccessProfile.init: derive non-input"),
+                      "Phase 1.y: convenience init body is a throw-marker (was fatalError); got:\n\(aggFile)")
+        XCTAssertFalse(aggFile.contains("fatalError"), "Phase 1.y: no fatalError (crashes test process) — use throw GenesisTODO")
         // designated full-payload init unchanged (replay path)
         XCTAssertTrue(aggFile.contains("permissions: Set<String>, roles: Set<String>, status: EmployeeStatus) throws"),
                       "designated full-payload init must remain")
@@ -298,18 +300,50 @@ final class AggregateRendererTests: XCTestCase {
         )
     }
 
-    // MARK: - Phase 1.u: ensureInvariant honest-hole (#error when invariants declared)
+    // MARK: - Phase 1.y: ensureInvariant is a runnable NO-OP (TDD: invariant test drives the red, not a marker)
 
-    func testEnsureInvariantErrorHoleWhenInvariantsDeclared() throws {
-        // IAM UserAccessProfile declares 3 invariants → ensureInvariant must be a compile-time #error hole
-        // (not a silent no-op), carrying the bundle invariants as comments.
+    func testEnsureInvariantIsNoOpWithInvariantComments() throws {
+        // IAM UserAccessProfile declares 3 invariants. Phase 1.y: ensureInvariant MUST stay a runnable no-op
+        // (a throw/#error there would detonate fixture seeding / block all tests). The invariant's RED comes from
+        // the invariant TEST; genesis verify requires an enabled test per declared invariant errorCode.
         let bundle = try loadIAMBundle()
         let aggFile = try render(bundle).first { $0.role == "aggregate" }!.content
-        XCTAssertTrue(aggFile.contains("#error(\"GENESIS-TODO: implement ensureInvariant (3 declared invariants)\")"),
-                      "aggregate with declared invariants must #error in ensureInvariant; got:\n\(aggFile)")
+        // ensureInvariant carries the invariant obligation as comments only — no #error, no throw-marker.
         XCTAssertTrue(aggFile.contains("// Bundle-declared invariants:"), "must carry invariant comments")
-        // the old runnable-no-op NOTE must be gone
-        XCTAssertFalse(aggFile.contains("keep this body runnable (no default throw/fatalError)"),
-                       "Phase 1.u: ensureInvariant with invariants is now an #error hole, not a runnable no-op")
+        XCTAssertTrue(aggFile.contains("Keep this body runnable (no throw)"),
+                      "Phase 1.y: ensureInvariant must be a runnable no-op; got:\n\(aggFile)")
+        XCTAssertFalse(aggFile.contains("#error"), "Phase 1.y: no #error anywhere (compile-gate killed incremental TDD)")
+    }
+
+    // MARK: - Phase 1.y: TDD migration regression (no #error; GenesisTODO marker; self-contained marker file)
+
+    func testTddMigration_noErrorMarkers_genesisTODOPresent() throws {
+        let bundle = try loadIAMBundle()
+        let outputs = try render(bundle)
+        // (1) NO #error anywhere in the aggregate target.
+        for f in outputs { XCTAssertFalse(f.content.contains("#error"), "no #error after 1.y migration; \(f.path)") }
+        // (2) GenesisTODO marker type emitted as a per-aggregate file (self-contained, no Shared import needed).
+        let marker = outputs.first { $0.role == "genesisTodo" }
+        XCTAssertNotNil(marker, "must emit a per-aggregate GenesisTODO file")
+        XCTAssertTrue(marker!.content.contains("package enum GenesisTODO: Error, Sendable"), "marker type shape")
+    }
+
+    func testTddMigration_noDTOBundle_markerSelfContained() throws {
+        // The per-aggregate placement exists for no-DTO bundles (conditional {SharedImport} absent). minimal-bundle
+        // has no DTOs → the aggregate has NO `import …Shared`, so the marker MUST live in the aggregate target.
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("GenesisIntegrationTests/Fixtures/minimal-bundle.json")
+        let bundle = try BundleParser.parseFull(at: url)
+        let outputs = try AggregateRenderer.render(
+            spec: bundle.aggregates[0], bundle: bundle,
+            adapter: .defaultFor(contextName: "MinimalContext"), contextName: "MinimalContext"
+        )
+        let marker = outputs.first { $0.role == "genesisTodo" }
+        XCTAssertNotNil(marker, "no-DTO bundle must still get a per-aggregate GenesisTODO file")
+        XCTAssertTrue(marker!.path.contains("Aggregate"), "marker lives in the aggregate target, not Shared; got \(marker!.path)")
+        // sanity: the aggregate file has no Shared import (the reason marker must be local)
+        let aggFile = outputs.first { $0.role == "aggregate" }!.content
+        XCTAssertFalse(aggFile.contains("import MinimalContextShared"), "no-DTO bundle has no Shared import")
     }
 }

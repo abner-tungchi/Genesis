@@ -38,6 +38,8 @@ public enum AggregateRenderer {
 
         outputs.append(try renderError(spec: spec, contextName: contextName, dir: aggregateDir))
 
+        outputs.append(renderGenesisTODO(spec: spec, dir: aggregateDir))
+
         outputs.append(try renderRepository(aggregateName: aggregateName, dir: aggregateDir))
 
         outputs.append(try renderEventYaml(
@@ -161,17 +163,20 @@ public enum AggregateRenderer {
         // Phase 1.t / D4 + Phase 1.u / C-ensureInvariant: carry bundle-declared invariants into
         // ensureInvariant() as a commented obligation. Do NOT emit named check*() stubs (avoids "domain
         // theater"; bundle N invariants ≠ author's M checks).
-        // honest-hole (Phase 1.u): an aggregate WITH declared-but-unimplemented invariants must NOT silently
-        // compile as a no-op → emit `#error` (compile-time hole). This does NOT conflict with D4's "no runtime
-        // throw" (DDDKit runs ensureInvariant pre+post every apply): `#error` is a compile-time directive, never
-        // executed at runtime, so it has no pre+post effect — once filled, runtime behavior matches D4.
-        // An aggregate with NO declared invariants keeps an empty no-op (legitimately checks nothing).
+        // honest-hole (Phase 1.y / TDD): ensureInvariant MUST stay a runnable NO-OP. DDDKit runs it pre+post on
+        // EVERY apply, including when test fixtures seed state via real createX usecases — a throw here would
+        // detonate fixture seeding (whole-aggregate red at SEED, not at the targeted assertion), and a compile-time
+        // #error would block ALL tests from running (kills incremental TDD). So the body is comments-only: the
+        // invariant's honest RED comes from the invariant TEST (bad state not rejected → test red), and
+        // `genesis verify` structurally requires every declared invariant errorCode to have an enabled test.
         let ensureInvariantBody: String
         if spec.invariants.isEmpty {
             ensureInvariantBody = "        // No invariants declared in bundle for this aggregate."
         } else {
             var lines: [String] = [
                 "        // GENESIS-TODO: implement aggregate invariants (DDDKit apply() runs this before & after every event).",
+                "        // Keep this body runnable (no throw) until filled — a throw breaks fixture seeding. The RED signal",
+                "        // is the invariant test (seeds a violating state, expects rejection); genesis verify requires one exists.",
                 "        // Bundle-declared invariants:",
             ]
             for inv in spec.invariants {
@@ -182,7 +187,6 @@ public enum AggregateRenderer {
                 lines.append("        //   - \(inv.title) (\(inv.errorCode)): \(ruleText)")
             }
             lines.append("        // Throw ContextError<\(spec.name)Error>.<errorCode>(message:) on violation.")
-            lines.append("        #error(\"GENESIS-TODO: implement ensureInvariant (\(spec.invariants.count) declared invariants)\")")
             ensureInvariantBody = lines.joined(separator: "\n")
         }
 
@@ -223,7 +227,7 @@ public enum AggregateRenderer {
                 package convenience init(id: String\(convParams)) throws {
                     // GENESIS-TODO: derive non-input createdEvent payload field(s) [\(derivedList)] from input
                     // and/or an external source, then delegate to the full init (try self.init(id: id, ...)).
-                    fatalError("GENESIS-TODO: derive non-input payload field(s) [\(derivedList)] and delegate to the full init")
+                    throw GenesisTODO.notImplemented("\(spec.name).init: derive non-input payload field(s) [\(derivedList)]")
                 }
             """
         }
@@ -247,6 +251,24 @@ public enum AggregateRenderer {
             ]
         )
         return ("\(dir)/Entity/\(spec.name).swift", rendered.output, "aggregate")
+    }
+
+    /// Phase 1.y: per-aggregate TDD honest-hole marker. Lives in the aggregate target (next to <A>Error.swift),
+    /// NOT in {Context}Shared — the aggregate's `import {Context}Shared` is conditional (only when DTOs/customTypes
+    /// exist), so a Shared-hosted marker would be unresolvable for a no-DTO bundle. Unfilled domain logic throws
+    /// this so the project COMPILES (tests run + go red) instead of failing to build. Sendable: thrown across the
+    /// async usecase boundary. grep `GenesisTODO.notImplemented` to find holes; `genesis verify` fails while any remain.
+    private static func renderGenesisTODO(spec: AggregateSpec, dir: String) -> (String, String, String) {
+        let content = """
+        // Genesis TDD honest-hole marker. Unfilled domain logic (command precondition / when reducer /
+        // ensureInvariant via create-init) throws this so the project compiles and the targeted test goes RED
+        // instead of the whole module failing to build. grep GenesisTODO.notImplemented to find unfilled holes.
+        package enum GenesisTODO: Error, Sendable {
+            case notImplemented(String)
+        }
+
+        """
+        return ("\(dir)/\(spec.name)GenesisTODO.swift", content, "genesisTodo")
     }
 
     private static func renderError(spec: AggregateSpec, contextName: String, dir: String) throws -> (String, String, String) {

@@ -655,16 +655,17 @@ final class NewCommandTests: XCTestCase {
             "--output", tmpDir.path,
             // no --skip-build: exercise the full resolve + build pipeline
         ])
-        // Phase 1.u.1: a fresh gen has #error domain holes so `swift build` fails — but because the
-        // failure is ONLY GENESIS-TODO holes, genesis new treats it as success-with-holes: exit 0,
-        // the project is KEPT (not rolled back), and stdout reports the remaining holes.
+        // Phase 1.y: domain holes are now throw-marker (GenesisTODO.notImplemented), so a fresh gen COMPILES.
+        // `swift build -c release` genuinely succeeds → genesis new exits 0, project kept, .build/release exists.
+        // stdout reports the remaining holes (tests RED until filled). This exercises the real -c release build
+        // that the (now-removed) BuildFailureClassifier was wired into — a real codegen breakage would fail here.
         XCTAssertEqual(result.exitCode, 0,
-                       "holes-only build failure → success-with-holes (Phase 1.u.1); stderr: \(result.stderr)")
+                       "fresh gen with throw-marker holes must BUILD GREEN (Phase 1.y); stderr: \(result.stderr)")
         XCTAssertTrue(
-            FileManager.default.fileExists(atPath: tmpDir.appendingPathComponent("Package.swift").path),
-            "project must be kept (not rolled back) when only #error domain holes remain"
+            FileManager.default.fileExists(atPath: tmpDir.appendingPathComponent(".build/release").path),
+            ".build/release must exist — fresh gen compiles (Phase 1.y reverses the 1.u capstone)"
         )
         XCTAssertTrue(result.stdout.contains("domain hole"),
-                      "stdout should report remaining domain holes; stdout: \(result.stdout)")
+                      "stdout should report remaining GenesisTODO domain holes; stdout: \(result.stdout)")
     }
 }
