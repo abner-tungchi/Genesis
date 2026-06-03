@@ -201,7 +201,8 @@ public enum AggregateRenderer {
 
         // Phase 1.t.1 / D3a: input-only convenience init for the create use-case caller (/usecase Create pattern).
         // The use-case Input does NOT carry non-input createdEvent payload fields (derived/external domain data),
-        // so deriving them is an honest fatalError TODO. Emit ONLY when derivedFields is non-empty; when input
+        // so deriving them is an honest throw GenesisTODO.notImplemented TODO (Phase 1.y; was fatalError, which
+        // crashes the test process). Emit ONLY when derivedFields is non-empty; when input
         // business fields already cover the whole payload, the designated init's signature == input and a
         // convenience init would collide. The designated init + rehydration init are UNCHANGED → event replay
         // is unaffected (this convenience init is never on the replay path; only create callers invoke it).

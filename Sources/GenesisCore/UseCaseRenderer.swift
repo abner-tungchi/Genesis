@@ -293,12 +293,13 @@ public enum UseCaseRenderer {
         return lines.joined(separator: "\n")
     }
 
-    /// Phase 1.t / D5 + Phase 1.u / C2: emit a strict-safe scalar reducer body, else an honest `#error` hole.
+    /// Phase 1.t / D5 + Phase 1.y: emit a strict-safe scalar reducer body, else a TDD throw-marker.
     /// strict-safe = every event-payload field 1:1-maps to a mutable aggregate state field:
     /// same name, same resolved type, NOT a collection (Set/Array), NOT a `new*`/`old*` semantic-rename.
     /// If ALL payload fields are strict-safe → `self.<f> = event.<f>` for each; otherwise (incl. empty payload —
     /// a zero-payload event may still need a deterministic state change, so it stays fail-loud) the reducer
-    /// becomes a structure comment + `#error("GENESIS-TODO: ...")` (compile-time hole beats silent corruption).
+    /// becomes a structure comment + `throw GenesisTODO.notImplemented(...)` — compiles (TDD: the reducer's test
+    /// goes RED) instead of #error blocking the whole build.
     private static func buildWhenBody(
         eventTypeName: String,
         stateFields: [FieldSpec],

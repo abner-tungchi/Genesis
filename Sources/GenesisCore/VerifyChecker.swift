@@ -43,10 +43,15 @@ public enum VerifyChecker {
                 markers.append(Hole(file: rel, snippet: line.trimmingCharacters(in: .whitespaces)))
             }
 
-            // (2a) invariant errorCodes — the enum cases in an aggregate's <A>Error.swift.
-            if url.lastPathComponent.hasSuffix("Error.swift"), rel.contains("Aggregate") {
-                for code in enumCases(in: stripComments(content)) where code != "placeholder" {
-                    invariantCodes.insert(code)
+            // (2a) invariant errorCodes — the enum cases in the AGGREGATE error file ONLY.
+            // Precise match: the enclosing `<A>Aggregate` dir gives <A>; the invariant error file is exactly
+            // `<A>Error.swift` — NOT `<A>QueryError.swift` (read-side, e.g. `case notFound`) nor ApiError files.
+            if let aggComp = url.pathComponents.first(where: { $0.hasSuffix("Aggregate") }) {
+                let aggName = String(aggComp.dropLast("Aggregate".count))
+                if url.lastPathComponent == "\(aggName)Error.swift" {
+                    for code in enumCases(in: stripComments(content)) where code != "placeholder" {
+                        invariantCodes.insert(code)
+                    }
                 }
             }
         }
@@ -55,7 +60,7 @@ public enum VerifyChecker {
         let enabledRegions = enabledTestRegions(in: testsURL)
         var uncovered: [String] = []
         for code in invariantCodes.sorted() {
-            let covered = enabledRegions.contains { $0.contains(".\(code)") }
+            let covered = enabledRegions.contains { referencesCode($0, code) }
             if !covered { uncovered.append(code) }
         }
 
@@ -63,6 +68,17 @@ public enum VerifyChecker {
     }
 
     // MARK: - helpers
+
+    /// Whole-token match for `.<code>` — a substring `contains` would let `.permission` be falsely "covered"
+    /// by a test referencing `.permissionDenied` (prefix collision → false-negative that defeats the backstop).
+    /// Require `.<code>` NOT followed by an identifier character.
+    static func referencesCode(_ region: String, _ code: String) -> Bool {
+        let pattern = "\\.\(NSRegularExpression.escapedPattern(for: code))(?![A-Za-z0-9_])"
+        guard let re = try? NSRegularExpression(pattern: pattern) else {
+            return region.contains(".\(code)")
+        }
+        return re.firstMatch(in: region, range: NSRange(region.startIndex..., in: region)) != nil
+    }
 
     static func swiftFiles(in root: URL) -> [URL] {
         guard let e = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) else { return [] }

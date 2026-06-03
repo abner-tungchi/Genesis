@@ -87,6 +87,39 @@ final class VerifyCheckerTests: XCTestCase {
                       "a .disabled test referencing the code must NOT count (the audit's core false-positive)")
     }
 
+    // MARK: - adversarial-verify regressions (Phase 1.y impl-verify workflow findings)
+
+    func testQueryErrorNotTreatedAsInvariant() throws {
+        // <A>QueryError.swift is a read-side error (case notFound), NOT an aggregate invariant. Its file name
+        // suffixes "Error.swift" and sits under *Aggregate, but it must NOT be collected as an invariant code
+        // (else genesis verify falsely demands a .notFound test and fails correctly-generated projects).
+        try writeErrorEnum()  // AAggregate/AError.swift
+        try write("Sources/AAggregate/AQueryError.swift", """
+        package enum AQueryError: Error {
+            case notFound
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertFalse(r.uncoveredInvariants.contains("notFound"),
+                       "read-side <A>QueryError cases must NOT be treated as aggregate invariants")
+        XCTAssertEqual(Set(r.uncoveredInvariants), ["employeeNotActive", "permissionNotMatch"],
+                       "only the <A>Error invariant codes count")
+    }
+
+    func testPrefixCollisionDoesNotFalselyCover() throws {
+        try writeErrorEnum()  // has employeeNotActive, permissionNotMatch
+        // a test referencing only a LONGER symbol must NOT falsely cover the shorter invariant code.
+        try write("Tests/ATests/T.swift", """
+        import Testing
+        @Test func t() async throws {
+            #expect(error?.error == .permissionNotMatchExtra)
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertTrue(r.uncoveredInvariants.contains("permissionNotMatch"),
+                      ".permissionNotMatchExtra must NOT falsely cover .permissionNotMatch (prefix-collision false-negative)")
+    }
+
     func testCommentedAssertionDoesNotCover() throws {
         try writeErrorEnum()
         // test-gen ships the assertion commented-out inside a disabled stub — must not falsely 'cover'.
