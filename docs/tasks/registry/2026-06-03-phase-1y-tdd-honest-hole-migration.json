@@ -1,0 +1,37 @@
+{
+  "id": "2026-06-03-phase-1y-tdd-honest-hole-migration",
+  "file": "docs/tasks/2026-06-03-phase-1y-tdd-honest-hole-migration.md",
+  "title": "Phase 1.y — TDD honest-hole migration (#error → GenesisTODO throw-marker + genesis verify)",
+  "status": "ready",
+  "created": "2026-06-03",
+  "depends_on": [],
+  "reverses": ["2026-06-02-phase-1u-command-scaffold-and-error-holes", "2026-06-02-phase-1u1-genesis-new-tolerate-error-holes"],
+  "reframes": ["test-gen R2 (2026-06-03-test-gen-real-test-redesign.md): disabled-until-filled → enabled-red"],
+  "soft_depends_on": ["2026-06-02-phase-1t1-create-init-and-usecase-create-pattern", "2026-06-03-phase-1x-codegen-usecase-execute-body"],
+  "discussion": "docs/discussions/2026-06-03-tdd-first-honest-hole.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/AggregateRenderer.swift",
+    "file:Sources/GenesisCore/UseCaseRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/CommandExtension.swift.template",
+    "file:Sources/Genesis/Commands/NewCommand.swift",
+    "file:Sources/GenesisCore/BuildFailureClassifier.swift",
+    "file:Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "file:Sources/GenesisCore/Resources/Templates/skills/domain-fill/SKILL.md",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/CLAUDE.md.template"
+  ],
+  "verification": [
+    "swift build + swift test",
+    "regen IAM: domain 洞 = throw GenesisTODO.notImplemented, no #error; ensureInvariant no-op; GenesisTODO per-aggregate file; catch-ladder rethrow",
+    "fresh gen swift build EXIT 0 (reverses 1.u.1 capstone)",
+    "genesis verify: marker grep + invariant-enabled-test (errorCode from <A>Error.swift, comment+disabled-aware)",
+    "BuildFailureClassifier removed (last step, gated by offline source-level regression)"
+  ],
+  "tags": ["codegen", "tdd", "honest-hole", "throw-marker", "genesis-verify", "atomic-migration", "phase-1y"],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-03T12:00:00Z",
+      "note": "write-spec from tdd-first-honest-hole discussion (R2 consensus). ATOMIC migration: #error domain holes → GenesisTODO throw-marker (compiles + test-red, enables incremental TDD); ensureInvariant no-op (forced); GenesisTODO per-aggregate file (avoids conditional-{SharedImport} break); catch-ladder rethrow (載重, marker survives usecase boundary); test-gen rewrite to enabled-red (HARD same-PR); new genesis verify (marker grep + invariant-enabled-test = non-circular backstop); remove BuildFailureClassifier (last step); reverses Phase 1.u + 1.u.1. **audit-spec (workflow phase1y-spec-audit, 2 lens)**: 內部 4b PASS. fidelity verdict: spec faithfully encodes R2 D1-D6 + 9 steps + 5 open-defaults + 2 載重事實 (verified vs source). feasibility+fidelity NEEDS_FIX (concentrated in genesis verify concreteness + verification block), **全處理**: (HIGH) genesis verify errorCode source = <A>Error.swift enum cases NOT bundle (bundle 不在生成樹); (HIGH) enabled-test detector = comment-strip + segment-by-@Test + .disabled attr check + scan .generated/.authored, document spoofing residual; (MED) STEP 1 reframe (role auto-flows, scaffold-once 不存在於 aggregate files, 靠 checkNoConflicts); (MED) STEP 7 → offline source-level renderer grep (真 gate; swift build env-gated 會 skip) + no-DTO fixture; (MED) STEP 7 release-vs-debug (env-gated genesis new --no-skip-build); (HIGH-fidelity) acceptance ensureInvariant grep 反轉 (grep -qv 永不 fail → ! grep -q + 正向); (MED) zsh glob nomatch abort → ls 2>/dev/null; (LOW) Aggregate.swift.template 無變更 (#error renderer-injected); (LOW) catch-ladder 16-space indent + 單一共用字串一次插. 下一步 impl (9 ordered steps, STEP 8 last)."
+    }
+  ]
+}
