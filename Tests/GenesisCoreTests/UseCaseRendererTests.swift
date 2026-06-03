@@ -52,6 +52,45 @@ final class UseCaseRendererTests: XCTestCase {
         outputs.first { $0.role == "commandExtension" }?.content
     }
 
+    private func usecaseFile(_ outputs: [(path: String, content: String, role: String)]) -> String? {
+        outputs.first { $0.role == "usecase" }?.content
+    }
+
+    // MARK: - Phase 1.x / D1: codegen emits execute() orchestration body (Create/Update/Delete)
+
+    func testExecuteUpdatePatternEmitsFindCommandSave() throws {
+        let uc = useCase("editBar", event: "barEdited",
+                         payload: [FieldSpec(name: "bar", rawType: "String")],
+                         input: [FieldSpec(name: "bar", rawType: "String")])
+        let b = bundle(aggState: [FieldSpec(name: "bar", rawType: "String")], useCase: uc)
+        let svc = try XCTUnwrap(usecaseFile(try render(b)))
+        XCTAssertFalse(svc.contains("fatalError(\"TODO(/usecase skill)"), "D1: TODO stub must be gone")
+        XCTAssertTrue(svc.contains("try await repository.find(byId: input.fooId)"), "Update: find by aggId; got:\n\(svc)")
+        XCTAssertTrue(svc.contains("try foo.editBar(bar: input.bar)"), "Update: call command with command args; got:\n\(svc)")
+        XCTAssertTrue(svc.contains("try await repository.save(aggregateRoot: foo, userId: input.operatorId)"), "Update: save with operatorId")
+    }
+
+    func testExecuteCreatePatternEmitsInit() throws {
+        let uc = useCase("createFoo", event: "fooCreated",
+                         payload: [FieldSpec(name: "bar", rawType: "String")],
+                         input: [FieldSpec(name: "bar", rawType: "String")])
+        let b = bundle(aggState: [FieldSpec(name: "bar", rawType: "String")], useCase: uc)
+        let svc = try XCTUnwrap(usecaseFile(try render(b)))
+        XCTAssertFalse(svc.contains("fatalError(\"TODO(/usecase skill)"), "D1: TODO stub must be gone")
+        XCTAssertTrue(svc.contains("try Foo(id: input.fooId, bar: input.bar)"), "Create: construct via init; got:\n\(svc)")
+        XCTAssertTrue(svc.contains("return .init(id: input.fooId, message: nil)"), "Create: return caller-provided id")
+    }
+
+    func testExecuteDeletePatternEmitsRepositoryDelete() throws {
+        let uc = useCase("deleteFoo", event: "fooDeleted",
+                         payload: [FieldSpec(name: "bar", rawType: "String")],
+                         input: [FieldSpec(name: "bar", rawType: "String")])
+        let b = bundle(aggState: [FieldSpec(name: "bar", rawType: "String")], useCase: uc)
+        let svc = try XCTUnwrap(usecaseFile(try render(b)))
+        XCTAssertTrue(svc.contains("try await repository.delete(byId: foo.id, userId: input.operatorId)"), "Delete: repository.delete; got:\n\(svc)")
+        XCTAssertFalse(svc.contains("fatalError(\"TODO(/usecase skill)"), "D1: TODO stub must be gone")
+    }
+
     // MARK: - D5 positive: strict-safe scalar → self.<f> = event.<f>
 
     func testWhenStrictSafeScalarEmitsAssignment() throws {

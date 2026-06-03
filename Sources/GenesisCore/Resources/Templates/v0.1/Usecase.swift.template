@@ -7,6 +7,6 @@ package protocol {UC}Usecase: Usecase where Input == {UC}Input, Output == {UC}Ou
 
 extension {UC}Usecase {
     package func execute(input: {UC}Input) async throws -> {UC}Output {
-        fatalError("TODO(/usecase skill): pattern is repository.find → aggregate.{useCaseCamelCase}(...) → repository.save → return Output")
+{ExecuteBody}
     }
 }

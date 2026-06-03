@@ -41,7 +41,14 @@ public enum UseCaseRenderer {
             sharedImport: sharedImport, dir: inputDir
         ))
         outputs.append(try renderOutput(uc: ucName, dir: inputDir))
-        outputs.append(try renderUsecase(uc: ucName, aggregate: aggregate, sharedImport: sharedImport, dir: inputDir))
+        let executeBody = buildExecuteBody(
+            ucCamel: ucCamel,
+            aggregate: aggregate,
+            aggIdName: aggIdName,
+            commandFields: useCase.input,
+            isCreateUseCase: isCreateUseCase
+        )
+        outputs.append(try renderUsecase(uc: ucName, aggregate: aggregate, sharedImport: sharedImport, executeBody: executeBody, dir: inputDir))
         outputs.append(try renderService(uc: ucName, aggregate: aggregate))
 
         // Phase 1.t / D6: do NOT generate a command extension for create UCs.
@@ -118,7 +125,7 @@ public enum UseCaseRenderer {
         return ("\(dir)/\(uc)Output.swift", rendered.output, "usecaseOutput")
     }
 
-    private static func renderUsecase(uc: String, aggregate: String, sharedImport: String, dir: String) throws -> (String, String, String) {
+    private static func renderUsecase(uc: String, aggregate: String, sharedImport: String, executeBody: String, dir: String) throws -> (String, String, String) {
         let template = try TemplateLoader.loadTemplate(name: "Usecase.swift", ext: "template")
         let rendered = TemplateRenderer.render(
             template: template,
@@ -127,9 +134,78 @@ public enum UseCaseRenderer {
                 "Aggregate": aggregate,
                 "useCaseCamelCase": CaseTransformer.lowerCamel(uc),
                 "SharedImport": sharedImport,
+                "ExecuteBody": executeBody,
             ]
         )
         return ("\(dir)/\(uc)Usecase.swift", rendered.output, "usecase")
+    }
+
+    /// Phase 1.x / D1: emit the deterministic orchestration body for execute() at codegen time
+    /// (replaces the old `fatalError("TODO(/usecase skill)")` stub). The body is pure orchestration
+    /// (find → command → save → return + catch ladder), fully derivable from the same `useCase.input`
+    /// that drives the Input type and the command signature — so the call args match by construction.
+    /// Business logic stays in the command/when/ensureInvariant `#error` holes (filled by /domain-fill).
+    private static func buildExecuteBody(
+        ucCamel: String,
+        aggregate: String,
+        aggIdName: String,
+        commandFields: [FieldSpec],
+        isCreateUseCase: Bool
+    ) -> String {
+        let agg = CaseTransformer.lowerCamel(aggregate)
+        let A = aggregate
+        // useCase.input = aggId + business (no operatorId; renderInput synthesizes operatorId into Input).
+        let businessFields = commandFields.filter { $0.name != aggIdName && $0.name != "operatorId" }
+
+        let catchLadder = """
+                } catch let error as ContextError<\(A)Error> {
+                    throw error
+                } catch let error as DDDError {
+                    throw error
+                } catch {
+                    throw DDDError.executeUsecaseFailed(usecase: self, input: input, userInfos: ["error": error])
+                }
+        """
+
+        if isCreateUseCase {
+            // Create: construct the aggregate via its (convenience or designated) init — id is caller-provided
+            // input.<aggId>; non-id init params == input business fields (same filter AggregateRenderer uses).
+            let initArgs = ([("id", aggIdName)] + businessFields.map { ($0.name, $0.name) })
+                .map { "\($0.0): input.\($0.1)" }
+                .joined(separator: ", ")
+            return """
+                    do {
+                        let \(agg) = try \(A)(\(initArgs))
+                        try await repository.save(aggregateRoot: \(agg), userId: input.operatorId)
+                        return .init(id: input.\(aggIdName), message: nil)
+            \(catchLadder)
+            """
+        }
+
+        if ucCamel.lowercased().hasPrefix("delete") {
+            return """
+                    guard let \(agg) = try await repository.find(byId: input.\(aggIdName)) else {
+                        throw DDDError.aggregateNotFound(usecase: self, aggregateRootType: \(A).self, aggregateRootId: input.\(aggIdName))
+                    }
+                    do {
+                        try await repository.delete(byId: \(agg).id, userId: input.operatorId)
+                        return .init(id: \(agg).id)
+            \(catchLadder)
+            """
+        }
+
+        // Update: call the command method with the EXACT commandFields (= useCase.input) it was generated from.
+        let callArgs = commandFields.map { "\($0.name): input.\($0.name)" }.joined(separator: ", ")
+        return """
+                guard let \(agg) = try await repository.find(byId: input.\(aggIdName)) else {
+                    throw DDDError.aggregateNotFound(usecase: self, aggregateRootType: \(A).self, aggregateRootId: input.\(aggIdName))
+                }
+                do {
+                    try \(agg).\(ucCamel)(\(callArgs))
+                    try await repository.save(aggregateRoot: \(agg), userId: input.operatorId)
+                    return .init(id: \(agg).id, message: nil)
+        \(catchLadder)
+        """
     }
 
     private static func renderService(uc: String, aggregate: String) throws -> (String, String, String) {

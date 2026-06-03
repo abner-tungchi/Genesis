@@ -283,8 +283,16 @@ final class NewCommandTests: XCTestCase {
                       "Phase 1.o D3: protocol must use OC where-clause syntax")
         XCTAssertFalse(ucContent.contains("Usecase<CreateUserAccessProfileInput, CreateUserAccessProfileOutput>"),
                        "Phase 1.o D3: legacy `Usecase<I, O>` parameterized syntax must be gone")
-        XCTAssertTrue(ucContent.contains("fatalError(\"TODO(/usecase skill)"),
-                      "Phase 1.o D4: unified TODO marker must be present")
+        // Phase 1.x / D1: codegen now emits the full execute() orchestration body (Create pattern here),
+        // not the `fatalError("TODO(/usecase skill)")` stub.
+        XCTAssertFalse(ucContent.contains("fatalError(\"TODO(/usecase skill)"),
+                       "Phase 1.x D1: /usecase TODO stub must be gone — codegen emits the execute body")
+        XCTAssertTrue(ucContent.contains("try UserAccessProfile(id: input."),
+                      "Phase 1.x D1: create UC execute must construct the aggregate via its init; got:\n\(ucContent)")
+        XCTAssertTrue(ucContent.contains("userId: input.userId"),
+                      "Phase 1.x D1: create init must pass the input business fields; got:\n\(ucContent)")
+        XCTAssertTrue(ucContent.contains("repository.save(aggregateRoot:"),
+                      "Phase 1.x D1: execute must save the aggregate")
         XCTAssertFalse(ucContent.contains("fatalError(\"not implemented\")"),
                        "Phase 1.o D4: legacy `fatalError(\"not implemented\")` marker must be gone")
         XCTAssertFalse(ucContent.contains("GENESIS-STUB:"),
