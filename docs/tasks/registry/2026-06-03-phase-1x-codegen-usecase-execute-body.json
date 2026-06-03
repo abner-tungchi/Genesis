@@ -1,0 +1,42 @@
+{
+  "id": "2026-06-03-phase-1x-codegen-usecase-execute-body",
+  "file": "docs/tasks/2026-06-03-phase-1x-codegen-usecase-execute-body.md",
+  "title": "Phase 1.x — codegen emit Usecase execute() orchestration body (D1)",
+  "status": "done",
+  "created": "2026-06-03",
+  "completed": "2026-06-03",
+  "depends_on": [],
+  "soft_depends_on": [
+    "2026-06-02-phase-1t1-create-init-and-usecase-create-pattern",
+    "2026-06-02-phase-1t3-create-id-caller-provided",
+    "2026-06-02-phase-1u-command-scaffold-and-error-holes"
+  ],
+  "discussion": "docs/discussions/2026-06-02-codegen-vs-retrofit-skill-boundary.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Usecase.swift.template",
+    "file:Sources/GenesisCore/UseCaseRenderer.swift",
+    "file:Tests/GenesisIntegrationTests/NewCommandTests.swift",
+    "file:Tests/GenesisCoreTests/UseCaseRendererTests.swift"
+  ],
+  "verification": [
+    "swift build",
+    "swift test (NewCommandTests flip + UseCaseRendererTests Create/Update/Delete body)",
+    "regen IAM: PromoteUserUsecase execute = find→command→save (no fatalError TODO stub)",
+    "regen IAM: CreateUserAccessProfileUsecase execute = try Agg(id:...)→save (no stub)",
+    "command extension still has #error holes (execute complete != build green)"
+  ],
+  "tags": ["codegen", "usecase", "orchestration", "d1", "codegen-vs-retrofit", "phase-1x"],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-03T09:00:00Z",
+      "note": "write-spec D1 from codegen-vs-retrofit discussion. UseCaseRenderer 生 {UC}Usecase.swift 時直接 emit 完整 execute body（Create/Update/Delete pattern：find→command→save→return + catch ladder），取代 fatalError('TODO(/usecase skill)') stub. execute 是純 orchestration、type 可導、codegen 自己同時生 Input+command 簽名（同源 useCase.input）→ 比 /usecase skill structural-detect 更可靠. **audit-spec**: 內部 4b PASS（line-anchor 改語意錨）. Codex 派出但 runtime 未 flush（recurring，記 tool-failure）→ **核心假設 Claude 親自驗 code**: (1) render 傳 commandFields=useCase.input verbatim（第 57 行）→ Update body 逐 useCase.input emit input.<name> 與 command 簽名同序同源保證一致;useCase.input=aggId+business 不含 operatorId（renderInput 合成）;operatorId 只給 save(userId:). (2) Create init 非-id 參數 = useCase.input filter aggId/operatorId,與 AggregateRenderer convenience init 同 filter 同序 → 命中 init 簽名. 確認僅 NewCommandTests:286（flip）+ Usecase.swift.template 需改;domain-fill SKILL.md 的 orchestration-stub 註記對 legacy 仍正確、不改. 改動: Usecase.swift.template stub→{ExecuteBody} + UseCaseRenderer buildExecuteBody + renderUsecase 簽名 + 2 test 檔. **已知限制**: execute complete != build green（command #error 仍在）;create init fatalError 既有;多-command 分支不 codegen;api/readmodel 收回為後續 phase. 下一步 impl."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-03T10:00:00Z",
+      "completed": "2026-06-03",
+      "note": "**Phase 1.x DONE**. 實作: Usecase.swift.template stub→{ExecuteBody} + UseCaseRenderer.buildExecuteBody（Create: try Agg(id:input.aggId, business...)→save→return;Update: find→try agg.uc(commandFields verbatim)→save;Delete: find→repository.delete;defensive #error fallback）+ render() 算 executeBody 傳 renderUsecase. **驗證**: swift build EXIT 0; regen IAM 確認 Update（PromoteUser: find→promoteUser(userId/newJobTitle/oldJobTitle)→save）+ Create（CreateUserAccessProfile: try UserAccessProfile(id:input.userAccessProfileId, userId/department/jobTitle)→save）body 正確、縮排正確、無 fatalError TODO stub; command call 參數與 command 簽名同源（useCase.input）保證一致. swift test 275 pass（+3 UseCaseRendererTests Create/Update/Delete + NewCommandTests:286 flip〔斷言改不依賴 aggId 拼法，因 iam-bundle aggId=useraccessprofileId vs iam-cosmogony=userAccessProfileId〕）0 fail. /usecase SKILL.md 不動（migration-only，idempotent skip on D1 專案）. **效果**: genesis new 後 execute 直接是真 code，少一個手動 /usecase 步驟;execute complete≠build green（command #error 仍待 /domain-fill）. 後續: api wiring / readmodel type-closure 收回（D1 同原則）;A3 bundle-first retrofit（D3）;manifest role 兩態（D6）."
+    }
+  ]
+}
