@@ -191,6 +191,13 @@ struct NewCommand: AsyncParsableCommand {
         let testRendered = TemplateRenderer.render(template: testTemplate, vars: ["ContextName": contextName])
         try plan("Tests/\(contextName)Tests/PlaceholderTests.swift", testRendered.output, "testPlaceholder")
 
+        // 2.4.1 Fixture wrappers (codegen UsecaseCall helpers for test Givens) — one file per aggregate that
+        // has use cases. Bare wrappers around <UC>Service.execute; the human-owned <A>Fixtures.presets.swift
+        // sibling (ergonomic presets) is NOT generated.
+        for file in try FixtureRenderer.render(bundle: bundle, adapter: adapter, contextName: contextName) {
+            try plan(file.path, file.content, file.role)
+        }
+
         // 2.5 Business docs (per aggregate)
         let generatedDate = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
         for aggregate in bundle.aggregates {

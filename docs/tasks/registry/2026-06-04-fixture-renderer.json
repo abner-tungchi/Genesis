@@ -1,0 +1,44 @@
+{
+  "id": "2026-06-04-fixture-renderer",
+  "file": "docs/tasks/2026-06-04-fixture-renderer.md",
+  "title": "FixtureRenderer — codegen bare UsecaseCall fixtures（test Given 的機械上游）",
+  "status": "done",
+  "created": "2026-06-04",
+  "completed": "2026-06-04",
+  "depends_on": ["2026-06-04-phase-1z-test-gen-enabled-red"],
+  "soft_depends_on": ["2026-06-03-phase-1x-codegen-usecase-execute-body", "2026-06-03-phase-1y-tdd-honest-hole-migration"],
+  "discussion": "docs/discussions/2026-06-04-fixture-codegen-vs-skill.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/UseCaseRenderer.swift",
+    "file:Sources/GenesisCore/SwiftTypeResolver.swift",
+    "file:Sources/Genesis/Commands/NewCommand.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Service.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/UsecaseInput.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/UsecaseOutput.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md"
+  ],
+  "verification": [
+    "swift build + swift test --filter FixtureRendererTests (golden-file unit tests: create/update/delete shapes, multi-aggregate, naming=ucCamel, header signpost, .init-args match <UC>Input by construction, read-side excluded)",
+    "regen IAM --skip-build: Tests/IAMContextTests/SharedUtility/UsecaseCall/<A>.swift exists with @discardableResult func <ucCamel>(...,repository:) async throws -> String? calling <UC>Service(repository:).execute(input:.init(...)); header 'regenerated wholesale' + 'Fixtures.presets.swift'; no parameter defaults on the bare wrapper; compiles",
+    "test-gen SKILL.md pins fixture naming = ucCamel (thunk <fixtureName> resolves to codegen'd fixture); fixtures consumed-not-emitted"
+  ],
+  "tags": ["codegen", "fixture", "fixture-renderer", "test-gen", "renderer", "test-given"],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-06-04T03:00:00Z",
+      "note": "write-spec from fixture-codegen-vs-skill consensus (FORK VERDICT: codegen-not-skill, D1-D9; user decisions no-stub / <A>.swift+<A>Fixtures.presets.swift / create+update+delete). Step-3b grounding done (read real code): FixtureRenderer mirrors UseCaseRenderer.render -> [(path,content,role)]; fixture func = uniform `@discardableResult func <ucCamel>(<canonical params>, repository:<A>Repository) async throws -> String? { <UC>Service(repository:).execute(input:.init(...)); return output.id }` (create/update/delete uniform — dispatch already in codegen'd execute); canonical fields = EXACT mirror of UseCaseRenderer.swift:91-94 ([aggId]+business+[operatorId]) via SwiftTypeResolver so .init args match <UC>Input.init by construction; <UC>Service(repository:) + <UC>Output.id:String? + package access all verified vs templates; MUST live in Tests/ (package-type param can't be used by a Sources/ non-package func — feasibility-verified); FIX-2-invisible (real execute call in SharedUtility preamble, not a genesisTODO thunk); read-side auto-excluded (not in bundle.useCases); header comment carries the no-stub honesty signpost (D3). Change surface: NEW FixtureRenderer.swift + NewCommand §2.4.1 loop + golden FixtureRendererTests + test-gen SKILL naming pin (+ optional canonicalInputFields shared helper)."
+    },
+    {
+      "status": "ready",
+      "at": "2026-06-04T04:00:00Z",
+      "note": "**audit-spec DONE** (adversarial workflow fixture-renderer-spec-audit, 2 lens feasibility+fidelity + synthesis; verified vs REAL UseCaseRenderer/NewCommand/templates/FullBundle + swiftc 6.2.3 + a full real `genesis new IAMContext` regen). Verdict NEEDS_FIX, ready_after_fixes=true (no fundamental flaw). CONFIRMED sound: fixture func compiles from test target against package Service/Input/Output via plain import (scratch pkg + real regen Build complete!); canonical-fields coupling holds by construction for all 7 IAM UCs; NewCommand 2.4.1 fits (role is plain String end-to-end); read-side auto-excluded (getPermissions in bundle.readModels not useCases); FIX-2 non-impact verified. 4 findings ALL FIXED in spec: (BLOCK) acceptance grep '! grep = .' false-matched the spec's OWN header comment ('status = .established' prose example) -> always-FAIL; fixed to strip // comment lines first. (HIGH) sharedImport over-claim 'Shared target always emits import' -> corrected to CONDITIONAL real derivation AggregateRenderer:24-25 ((!bundle.dtos.isEmpty || !adapter.customTypes.isEmpty) ? import <Ctx>Shared : empty). (HIGH/MED) test-gen SKILL pin half-applied -> Step 4 enumerates (a) <fixtureName>=ucCamel (b) DELETE stale 'fixture 不存在時自行補' line (wrong after codegen) (c) normalize create<A>->ucCamel. (LOW) Human-checklist referenced non-existent aggregate 'EmployeeAccess' -> iam-cosmogony-bundle has only UserAccessProfile; fixed (agent greps already correct). (LOW) canonical-fields drift-hardening -> STRONGLY-prefer extract shared helper + golden test #7 mandatory comparing against REAL UseCaseRenderer.render output. spec_ready. NEXT: impl (FixtureRenderer.swift + NewCommand 2.4.1 + golden FixtureRendererTests + test-gen SKILL edits)."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-04T05:00:00Z",
+      "completed": "2026-06-04",
+      "note": "**Phase impl DONE** (ultracode, Claude direct). 5 steps: (A) extracted UseCaseRenderer.canonicalInputFields(fields:aggIdName:) shared helper (F4 drift-hardening — single source for renderInput + FixtureRenderer; renderInput refactored to call it, no behavior change); (B) NEW Sources/GenesisCore/FixtureRenderer.swift (per-aggregate, uniform `@discardableResult func <ucCamel>(<canonical>, repository:) async throws -> String? { <UC>Service(repository:).execute(input:.init(...)); return output.id }`; sharedImport CONDITIONAL per AggregateRenderer; header signpost; role 'fixture'); (C) NewCommand §2.4.1 loop after test placeholder; (D) NEW Tests/GenesisCoreTests/FixtureRendererTests.swift (8 golden: create/update/delete-uniform, ucCamel naming, multi-agg split, header+no-defaults, read-side-excluded, and #7 DRIFT GATE comparing fixture .init args vs REAL UseCaseRenderer.render <UC>Input.init order); (E) test-gen SKILL.md fixed (deleted stale 'fixture 不存在時自行補' line, normalized create<A>, pinned <fixtureName>=ucCamel + consume-not-emit). **Verification**: swift build green; FixtureRendererTests 8/8 + UseCaseRendererTests 9/9 (refactor no regression); **full suite 299 pass / 0 fail** (291 + 8); real regen IAM --skip-build → fixture file emitted with all acceptance greps PASS (createUserAccessProfile/promoteUser/grantPrivilege etc., canonical order, [String] resolved, header signpost, no param defaults); **`swift build --build-tests` on the regen = build complete exit 0** (the emitted fixture COMPILES in the real generated test target against DDDKit, package-access from test target works — definitive output-compile proof, forced recompile via touch). SKILL self-consistency greps pass. Verification bar: golden(incl drift gate) + full suite + real-tree regen + real compile-on-real-output. NOT committed (await user). Follow-ups: /fill-given (consumes these fixture names); human <A>Fixtures.presets.swift convention; migration-only /fixture-gen skill for legacy."
+    }
+  ]
+}

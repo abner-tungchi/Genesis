@@ -83,15 +83,10 @@ public enum UseCaseRenderer {
         sharedImport: String,
         dir: String
     ) throws -> (String, String, String) {
-        // Phase 1.l (audit M4): canonical ordering — aggId first, business fields middle, operatorId last.
-        // Phase 1.t.3 / PA-F6: create UC Input ALSO carries aggId (caller-provided id, aligned with OC
-        // CreateAuditQuotingInput.quotingId; reverts the Phase 1.l.1 create aggId-skip). The /usecase Create
-        // pattern uses input.<aggId>; the id is caller-provided, not server-generated.
-        // Filter dedupes user-supplied aggId/operatorId in useCase.input[] to avoid double-emit.
-        let businessFields = fields.filter { $0.name != aggIdName && $0.name != "operatorId" }
-        let operatorIdField = FieldSpec(name: "operatorId", rawType: "String")
-        let aggIdField = FieldSpec(name: aggIdName, rawType: "String")
-        let canonicalFields: [FieldSpec] = [aggIdField] + businessFields + [operatorIdField]
+        // Canonical Input field set (aggId + business + operatorId) — SINGLE SOURCE shared with FixtureRenderer
+        // so a fixture's `.init(...)` call args match this `<UC>Input.init` param order BY CONSTRUCTION. See
+        // `canonicalInputFields`.
+        let canonicalFields = canonicalInputFields(fields: fields, aggIdName: aggIdName)
 
         var decls: [String] = []
         var initParamsParts: [String] = []
@@ -117,6 +112,20 @@ public enum UseCaseRenderer {
             ]
         )
         return ("\(dir)/\(uc)Input.swift", rendered.output, "usecaseInput")
+    }
+
+    /// The canonical Usecase Input field set, shared by `renderInput` and `FixtureRenderer` so a fixture's
+    /// `.init(...)` call args match the generated `<UC>Input.init` param order BY CONSTRUCTION (Swift requires
+    /// labeled-init args in declared order — a copied derivation that drifts would mis-order args and fail only
+    /// at the downstream generated project's build). Ordering (Phase 1.l audit M4 / Phase 1.t.3 PA-F6): aggId
+    /// first, business fields middle, operatorId last. Create UC Input ALSO carries the (caller-provided) aggId
+    /// (aligned with OC CreateAuditQuotingInput.quotingId). The filter dedupes a user-supplied aggId/operatorId
+    /// already present in `useCase.input` to avoid double-emit.
+    static func canonicalInputFields(fields: [FieldSpec], aggIdName: String) -> [FieldSpec] {
+        let businessFields = fields.filter { $0.name != aggIdName && $0.name != "operatorId" }
+        let aggIdField = FieldSpec(name: aggIdName, rawType: "String")
+        let operatorIdField = FieldSpec(name: "operatorId", rawType: "String")
+        return [aggIdField] + businessFields + [operatorIdField]
     }
 
     private static func renderOutput(uc: String, dir: String) throws -> (String, String, String) {
