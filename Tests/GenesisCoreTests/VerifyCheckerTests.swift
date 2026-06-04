@@ -134,4 +134,148 @@ final class VerifyCheckerTests: XCTestCase {
         XCTAssertTrue(r.uncoveredInvariants.contains("employeeNotActive"),
                       "a commented-out assertion must NOT count as coverage")
     }
+
+    // MARK: - Phase 1.z FIX-1 (string-literal awareness) + FIX-2 (test-side Given holes)
+
+    func testStringLiteralCodeDoesNotCover() throws {
+        try writeErrorEnum()  // employeeNotActive, permissionNotMatch
+        // FIX-1: a .code token that appears ONLY inside a genesisTODO arrange-thunk MESSAGE (a string
+        // literal) must NOT earn coverage — only a live assertion does.
+        try write("Tests/ATests/PromoteUserTests.swift", """
+        import Testing
+        @Test func pendingArrange() async throws {
+            let input: Int = try genesisTODO("GENESIS-ARRANGE: value tripping .employeeNotActive")
+            _ = input
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertTrue(r.uncoveredInvariants.contains("employeeNotActive"),
+                      "a .code token only inside a thunk message string must NOT count as coverage (FIX-1)")
+    }
+
+    func testEnabledTestHoleFlagged() throws {
+        // FIX-2: a genesisTODO( arrange-thunk left in an ENABLED @Test is a remaining test-side Given hole.
+        try write("Tests/ATests/PromoteUserTests.swift", """
+        import Testing
+        @Test func pendingArrange() async throws {
+            let input: Int = try genesisTODO("GENESIS-ARRANGE: dictate Given")
+            _ = input
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingTestHoles.count, 1, "a genesisTODO( call in an enabled @Test is a remaining test hole (FIX-2)")
+        XCTAssertFalse(r.passed, "remainingTestHoles must fail the gate")
+    }
+
+    func testDisabledOrCommentedHoleNotFlagged() throws {
+        // a genesisTODO in a .disabled test, or commented out, is NOT a live hole.
+        try write("Tests/ATests/T.swift", """
+        import Testing
+        @Test(.disabled("pending")) func d() async throws {
+            let input: Int = try genesisTODO("GENESIS-ARRANGE: in a disabled test")
+            _ = input
+        }
+        @Test func c() async throws {
+            // let input: Int = try genesisTODO("commented out")
+            #expect(Bool(true))
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingTestHoles.count, 0, "genesisTODO in a .disabled test or a comment is not a live hole")
+    }
+
+    func testStringLiteralGenesisTODOMentionNotFlagged() throws {
+        // FIX-1: a string literal that merely MENTIONS genesisTODO( is not a live hole.
+        try write("Tests/ATests/T.swift", """
+        import Testing
+        @Test func t() async throws {
+            let note = "remember to call genesisTODO( ) when stubbing"
+            _ = note
+            #expect(Bool(true))
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingTestHoles.count, 0, "a genesisTODO( mention inside a string literal is not a live hole (FIX-1)")
+    }
+
+    func testThunkMessageWithDisabledTokenNotFalseExcluded() throws {
+        try writeErrorEnum()
+        // FIX-1: a thunk message containing the token '.disabled' must NOT cause the whole enabled @Test
+        // region to be dropped as a disabled test — its live assertion must still earn coverage, and its
+        // genesisTODO thunk must still be flagged.
+        try write("Tests/ATests/T.swift", """
+        import Testing
+        @Test func rejects() async throws {
+            let input: Int = try genesisTODO("GENESIS-ARRANGE: when account .disabled then trips")
+            _ = input
+            #expect(error?.error == .employeeNotActive)
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertFalse(r.uncoveredInvariants.contains("employeeNotActive"),
+                       "a thunk message containing token '.disabled' must NOT false-exclude the enabled @Test (its live assertion still covers)")
+        XCTAssertEqual(r.remainingTestHoles.count, 1,
+                       "and the genesisTODO thunk in that same enabled @Test is still flagged as a hole")
+    }
+
+    // MARK: - impl-verify regressions: tricky string literals must NOT hide a real hole (DANGEROUS false-green)
+
+    func testTripleQuotedStringDoesNotHideHole() throws {
+        // F1: a triple-quoted string whose content has an odd number of bare quotes desynced the old naive
+        // two-pass strip, blanking a subsequent real genesisTODO( hole. The single-pass lexer must not desync.
+        let body = [
+            "import Testing",
+            "@Test func t() async throws {",
+            "    let doc = \"\"\"",
+            "    he said \"hi to genesisTODO and .employeeNotActive",   // odd bare quote + decoy tokens inside the string
+            "    \"\"\"",
+            "    _ = doc",
+            "    let input: Int = try genesisTODO(\"GENESIS-ARRANGE: REAL unfilled hole after a triple-quoted string\")",
+            "    _ = input",
+            "}",
+        ].joined(separator: "\n")
+        try writeErrorEnum()
+        try write("Tests/ATests/T.swift", body)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertGreaterThanOrEqual(r.remainingTestHoles.count, 1,
+            "a real genesisTODO hole after a triple-quoted string must NOT be hidden (dangerous false-green)")
+        XCTAssertFalse(r.passed)
+        XCTAssertTrue(r.uncoveredInvariants.contains("employeeNotActive"),
+            "the .employeeNotActive token lived ONLY inside the triple-quoted string → must not count as coverage")
+    }
+
+    func testRawStringDoesNotHideHole() throws {
+        // F2: a raw string #"..."# containing a bare quote desynced the old strip. Lexer must handle # delimiters.
+        let body = [
+            "import Testing",
+            "@Test func t() async throws {",
+            "    let doc = #\"a raw \" string with one bare quote and genesisTODO( mention\"#",
+            "    _ = doc",
+            "    let input: Int = try genesisTODO(\"GENESIS-ARRANGE: REAL unfilled hole after a raw string\")",
+            "    _ = input",
+            "}",
+        ].joined(separator: "\n")
+        try write("Tests/ATests/T.swift", body)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingTestHoles.count, 1,
+            "a real genesisTODO hole after a raw string must be detected; the in-string genesisTODO( mention must NOT")
+        XCTAssertFalse(r.passed)
+    }
+
+    func testSlashSlashInStringDoesNotHideHole() throws {
+        // F3: a // inside a string literal, on the same line BEFORE a genesisTODO( call. The old stripComments
+        // (run first, not string-aware) truncated the line and hid the hole. Single-pass lexer treats // inside
+        // a string as string content.
+        try write("Tests/ATests/T.swift", """
+        import Testing
+        @Test func t() async throws {
+            let note = "http://example.com/x"; let input: Int = try genesisTODO("GENESIS-ARRANGE: REAL hole after a URL string")
+            _ = note; _ = input
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingTestHoles.count, 1,
+            "a genesisTODO hole after a //-containing string on the same line must NOT be truncated away (dangerous false-green)")
+        XCTAssertFalse(r.passed)
+    }
 }

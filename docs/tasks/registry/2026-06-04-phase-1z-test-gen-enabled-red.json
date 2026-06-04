@@ -1,0 +1,52 @@
+{
+  "id": "2026-06-04-phase-1z-test-gen-enabled-red",
+  "file": "docs/tasks/2026-06-04-phase-1z-test-gen-enabled-red.md",
+  "title": "Phase 1.z — test-gen 真 test（enabled-red 2-lane）+ genesis verify FIX-1/FIX-2",
+  "status": "done",
+  "created": "2026-06-04",
+  "completed": "2026-06-04",
+  "depends_on": ["2026-06-03-phase-1y-tdd-honest-hole-migration"],
+  "reframes": ["test-gen R2 (2026-06-03-test-gen-real-test-redesign.md): D1 dropped / D2-D6 reframed / D7-D8 survive — Round 3 post-1.y re-validation"],
+  "fixes": ["currently-shipped test-gen/SKILL.md (.disabled model broken against 1.y genesis verify)"],
+  "soft_depends_on": ["2026-06-03-phase-1x-codegen-usecase-execute-body", "2026-06-01-phase-1s-test-target-testutility"],
+  "discussion": "docs/discussions/2026-06-03-test-gen-real-test-redesign.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/VerifyChecker.swift",
+    "file:Sources/Genesis/Commands/VerifyCommand.swift",
+    "file:Tests/GenesisCoreTests/VerifyCheckerTests.swift",
+    "file:Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/CLAUDE.md.template"
+  ],
+  "verification": [
+    "swift build + swift test (incl new VerifyChecker FIX-1/FIX-2 regressions)",
+    "FIX-1: referencesCode strips string literals — a .code token inside a thunk message / string literal does NOT count as invariant coverage",
+    "FIX-2: VerifyChecker.Result.remainingTestHoles — Tests/ enabled @Test regions with non-comment genesisTODO(/GenesisTODO.notImplemented holes fail genesis verify",
+    "SKILL self-consistency grep: genesisTODO thunk present; no Issue.record / no @Test(.disabled default; catch-ladder grep-pin documented; GENESIS-ARRANGE sentinel; GenesisTestSupport emission",
+    "human dogfood on IAMContext EmployeeAccess: R-SUT red -> /domain-fill -> green; R-ARRANGE red -> /fill-given -> R-SUT -> green; act-sequence emitted sequence-shaped (FIX-3)"
+  ],
+  "user_decisions": [
+    "Q4 ship-strategy = ship v1 now (title-based reconcile + // test-gen-scenario-id: placeholder; do NOT block on bundle-plan stable ids)",
+    "Q1 KDB-run oracle = defer from v1 (rely on --fill-given causal-why provenance + human review; revisit as post-/domain-fill gate)",
+    "Q3 /fixture-gen packaging = defer the decision (v1 does not build fixture-gen)",
+    "Q2 locus-conservatism = moot (forced spec invariant: unknown/judgment -> thunk hole, never a fabricated body)"
+  ],
+  "tags": ["test-gen", "enabled-red", "runtime-red-ladder", "throwing-thunk", "genesis-verify", "honest-hole", "tdd", "skill", "phase-1z"],
+  "status_history": [
+    {
+      "status": "ready",
+      "at": "2026-06-04T00:00:00Z",
+      "note": "write-spec from test-gen R2 + Round 3 post-Phase-1.y re-validation (adversarial workflow test-gen-r2-postphase1y-rediscussion, 3 lens + empirical swiftc 6.2.3 + real SwiftPM Testing target). Reframe VERDICT: runtime-red-ladder HOLDS with 3 mandatory honesty fixes. Empirically verified (load-bearing): typed throwing genesisTODO thunk compiles + clean-red (fatalError thunk in enabled test = SIGABRT exit 133, so fatalError->throwing-GenesisTODO mandatory); bare-throw+undeclared-symbol = 'cannot find input in scope' (hole must be typed value); #expect(throws: ContextError<X>) recv GenesisTODO = clean red; catch-ladder rethrows GenesisTODO intact; DDDError value-capture works w/o Equatable (D4 unify); package GenesisTODO visible to same-package test target; undeclared @Tag = whole-target compile break. THREE FIXES: FIX-1 (referencesCode not string-literal-aware -> .code in thunk string falsely covers -> strip string literals + emit live assertion + thunk msg no literal .code); FIX-2 (verify marker scan Sources-only -> enabled-red moves holes into Tests/ -> 100%-unfilled-Given suite passes verify -> add remainingTestHoles category scanning Tests/ enabled @Test for genesisTODO( holes); FIX-3 (act-sequence single-execute body = convincing lie -> sequence-shaped thunk). MODEL: 2-lane (A MECHANICAL create-happy incl derived-payload + aggregate-not-found = full enabled body, 1-stage R-SUT; B JUDGMENT input-value/act-sequence/prior-state = envelope + typed-throwing-thunk hole, 2-stage R-ARRANGE->fill-given->R-SUT). D-disposition: D1 DROPPED / D2-D6 REFRAMED / D7-D8 SURVIVE. USER: Q4 ship-now, Q1 defer-KDB-oracle, Q3 defer-fixture-gen-decision, Q2 moot."
+    },
+    {
+      "status": "ready",
+      "at": "2026-06-04T01:00:00Z",
+      "note": "**audit-spec DONE** (adversarial workflow phase1z-spec-audit, 2 lens feasibility+fidelity + synthesis; verified against REAL VerifyChecker.swift/UseCaseRenderer.swift/OC + swiftc probes). Verdict NEEDS_FIX, impl_ready_after_fixes=true (no fundamental flaw). 9 findings ALL FIXED in spec: (BLOCK) catch-ladder grep-pin pointed at <UC>Service.swift but it's emitted in <UC>Usecase.swift (Service is thin repository+init struct) -> spec fact 4 + acceptance grep now name <UC>Usecase.swift; (HIGH) fabricated 'Round 3 FG-6 CONFIRM' citation (token absent from doc) covering silently-dropped D5b -> removed citation + re-added D5b positive-arrange #require as Lane-B authoring guard (disposition '(b)(c)(d) survive'); (HIGH) stripStringLiterals must apply at 3 sites not 1 (before .disabled check too, else thunk msg containing '.disabled' false-excludes whole @Test) -> spec FIX-1 now lists (i) .disabled-check (ii) referencesCode (iii) FIX-2 hole-match + 2 regression tests; (HIGH) blanket negative greps (! grep Issue.record / @Test(.disabled) false-fail on faithful prose rewrite -> line-scoped ^\\s* variants, prose mentions allowed; (MED) FIX-2 can't reuse enabledTestRegions ([String] loses filename; Hole=file+snippet no line) -> new file-retaining remainingTestHoles(in:) traversal; (MED) @Suite harness recipe missing from spec '全重寫' retained list -> added @Suite/.serialized/.tags/repository-init recipe section + STEP 4; (MED) README CI-gate conditional '(若有 verify 段)' resolves to no-op (README has no verify section) -> unconditional '## Verify (CI gate)' section; (LOW) firewall clause too thin -> added read-signature-not-execute-body distinction; (LOW) genesisTODO<T> 'package' unnecessary -> plain/internal func. ALSO clarified latent scope: /fill-given elicitation skill DEFERRED to follow-up (v1 = test-gen EMITS scaffold; Lane-B Given hand-authored in .authored.swift; genesis verify FIX-2 gates unfilled thunks). spec_ready."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-04T02:00:00Z",
+      "completed": "2026-06-04",
+      "note": "**Phase 1.z DONE** (ultracode, Claude direct). Impl 6 steps: (1-2) VerifyChecker FIX-1/FIX-2; (3) VerifyCommand surfaces remainingTestHoles + exit 2; (4) test-gen/SKILL.md full rewrite to enabled-red 2-lane; (5) CLAUDE.md.template + README.md.template (two-gate framing + unconditional '## Verify (CI gate)'); (6) verify. **adversarial impl-verify (workflow phase1z-impl-verify, 2 lens + swiftc probes + real VerifyChecker.verify + scratch SwiftPM Testing target) caught 2 BLOCK dangerous-false-green bugs** in the initial naive two-pass strip: (F1) triple-quoted string with odd bare quote desyncs the single-quote-toggle scanner -> blanks a subsequent real genesisTODO( hole -> remainingTestHoles=0 passed=TRUE (hides unfilled Given, reachable in hand-authored .authored.swift); (F2) raw-string #\"...\"# variant of same; (F3) stripComments-before-strings truncates a //-in-string line hiding a same-line hole. ROOT CAUSE: one strip fn served hole-detection (wants tokens visible) AND coverage (wants tokens blanked) = opposite failure modes; a band-aid can't satisfy both. **FIX: replaced stripComments+stripStringLiterals with a single-pass `sanitizeSwift` lexer** (line/nested-block comments; normal/multiline-\"\"\"/raw-#\"\"# strings; newlines preserved 1:1) — never desyncs, safe in both directions. Sources marker scan now detects on sanitized line + reports raw line (helpful message preserved; also fixes F5 block-comment over-flag). referencesCode no longer double-strips (F4 dead-code removed; takes pre-sanitized region). +3 regression tests (testTripleQuotedStringDoesNotHideHole / testRawStringDoesNotHideHole / testSlashSlashInStringDoesNotHideHole) pinning the dangerous vectors. SKILL-F1 (LOW): GenesisTestSupport.swift recipe noted single-aggregate-import OR module-qualify (per-aggregate package enum GenesisTODO -> ambiguous if 2 imports). **Verification**: swift build EXIT 0; swift test 285 pass / 0 fail (282 + 3 lexer regressions; VerifyCheckerTests 16); SKILL self-consistency greps all pass; real-tree smoke (regen IAM --skip-build -> genesis verify exit 2 reports 13 Sources markers + 1 test-side genesisTODO hole + helper-not-false-flagged). USER decisions baked: Q4 ship-now / Q1 defer-KDB-oracle / Q3 defer-fixture-gen / Q2 moot. Follow-ups: /fill-given elicitation skill; /fixture-gen; bundle-plan stable scenario-id; KDB-run oracle (post-domain-fill); read-model test lane; human dogfood TDD loop on IAMContext EmployeeAccess. NOT committed (await user)."
+    }
+  ]
+}

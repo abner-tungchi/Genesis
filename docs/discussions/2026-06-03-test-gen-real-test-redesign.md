@@ -2,13 +2,14 @@
 topic: "test-gen 重設計：從空殼 scaffold 升級為『真 test』—— §5/§6 transcription + Given honest-hole + --fill-given 彈性"
 status: consensus
 created: "2026-06-03"
-updated: "2026-06-03"
+updated: "2026-06-04"
 participants:
   - Claude (Opus 4.8)
   - Codex (GPT-5.4)
   - Gemini
+  - Round 3 re-validation (adversarial workflow, 3 lens + empirical swiftc 6.2.3)
 facilitator: Claude
-rounds_completed: 2
+rounds_completed: 3
 mode: default
 premises:
   fixed:        # evidence（workflow understand survey，OC gold standard + 現況 + bundle 能力）
@@ -179,3 +180,59 @@ user 答 4 開放問題 → write-spec（v1 scope 8 項 + Non-goals 明寫 bound
 
 ### 注意事項
 **核心安全（強化版）**：(1) typed-thunk 讓 disabled body 編譯（每 fill-state 皆編譯是 INVARIANT）;(2) judgment-locus 決定 body-shape（act-sequence/prior-state 絕不 emit single-execute live body = fake-green）;(3) envelope 拆兩支（ContextError vs DDDError）;(4) 絕不猜哪個值觸發哪個 invariant。
+
+---
+
+## Round 3 — Post-Phase-1.y 再驗證（2026-06-04，adversarial workflow 3 lens + 實測 swiftc 6.2.3）
+
+### 為何重開
+R2 共識（上面）是 **Phase 1.y 實作之前** 拍板的。1.y 翻了 R2 的兩根地基：
+1. **`#error` 編不過 → `GenesisTODO.notImplemented` 編得過**（runtime throw-marker）。R2 整個「fill-state ladder（編譯分層）」的理由消失。
+2. **honesty 從 `@Test(.disabled)`+`Issue.record` → `genesis verify`**（1.y shipped），而 `VerifyChecker.enabledTestRegions` **明確排除 `.disabled`** → R2 要 emit 的 disabled stub 會讓 `genesis verify` **整批判定 uncovered → fail**。currently-shipped `test-gen/SKILL.md` 因此**已經對 1.y 壞掉**，flip 是 forced 非 optional。
+
+### 提出的 reframe：「編譯分層 tier」→「runtime-red ladder」
+所有 test 一律 **enabled 且編得過**；紅的方式兩種：
+- **R-SUT 紅**：test 全填好、domain 未填 → `execute` 丟 GenesisTODO → `#expect(throws: ContextError<X>)` 失敗（乾淨紅）。
+- **R-ARRANGE 紅**：test 有 judgment 洞 → typed throwing GenesisTODO thunk（D2 fatalError-thunk 的 enabled 版，改 throw 不 crash）→ 跑起來乾淨紅。`--fill-given` 轉錄人口述 → R-ARRANGE → R-SUT → 綠。
+
+### 裁決：**reframe HOLDS，但有 3 個強制 honesty fix**（adversarial 抓出，皆實測）
+
+| Fix | all-enabled flip 開的洞 | 修法 |
+|---|---|---|
+| **FIX-1** | `VerifyChecker.referencesCode` 非 string-literal-aware（VerifyChecker.swift:104 自承）→ thunk TODO 字串裡的 `.code` token **無 live assertion 也算 covered**。pure-thunk test 假性滿足 verify。實測 `vc_probe.swift` CASE2/3/4 covered=true。 | thunk 訊息**禁含字面 `.code`**（用非點形式 "trips duplicateFoo"）；**emit 真的 enabled `#expect(error?.error == .code)`**；`referencesCode` 比對前**剝除字串字面**（比照既有 comment-strip）。 |
+| **FIX-2** | `genesis verify` marker 只掃 **Sources/**（VerifyChecker.swift:34）。enabled-red 把洞搬進 **Tests/** → 一個 100% 未填 Given 的 suite **能通過 verify**。 | 擴 VerifyChecker 掃 Tests/ enabled `@Test` 段內非註解的 `genesisTODO(` / `GenesisTODO.notImplemented` thunk → 新增 `remainingTestHoles` 類別，fail gate。 |
+| **FIX-3** | act-sequence 錯誤（duplicate = execute **兩次**）若 emit 成 single-execute body，在 enabled-red 下是**更逼真的謊**（編得過、跑得動、甚至會紅）。 | judgment thunk 對 act-sequence/prior-state 必須 **sequence-shaped**（兩個 execute、第二個包 `#expect(throws:)`，內值留 thunk），半填可結構性看見。 |
+
+### 實測確認（swiftc 6.2.3 + 真 SwiftPM Testing target，3 lens 一致）
+- **載重 switch**：`let input: X = try genesisTODO("…")`（throwing thunk）**編得過且乾淨紅**（不 crash）；`fatalError` thunk 在 enabled test **SIGABRT exit 133 殺整 runner** → `fatalError → throwing-GenesisTODO` 強制。
+- bare `throw` + 後面引用未宣告符號 → `cannot find input in scope`（Codex 舊發現存活）→ 洞**必須是 typed value**。
+- `#expect(throws: ContextError<X>.self)` 收 GenesisTODO → 乾淨紅（真 Testing target 驗）。
+- `package GenesisTODO` 對同 package test target 可見 ✓。derived-payload create-happy 現在 enabled-red（catch-ladder 把 GenesisTODO 原樣傳出）✓。
+- DDDError value-capture（form a `#expect(throws: DDDError.self)` + `error?.code ==`）**無需 Equatable** ✓ → D4 簡化。
+- 未宣告 `@Tag` → 整 target 編不過 → tag-decl emission 強制（D5d 更嚴，無 .disabled 吸收）。
+
+### D-decision 處置（R2 → Round 3）
+| D | 處置 | 為何 |
+|---|---|---|
+| D1 fill-state ladder | **DROPPED** | 編譯分層前提消失（GenesisTODO 全編得過）；改 2-lane runtime-red |
+| D2 typed thunk | **REFRAMED** | typed-value invariant 存活；fatalError → throwing-GenesisTODO（強制，否則 crash 整 suite）|
+| D3 locus classifier | **REFRAMED** | 3-template picker → 2-way emit（mechanical full body / judgment envelope+thunk）；locus 只剩 thunk-shape（FIX-3）+ hint string |
+| D4 envelope split | **REFRAMED** | 語意兩分支存活；丟「DDDError 強制 predicate-closure」；統一 value-capture 模板 (type, member-path, case) |
+| D5 guard stack | **REFRAMED** | (a) disabled→丟，改 throwing-thunk + verify Tests-hole gate(FIX-2)；(b)(c)(d) 存活；+ FIX-1 補回「弱化 test 被抓」的警報（取代失去的 Issue.record trap）|
+| D6 --fill-given | **REFRAMED** | 秘書合約存活；+「轉錄後 test 預期 R-SUT 紅非綠」；+ act-sequence 連 sequence 一起 dictate（FIX-3）|
+| D7 /fixture-gen | **SURVIVES** | bare-wrapper/每參必填 code-confirmed（OC fixture 預設值藏 judgment）；v1 defer，獨立 sibling |
+| D8 兩檔/scope/KDB | **SURVIVES** | 兩檔分離(A/A/A 交織，in-file marker 不夠)；usecase-layer；KDB hard prereq；scenario-id 稍更 load-bearing |
+
+### 2-lane 模型（spec-ready）
+- **Lane A MECHANICAL**：create-happy（含 derived-payload）+ aggregate-not-found → full enabled body → 1-stage 紅（R-SUT）→ 綠。例外：no-derived create-happy 立即綠（mechanical init + no-op ensureInvariant）→ create-time invariant 由它自己的 Lane-B error test 擔，不由 happy path 抵。
+- **Lane B JUDGMENT**：input-value / act-sequence / prior-state → assertion envelope + typed-throwing-thunk 洞 → 2-stage 紅（R-ARRANGE → fill-given → R-SUT）→ 綠。
+- **兩個正交 gate**：`genesis verify` =「每 invariant 有 enabled test 以 **live assertion** 引用其 code」（FIX-1/2 後）；`swift test` =「domain+Given 填了」（只有 localhost KDB up 才有診斷力）。green-verify + red-test 是 test-gen 後、domain-fill 前的**正常**狀態。
+
+### user 拍板（2026-06-04）
+- **Q4（ship 策略）→ 現在就 ship v1**（title-based reconcile + `// test-gen-scenario-id:` placeholder；不 block 在 bundle-plan emit stable id）。
+- **Q1（KDB oracle）→ v1 defer**（靠 --fill-given causal-why provenance + 人審；oracle 在 test 能轉綠前無訊號；revisit 為 post-domain-fill gate）。
+- **Q3（/fixture-gen 打包）→ 延後決定**（v1 不做 fixture-gen；等真要做時再決定 standalone vs --fixtures submode）。
+- **Q2（locus 保守度）→ moot**：無 .disabled tier，保守 = 「unknown/judgment → thunk 洞，絕不 fabricated body」，已是 forced spec invariant，非 user posture。
+
+### 下一步
+write-spec（Phase 1.z，`docs/tasks/2026-06-04-phase-1z-test-gen-enabled-red.md`）→ audit-spec（adversarial workflow）→ impl。spec_ready = true。

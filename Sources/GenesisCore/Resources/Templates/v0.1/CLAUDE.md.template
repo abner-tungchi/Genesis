@@ -1,11 +1,18 @@
 # Claude Code project guide — {ContextName}
 
-This project was bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`. The generated domain code marks unfilled business logic with runtime holes (`throw GenesisTODO.notImplemented(...)`) — the project **compiles**, but the test for each unfilled feature is **RED** until you fill it (intentional, TDD-first: write the test, see it red, implement, watch it go green, one feature at a time). `grep GenesisTODO.notImplemented` to find unfilled holes; `genesis verify` FAILS while any remain (or while any declared invariant has no enabled test) — wire it into CI so unfilled domain logic cannot ship. Fill the holes (say the domain logic, the skill/LLM writes it via `/domain-fill`); business-logic guidance lives in `.ai/contexts/{ContextName}/<Aggregate>/`.
+This project was bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`. The generated domain code marks unfilled business logic with runtime holes (`throw GenesisTODO.notImplemented(...)`) — the project **compiles**, but the test for each unfilled feature is **RED** until you fill it (intentional, TDD-first: write the test, see it red, implement, watch it go green, one feature at a time). `grep GenesisTODO.notImplemented` to find unfilled holes; fill them by saying the domain logic and letting `/domain-fill` write it. Business-logic guidance lives in `.ai/contexts/{ContextName}/<Aggregate>/`.
+
+### Two gates: `swift test` (domain done?) vs `genesis verify` (scaffold honest?)
+
+- **`swift test`** — every generated test starts **RED**. *R-SUT red*: the SUT throws `GenesisTODO` until `/domain-fill` fills the domain. *R-ARRANGE red*: a `/test-gen` JUDGMENT-lane test still has a `genesisTODO("GENESIS-ARRANGE: …")` thunk standing in for its Given — author the Given (fixture call + input value + a positive-arrange `_ = try #require(try await repository.find(byId:))`) in `<UC>Tests.authored.swift`. Needs **localhost KurrentDB** up, or the whole suite is red (DB-down is indistinguishable from unfilled).
+- **`genesis verify`** — the honesty gate; **wire it into CI** (fail on exit 2) so unfilled logic cannot ship. It is RED throughout development and goes green only when ALL of: no `GenesisTODO` markers in `Sources/`, every declared invariant has an **enabled live-assertion** test (a `.<code>` token inside a thunk message or comment does NOT count), and no `genesisTODO(` arrange-thunk remains in any enabled `@Test`. If `genesis verify` is green but a `swift test` is still red → the Given is semantically wrong (review it) or localhost KDB is down — not an unfilled hole.
 
 ## How to fill in business logic
 
 Use Claude Code skills to materialise stubs:
 
+- `/test-gen <task-spec.md>` — emit REAL (enabled-red) Swift Testing tests for a use case (write the test first, watch it go red→green as you fill). Two-file split: `<UC>Tests.generated.swift` (machine-owned) + `<UC>Tests.authored.swift` (you author JUDGMENT-lane Givens here).
+- `/domain-fill [<Aggregate>]` — fill the entity-layer `GenesisTODO.notImplemented` domain holes (command precondition + build-event / non-type-closure `when` reducer / create-init derived fields) by dictating the domain logic; turns R-SUT-red tests green.
 - `/usecase <UseCase>` — fill the body of `{UC}Service.execute(input:)` and the matching `{Aggregate}+{UC}.swift` command + `when(event:)` overloads.
 - `/readmodel <ReadModel>` — generate read-model projector files (not yet supported by this scaffold; Phase 1.c does not write `projection-model.yaml`).
 - `/api` — emit transport adapter from `.ai/contexts/{ContextName}/<Aggregate>/api.md`.

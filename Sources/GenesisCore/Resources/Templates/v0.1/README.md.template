@@ -9,7 +9,7 @@ Bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`.
 | `Package.swift` | SwiftPM manifest |
 | `Sources/{Aggregate}Aggregate/` | One library target per aggregate (`{AggregateCount}` total) |
 | `Sources/{ContextName}Shared/` | Cross-aggregate value types (DTOs / enums / typed IDs) |
-| `Tests/{ContextName}Tests/` | Test target (placeholder until business logic lands) |
+| `Tests/{ContextName}Tests/` | Test target (`/test-gen` emits enabled-red Swift Testing tests here; needs localhost KurrentDB) |
 | `.ai/contexts/{ContextName}/` | Adapter + manifest |
 | `.ai/contexts/{ContextName}/<Aggregate>/` | Per-aggregate business docs (SSOT) |
 | `.ai/conventions/api.md` | Cross-aggregate API conventions |
@@ -24,9 +24,23 @@ Bootstrapped by **Genesis v{GenesisVersion}** from bundle `{BundleId}`.
 
 ```bash
 swift build
-swift test
+swift test   # needs localhost KurrentDB; generated tests start RED (fill domain + Givens to go green)
 ```
+
+## Verify (CI gate)
+
+```bash
+genesis verify   # exit 2 while any hole remains
+```
+
+Wire `genesis verify` into CI so unfilled logic cannot ship. It fails while ANY of these hold:
+
+- a `GenesisTODO.notImplemented` marker remains in `Sources/` (unfilled domain hole),
+- a declared aggregate invariant has no **enabled live-assertion** test (a `.<code>` token inside a thunk message or comment does NOT count as coverage),
+- a `genesisTODO(...)` arrange-thunk remains in an enabled `@Test` (unfilled test-side Given).
+
+`genesis verify` is RED throughout development and green only when all three are clear. A green `verify` with a still-red `swift test` means the Given is semantically wrong or localhost KurrentDB is down — not an unfilled hole.
 
 ## Next steps
 
-Business logic lives in `.ai/contexts/{ContextName}/<Aggregate>/`. See `CLAUDE.md` for how to use Claude Code skills (`/usecase`, `/readmodel`, `/api`) to fill in the stubs.
+Business logic lives in `.ai/contexts/{ContextName}/<Aggregate>/`. See `CLAUDE.md` for how to use Claude Code skills (`/test-gen`, `/domain-fill`, `/usecase`, `/readmodel`, `/api`) to write tests and fill in the stubs (TDD-first: `/test-gen` → see red → `/domain-fill` → green).
