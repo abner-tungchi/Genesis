@@ -90,4 +90,84 @@ final class SkillInstallerTests: XCTestCase {
         let content = try String(contentsOf: fileEntry, encoding: .utf8)
         XCTAssertEqual(content, "i am a file")
     }
+
+    // MARK: - uninstall
+
+    func testUninstallRemovesUnmodified() throws {
+        let target = tmpDir.appendingPathComponent("skills", isDirectory: true)
+        let installed = try SkillInstaller.install(into: target, force: false)
+        XCTAssertEqual(installed.installed.count, 12)
+
+        let summary = try SkillInstaller.uninstall(from: target, force: false)
+        XCTAssertEqual(summary.removed.count, 12, "freshly-installed (unmodified) skills must all be removed")
+        XCTAssertTrue(summary.skippedModified.isEmpty)
+        XCTAssertTrue(summary.notPresent.isEmpty)
+        XCTAssertTrue(summary.failed.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.appendingPathComponent("usecase").path))
+    }
+
+    func testUninstallKeepsHumanEditedSkill() throws {
+        let target = tmpDir.appendingPathComponent("skills", isDirectory: true)
+        _ = try SkillInstaller.install(into: target, force: false)
+        // Human-edit one installed skill's SKILL.md.
+        let edited = target.appendingPathComponent("usecase/SKILL.md")
+        let original = try String(contentsOf: edited, encoding: .utf8)
+        try (original + "\n<!-- human edit -->\n").write(to: edited, atomically: true, encoding: .utf8)
+
+        let summary = try SkillInstaller.uninstall(from: target, force: false)
+        XCTAssertTrue(summary.skippedModified.contains("usecase"), "human-edited skill must be kept (not silently deleted)")
+        XCTAssertFalse(summary.removed.contains("usecase"))
+        XCTAssertEqual(summary.removed.count, 11, "the other 11 unmodified skills are removed")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: edited.path), "kept skill's file must still exist")
+    }
+
+    func testUninstallForceRemovesHumanEditedSkill() throws {
+        let target = tmpDir.appendingPathComponent("skills", isDirectory: true)
+        _ = try SkillInstaller.install(into: target, force: false)
+        let edited = target.appendingPathComponent("usecase/SKILL.md")
+        try "totally different".write(to: edited, atomically: true, encoding: .utf8)
+
+        let summary = try SkillInstaller.uninstall(from: target, force: true)
+        XCTAssertTrue(summary.removed.contains("usecase"), "--force removes even human-edited skills")
+        XCTAssertTrue(summary.skippedModified.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.appendingPathComponent("usecase").path))
+    }
+
+    func testUninstallNothingInstalled() throws {
+        let target = tmpDir.appendingPathComponent("never-created-skills", isDirectory: true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+        let summary = try SkillInstaller.uninstall(from: target, force: false)
+        XCTAssertEqual(summary.notPresent.count, 12, "no install → every bundled skill is not-present")
+        XCTAssertTrue(summary.removed.isEmpty)
+        XCTAssertTrue(summary.skippedModified.isEmpty)
+        XCTAssertTrue(summary.failed.isEmpty)
+    }
+
+    func testUninstallRefusesSymlinkEntry() throws {
+        let target = tmpDir.appendingPathComponent("skills", isDirectory: true)
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        // Put a symlink named after a bundled skill where its dir would be.
+        let realDir = tmpDir.appendingPathComponent("real", isDirectory: true)
+        try FileManager.default.createDirectory(at: realDir, withIntermediateDirectories: true)
+        let symlink = target.appendingPathComponent("usecase")
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: realDir)
+
+        let summary = try SkillInstaller.uninstall(from: target, force: true)
+        XCTAssertTrue(summary.failed.contains { $0.skill == "usecase" }, "symlink entry must be refused, not followed/deleted")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: symlink.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: realDir.path), "the symlink target must NOT be deleted")
+    }
+
+    func testUninstallRejectsSymlinkRoot() throws {
+        let realDir = tmpDir.appendingPathComponent("real", isDirectory: true)
+        try FileManager.default.createDirectory(at: realDir, withIntermediateDirectories: true)
+        let symlink = tmpDir.appendingPathComponent("skills-link")
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: realDir)
+
+        XCTAssertThrowsError(try SkillInstaller.uninstall(from: symlink, force: false)) { error in
+            guard case .fileSystemFailed = error as? GenesisError else {
+                return XCTFail("expected fileSystemFailed, got \(error)")
+            }
+        }
+    }
 }

@@ -11,6 +11,7 @@ struct Genesis: AsyncParsableCommand {
         subcommands: [
             NewCommand.self,
             InstallSkillsCommand.self,
+            UninstallSkillsCommand.self,
             CheckSkillsCommand.self,
             BundleParseCommand.self,
             VerifyCommand.self,
