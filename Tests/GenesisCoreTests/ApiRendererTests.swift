@@ -57,7 +57,10 @@ final class ApiRendererTests: XCTestCase {
         XCTAssertTrue(c.contains("package let operatorId: String"))
         XCTAssertTrue(c.contains(": ApplicationService"))
         XCTAssertTrue(c.contains("TODO(/api skill)"))
-        XCTAssertTrue(c.contains("fatalError"))
+        // Phase: /api fatalError→GenesisTODO migration — the execute stub now THROWS the marker (enabled-red,
+        // no SIGABRT, caught by genesis verify) instead of fatalError.
+        XCTAssertTrue(c.contains("throw GenesisTODO.notImplemented("))
+        XCTAssertFalse(c.contains("fatalError"))
         // operatorId must come LAST per OC (audit M1)
         if let opRange = c.range(of: "        self.operatorId = operatorId"),
            let userRange = c.range(of: "        self.userId = userId") {
@@ -168,7 +171,10 @@ final class ApiRendererTests: XCTestCase {
         XCTAssertTrue(c.contains("self.userId = domain.userId"))
         XCTAssertTrue(c.contains("self.department = domain.department"))
         XCTAssertTrue(c.contains("TODO(/api skill)"))
-        XCTAssertTrue(c.contains("fatalError"))
+        // Phase: /api fatalError→GenesisTODO migration — the DTO toDomain stub THROWS the marker
+        // (init(from:) is throws), enabled-red + verify-caught, instead of fatalError.
+        XCTAssertTrue(c.contains("throw GenesisTODO.notImplemented("))
+        XCTAssertFalse(c.contains("fatalError"))
     }
 
     // MARK: - Union DTO defer

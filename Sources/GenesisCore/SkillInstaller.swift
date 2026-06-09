@@ -72,6 +72,21 @@ public enum SkillInstaller {
         return validSkills.map { $0.lastPathComponent }.sorted()
     }
 
+    /// Raw content of a bundled skill file (pre-install, pre-`{GenesisVersion}` substitution).
+    /// Used by `TestLayoutTests` to drift-guard the test-gen SKILL.md path prose against `TestLayout`'s
+    /// templates — i.e. to assert the LLM-skill prose still mirrors the Swift single source.
+    public static func bundledSkillFileContents(skill: String, file: String) throws -> String {
+        let skillsDir = try bundledSkillsDir()
+        let url = skillsDir.appendingPathComponent(skill, isDirectory: true).appendingPathComponent(file)
+        do {
+            return try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            throw GenesisError.skillBundleNotFound(
+                reason: "cannot read bundled Templates/skills/\(skill)/\(file): \(error.localizedDescription)"
+            )
+        }
+    }
+
     /// Installs each bundled skill into `targetSkillsDir`. Best-effort: a failed skill
     /// is recorded in `summary.failed` and does not abort the remaining skills.
     public static func install(into targetSkillsDir: URL, force: Bool) throws -> SkillInstallSummary {

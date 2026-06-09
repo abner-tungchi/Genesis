@@ -1,6 +1,6 @@
 ---
 name: test-gen
-description: Genesis test-generation skill (enabled-red 2-lane emitter). Inside a Genesis-bootstrapped project, /test-gen <task-spec.md> turns a bundle-plan per-UC task spec (§6 Gherkin / §5 error cases) into REAL Swift Testing tests that COMPILE and run RED until you fill them (incremental TDD). Two lanes — MECHANICAL (create-happy incl derived-payload + aggregate-not-found = full enabled body, red because the SUT throws GenesisTODO until /domain-fill) and JUDGMENT (input-value / act-sequence / prior-state error = live assertion envelope + a typed throwing genesisTODO(...) arrange-thunk standing in for the whole Given, red until you author it). Two-file split (<UC>Tests.generated.swift machine-owned, regenerated wholesale + <UC>Tests.authored.swift human-owned, never overwritten). Scaffold emitter — does NOT fill execute bodies, does NOT run tests, does NOT read the execute body as a semantic source. genesis verify gates remaining holes (Sources markers + uncovered invariants + test-side Given holes).
+description: Genesis test-generation skill (enabled-red 2-lane emitter). Inside a Genesis-bootstrapped project, /test-gen <task-spec.md> turns a bundle-plan per-UC task spec (§6 Gherkin / §5 error cases) into REAL Swift Testing tests that COMPILE and run RED until you fill them (incremental TDD). Two lanes — MECHANICAL (create-happy incl derived-payload + aggregate-not-found = full enabled body, red because the SUT throws GenesisTODO until /domain-fill) and JUDGMENT (input-value / act-sequence / prior-state error = live assertion envelope + a typed throwing genesisTODO(...) arrange-thunk standing in for the whole Given, red until you author it). Two-file split (<UC>UsecaseTests.generated.swift machine-owned, regenerated wholesale + <UC>UsecaseTests.authored.swift human-owned, never overwritten), DEEP aggregate-scoped layout via the TestLayout deriver. Scaffold emitter — does NOT fill execute bodies, does NOT run tests, does NOT read the execute body as a semantic source. genesis verify gates remaining holes (Sources markers + uncovered invariants + test-side Given holes).
 argument-hint: <task-spec.md> [--regen]
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
@@ -14,8 +14,8 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 把一份 `/bundle-plan` 產的 per-UC task spec（`docs/tasks/<UC>.md`）轉成 **enabled-red 的 Swift Testing 測試**：每個 §6 scenario 產一個 **enabled、編得過、跑起來紅**的 test，紅在對的地方，讓人逐 usecase 做增量 TDD（紅 → 填 → 綠）。輸出 two-file split：
 
-- `Tests/<contextName>Tests/<ucPascal>Tests.generated.swift` — **機器擁有，每次整檔重生**。含 `@Suite` 骨架 + 每個 scenario 的 enabled test（MECHANICAL lane = 完整 body / JUDGMENT lane = live assertion envelope + arrange-thunk 洞）。
-- `Tests/<contextName>Tests/<ucPascal>Tests.authored.swift` — **人類擁有，機器永不覆寫**。人把 JUDGMENT lane 的 Given（fixture call + 觸發值 + positive-arrange）填在這裡。
+- `Tests/<contextName>Tests/<A>Aggregate/Usecases/<ucPascal>/<ucPascal>UsecaseTests.generated.swift` — **機器擁有，每次整檔重生**。含 `@Suite struct <ucPascal>UsecaseTests` 骨架 + 每個 scenario 的 enabled test（MECHANICAL lane = 完整 body / JUDGMENT lane = live assertion envelope + arrange-thunk 洞）。
+- `Tests/<contextName>Tests/<A>Aggregate/Usecases/<ucPascal>/<ucPascal>UsecaseTests.authored.swift` — **人類擁有，機器永不覆寫**（`@Suite struct <ucPascal>UsecaseAuthoredTests`）。人把 JUDGMENT lane 的 Given（fixture call + 觸發值 + positive-arrange）填在這裡。
 
 ### 兩個正交 gate（先建立心智模型）
 
@@ -56,10 +56,17 @@ test-gen 是 **scaffold emitter，不是 full codegen**，也**不**跑 test、*
 - `<A>` = frontmatter `aggregate`。
 - `contextName` = generated project 的 context 名（從 `.ai/contexts/` 目錄名或 `Package.swift` 的 product 名取）。
 - `operatorIdField` / `aggIdField` = **讀 `<ucPascal>Input.swift` 的 stored property 取得**（不重推 codegen 注入規則）：`operatorId` 為名為 `operatorId` 的 field（恆存在）；`aggIdField` 為 aggregate identity field（非 create UC 的 Input 才有，名稱依 aggregate `identityName`，如 `userAccessProfileId`）。
-- **輸出路徑固定**：
-  - `Tests/<contextName>Tests/<ucPascal>Tests.generated.swift`
-  - `Tests/<contextName>Tests/<ucPascal>Tests.authored.swift`
-  - `Tests/<contextName>Tests/GenesisTestSupport.swift`（共用支援檔，首跑建、之後 idempotent 補）
+- **輸出路徑固定（DEEP，aggregate-scoped per-UC nesting；OC AuditQuotingAggregate parity）**：以下是 `TestLayout` deriver（GenesisCore 單一真相）的逐字 path template，**禁改字元**（`TestLayoutTests` drift-guard 逐字比對；改一字 → Genesis CI 紅）。每條獨佔一行：
+  ```
+  Tests/<contextName>Tests/<A>Aggregate/Usecases/<ucPascal>/<ucPascal>UsecaseTests.generated.swift
+  Tests/<contextName>Tests/<A>Aggregate/Usecases/<ucPascal>/<ucPascal>UsecaseTests.authored.swift
+  Tests/<contextName>Tests/<A>Aggregate/Api/<ucPascal>/<ucPascal>ApiTests.generated.swift
+  Tests/<contextName>Tests/<A>Aggregate/Api/<ucPascal>/<ucPascal>ApiTests.authored.swift
+  Tests/<contextName>Tests/GenesisTestSupport.swift
+  ```
+  - **每個 write UC always emit 兩條 lane**：usecase（domain seam，`Usecases/.../<ucPascal>UsecaseTests`）+ api（transport seam，`Api/.../<ucPascal>ApiTests`）。兩 lane 各自 two-file（`.generated`/`.authored`）。@Suite struct 名帶 layer 後綴：usecase = `<ucPascal>UsecaseTests`/`<ucPascal>UsecaseAuthoredTests`、api = `<ucPascal>ApiTests`/`<ucPascal>ApiAuthoredTests`（**禁去後綴** —— 兩 lane 同 test target，無後綴會 `invalid redeclaration`）。
+  - `<A>` = aggregate（PascalCase，如 `UserAccessProfile`），`<ucPascal>` = UpperCamel(useCase)。GenesisTestSupport 共用支援檔在 test-target 根（非 per-UC、非 deep），首跑建、之後 idempotent 補。
+  - **regen 改名守則（orphan dir）**：若 UC 改名，舊 `Tests/<contextName>Tests/<A>Aggregate/Usecases/<oldUcPascal>/` 會變孤兒目錄。test-gen **不自動刪**（保守，避免誤刪人手 `.authored`）；於 reconcile 報告印「偵測到疑似孤兒 UC 目錄 `<old>`，請人工確認後手動移除」。
 
 ## Phase 0 — 讀 task spec（不讀 bundle、不讀 impl 邏輯）
 
@@ -83,7 +90,7 @@ test gen aborted: task spec §6 has no scenarios. Run /bundle-plan §6 confirmat
   - `<ucPascal>Service`（usecase 的 concrete service type）— 怎麼 init、`execute(input:)` 簽名。
   - `<ucPascal>Output.swift` — assert 拿哪些欄位。
   - `<A>Repository` 的 init 形狀 — 照下方 @Suite 骨架 recipe。
-- Glob 既有 `Tests/<contextName>Tests/<ucPascal>Tests.generated.swift` / `.authored.swift` 判斷是新建還是 regen。
+- Glob 既有 `Tests/<contextName>Tests/<A>Aggregate/Usecases/<ucPascal>/<ucPascal>UsecaseTests.generated.swift` / `.authored.swift` 判斷是新建還是 regen。
 
 ## reconcile key（先 title-based，stable-id 待上游）
 
@@ -93,7 +100,7 @@ reconcile 的 key = **scenario 名**：把 §6 每個 `Scenario` / `@error Scena
 
 ```swift
 // GENESIS-GENERATED — do not edit. Regenerated by /test-gen.
-// Author real Given/tests in <ucPascal>Tests.authored.swift (this file is overwritten on --regen).
+// Author real Given/tests in <ucPascal>UsecaseTests.authored.swift (this file is overwritten on --regen).
 import Testing
 import DDDKit
 import KurrentDB
@@ -101,7 +108,7 @@ import TestUtility
 import <contextName>          // 或 import <A>Aggregate（依 generated 模組劃分）
 
 @Suite(.serialized, .tags(.<agg>))
-struct <ucPascal>Tests {
+struct <ucPascal>UsecaseTests {
     let kdbClient: KurrentDBClient = .init(settings: .localhost())
     let repository: <A>Repository
 
@@ -192,6 +199,57 @@ emit 決策是 **2-way**（不是挑 3 個 body-template）：MECHANICAL 全 bod
 ```
 prior-state 同理：emit「前置 fixture call(s) 留 thunk + 目標 execute + envelope」的 ordered 骨架。**絕不**對 act-sequence/prior-state emit single-execute body（那是更逼真的謊：編得過、跑得動、甚至會紅）。
 
+## Api lane（layer=api，always emit）— transport seam
+
+對**每個 write UC**，除上面的 usecase lane 外，**一律**再產一條 api lane 兩檔（`<ucPascal>ApiTests.generated.swift` / `.authored.swift`，路徑見「輸出路徑固定」的 api template；@Suite struct = `<ucPascal>ApiTests`，authored 殼 = `<ucPascal>ApiAuthoredTests`）。api lane 測 HTTP/transport seam（OC 的 `<UC>ApiTests` parity），重用 usecase lane 的 harness：`@Suite(.serialized, .tags(.<agg>))`、real localhost KDB、`withTestBundle`、two-file ownership、reconcile、enabled-red ladder、洞表示、錯誤模板。
+
+**SUT = Genesis-form `ApiHandler(kdbClient:)`**（**非** OC 的 `ApiHandler<MockStorage>` —— Genesis 不生 MockStorage）。**imports：只 `import <A>Aggregate`**（`Operations` / `Components` / `APIProtocol` 由 OpenAPIGenerator build plugin emit `package` 進 aggregate module，`swift build` 後可見；test-gen 不 build，predicted envelope 在 build 後才編）。
+
+**request envelope 由 bundle 確定性預測**（讀「怎麼 call」非讀 impl）：operationId = `useCase` 逐字 → `Operations.<ucCamel>`；path param = `aggregate.identityName`；header = 字面 `operatorId`；body = `uc.input` 去掉 `operatorId`/aggId。
+
+**envelope 欄位三類映射（載重點，漏掉會編不過）**：
+1. **scalar wire-primitive**（`String`/`Int`/`Bool`，含 Genesis 把 `Decimal`/`Date` 都降成 wire `String`）→ typed literal，如 `totalAssets: "100.5"`、`count: 3`、`enabled: true`。
+2. **collection 欄位**（`Array[X]`/`Set[X]`/`[X]`，element 為 scalar）→ **Swift 陣列字面**，如 `permissions: ["perm-a", "perm-b"]` for `[String]`。**不是 String、不是 thunk**（Genesis 對 array 欄位 emit `type: array`+`items:` → 產 Swift `[String]`；當成 String 會撞型別）。
+3. **genuinely non-primitive element type**（`$ref` / nested object / 非 scalar element）→ typed compiling **thunk**（見「洞表示」；misprediction 不弄壞整 Api target，因 test-gen 不 build）。
+
+### Api Lane A — MECHANICAL（codegen 完整 body）
+
+**happy-200**（用前置 create UC 的 codegen'd fixture 鋪 aggregate-已存在，再打 endpoint）：
+```swift
+@Test func `<happy api scenario>`() async throws {
+    try await withTestBundle(client: kdbClient) { bundle in
+        let <aggId> = await bundle.generateAggregateRootId(for: <A>.self)
+        let operatorId = await bundle.generateId(for: "operatorId")
+        // 非-create UC 才需前置（create UC 自身不需）：fixture create **必須收同一個 <aggId>**（OC parity），
+        // 否則 aggregate 建在別的 id 上 → happy-200 打到 not-found、`try response.ok` runtime 丟（紅在錯地方）。
+        _ = try await <fixtureCreateUC>(<aggId>: <aggId>, /* 其餘前置欄位 */, repository: repository)
+        let handler = ApiHandler(kdbClient: kdbClient)
+        let response = try await handler.<ucCamel>(.init(
+            path: .init(<aggId>: <aggId>),
+            headers: .init(operatorId: operatorId),
+            body: .json(.init(/* envelope 欄位三類映射：scalar literal / collection 陣列字面 */))
+        ))
+        let payload = try response.ok.body.json
+        #expect(payload.<aggId> == <aggId>)
+    }
+}
+```
+**aggregate-not-found-404**（全機械、無 Given）：用不存在的 `<aggId>` 打 endpoint → `#expect` 拿 `response.notFound.body.json.error == .aggregateNotFound`。
+
+### Api Lane B — JUDGMENT（live envelope + thunk 洞）
+
+- **bad-input-value 422**：envelope 大多 codegen，**觸發值** + 必要前置 = judgment → 用 typed thunk 包該欄位 / envelope；live `#expect`：`response.unprocessableContent.body.json.error == .<§5 422 errorCode 或 .invalidPayload>`。
+- **parse-boundary 422**（wire 是 String、domain 要 Decimal/Date 等）：parse 失敗的 **CODE 路徑是 /api-author 的 branch 選擇**（firewall-opaque、不在 bundle §5）→ envelope/觸發值留 thunk、CODE 留人；live `#expect` 在 `response.unprocessableContent.body.json.error`。
+- **non-primitive element 欄位**（上面第 3 類）→ typed thunk 該欄位。
+
+### Api lane 不產（D-C4）
+
+**不**產 `<UC>ApplicationServiceTests`：usecase lane（domain seam）嚴格更強，AS delegation 由 api lane 傳遞性覆蓋；生它 = per-UC 測數膨脹、~零邊際覆蓋。
+
+### Api lane 的紅比 usecase lane 久（文件化）
+
+api lane 是 **enabled-red 但只在 `swift build` 後編得過**（envelope 型別由 build plugin 產）。轉**綠**需 **`/api`（填 handler AS Input 構造 + ApplicationService execute）+ `/domain-fill`（填 domain）都跑完** → 比 usecase lane（只需 `/domain-fill`）紅更久。未填時 handler 的 `GenesisTODO.notImplemented` 丟出 → api happy-test R-SUT 紅（乾淨、非 SIGABRT）；`genesis verify` 抓 Sources/ 的 `GenesisTODO.notImplemented` → Api lane 不 false-green。
+
 **positive-arrange 守則（非-create Lane-B）**：人**填 Given 時**（在 `.authored.swift`），須在 fixture arrange 後、triggering execute 前加：
 ```swift
 _ = try #require(try await repository.find(byId: <aggId>))
@@ -262,7 +320,7 @@ catch let error as GenesisTODO
   import <contextName>
 
   @Suite(.serialized, .tags(.<agg>))
-  struct <ucPascal>AuthoredTests {
+  struct <ucPascal>UsecaseAuthoredTests {
       let kdbClient: KurrentDBClient = .init(settings: .localhost())
       let repository: <A>Repository
       init() {

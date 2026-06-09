@@ -10,8 +10,8 @@
 
         // TODO(/api skill): construct AS Input from `payload`, `{aggIdName}`, `operatorId`.
         // Required init args are at Sources/{A}Aggregate/Adapter/{UC}/{UC}ApplicationService.swift.
-        let asInput: {UC}ApplicationServiceInput = { () -> {UC}ApplicationServiceInput in
-            fatalError("TODO(/api skill): construct {UC}ApplicationServiceInput from payload")
+        let asInput: {UC}ApplicationServiceInput = try { () throws -> {UC}ApplicationServiceInput in
+            throw GenesisTODO.notImplemented("TODO(/api skill): construct {UC}ApplicationServiceInput from payload")
         }()
 
         let service = {UC}ApplicationService(repository: repository)

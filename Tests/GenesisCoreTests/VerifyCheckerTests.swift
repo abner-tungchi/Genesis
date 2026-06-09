@@ -278,4 +278,41 @@ final class VerifyCheckerTests: XCTestCase {
             "a genesisTODO hole after a //-containing string on the same line must NOT be truncated away (dangerous false-green)")
         XCTAssertFalse(r.passed)
     }
+
+    // MARK: - M2: /api fatalError→GenesisTODO migration is caught by the existing Sources/ marker scan
+
+    func testMigratedApiHandlerThrowStubIsDetectedAsMarker() throws {
+        // The migrated ApiHandlerMethod stub uses the throwing-IIFE form (T4). It puts
+        // `throw GenesisTODO.notImplemented(...)` on ONE physical line, so the existing Sources/ marker scan
+        // must catch it — i.e. an unfilled /api write-side stub does NOT false-green genesis verify.
+        try write("Sources/AAggregate/Adapter/ApiHandler.swift", """
+        package struct ApiHandler {
+            package func grantPrivilege(_ input: Int) async throws -> Int {
+                let asInput: Int = try { () throws -> Int in
+                    throw GenesisTODO.notImplemented("TODO(/api skill): construct GrantPrivilegeApplicationServiceInput from payload")
+                }()
+                return asInput
+            }
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingMarkers.count, 1,
+            "an unfilled /api throwing-IIFE GenesisTODO stub must be caught by the Sources/ marker scan (no false-green)")
+        XCTAssertFalse(r.passed)
+    }
+
+    func testFilledApiHandlerHasNoMarker() throws {
+        // Once /api fills the body (no GenesisTODO.notImplemented), the stub no longer contributes a marker.
+        try write("Sources/AAggregate/Adapter/ApiHandler.swift", """
+        package struct ApiHandler {
+            package func grantPrivilege(_ input: Int) async throws -> Int {
+                let asInput = GrantPrivilegeApplicationServiceInput(value: input)
+                return asInput.value
+            }
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingMarkers.count, 0,
+            "a filled /api handler (no GenesisTODO.notImplemented) must not be flagged as an unfilled marker")
+    }
 }

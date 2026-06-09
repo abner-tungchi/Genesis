@@ -33,6 +33,6 @@ package struct {UC}ApplicationService: ApplicationService {
     package func execute(input: Input) async throws -> Output {
         // TODO(/api skill): construct {UC}Service Input from `input` and call service.execute
         // Service Input fields are at Sources/{A}Aggregate/Usecase/Service/{UC}Service.swift
-{INIT_FROM_INPUT_TODOS}        fatalError("TODO(/api skill): execute body for {UC}ApplicationService")
+{INIT_FROM_INPUT_TODOS}        throw GenesisTODO.notImplemented("TODO(/api skill): execute body for {UC}ApplicationService")
     }
 }

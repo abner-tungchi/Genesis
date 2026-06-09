@@ -1,6 +1,6 @@
 ---
 name: api
-description: Genesis fill-in skill for the write-side API. Inside a Genesis-bootstrapped project, /api <useCaseName> fills the fatalError TODO bodies left by Phase 1.h+1.i scaffolds — ApplicationService execute(), ApiHandler AS Input construction, and DTO struct toDomain mapper. It only fills bodies; it never generates files, never touches type signatures / imports / framework shape, and leaves ApiComponents untouched.
+description: Genesis fill-in skill for the write-side API. Inside a Genesis-bootstrapped project, /api <useCaseName> fills the GenesisTODO.notImplemented TODO bodies left by Phase 1.h+1.i scaffolds — ApplicationService execute(), ApiHandler AS Input construction, and DTO struct toDomain mapper. It only fills bodies; it never generates files, never touches type signatures / imports / framework shape, and leaves ApiComponents untouched.
 argument-hint: [useCaseName]
 disable-model-invocation: true
 allowed-tools: Read, Edit, Glob, Grep, Bash
@@ -13,7 +13,7 @@ allowed-tools: Read, Edit, Glob, Grep, Bash
 ## 你的任務
 
 在 Genesis-bootstrapped project 內，對一個 write use case **只填** Phase 1.h+1.i scaffold 留下的
-`fatalError("TODO(/api skill): ...")` body。**3 個 fill categories + 1 個 NO-OP**：
+`throw GenesisTODO.notImplemented("TODO(/api skill): ...")` body（locator 以 `TODO(/api skill):` 訊息錨；scaffold 已從 `fatalError` 遷成 `GenesisTODO.notImplemented`，使 enabled-red test 跑到時乾淨 throw 而非 SIGABRT、且 `genesis verify` 抓得到）。**3 個 fill categories + 1 個 NO-OP**：
 
 1. **category 1** — `Adapter/<UC>/<UC>ApplicationService.swift` 的 `execute(input:)` body
 2. **category 2** — `Adapter/ApiHandler.swift` 內 `{ucCamel}(_:)` method 的 AS Input 構造
@@ -22,7 +22,7 @@ allowed-tools: Read, Edit, Glob, Grep, Bash
 
 ### 絕對約束（D18，不可違反）
 
-- **只動 Adapter/ 子樹**，且只替換 fatalError body，不動 type signature / imports / catch ladder / struct 殼
+- **只動 Adapter/ 子樹**，且只替換 `GenesisTODO.notImplemented` body，不動 type signature / imports / catch ladder / struct 殼
 - **不寫 openapi.yaml** / event.yaml / Service.swift / Package.swift / 任何 *.yaml
 - **不讀 invariants.md**（reachability 判定不靠它）
 - **一次一 UC** per invocation
@@ -59,7 +59,7 @@ allowed-tools: Read, Edit, Glob, Grep, Bash
 - `Sources/<A>Aggregate/<A>Error.swift`
 - `Sources/<A>Aggregate/Usecase/Service/{ucPascal}Service.swift`
 
-檔案存在但 marker / block shape 不符（找不到預期的 fatalError 或 method block）→ **exit 4**：
+檔案存在但 marker / block shape 不符（找不到預期的 `GenesisTODO.notImplemented` marker 或 method block）→ **exit 4**：
 `scaffold integrity check failed; manual repair needed`。
 
 ## Phase 3 — Parse inputs
@@ -98,9 +98,9 @@ Read 並解析（用語意錨點，勿用行號）：
 
 | category | 已完整填（→ skip） | 半填（→ exit 4） |
 |---|---|---|
-| 1 | 含 `service.execute(` + 合法 `return .init(` 且無 fatalError | fatalError 消失但缺 `service.execute` 或 `return` |
-| 2 | 無 `_ = payload` 殘留 + `let asInput = <UC>ApplicationServiceInput(` 直接構造 | fatalError 消失但 `_ = payload` 仍在或 asInput 仍 closure |
-| 3 | 每 domain stored property 都有 `self.<f> =` 且無 fatalError | fatalError 消失但缺 assignment |
+| 1 | 含 `service.execute(` + 合法 `return .init(` 且無 `GenesisTODO.notImplemented` | `GenesisTODO.notImplemented` 消失但缺 `service.execute` 或 `return` |
+| 2 | 無 `_ = payload` 殘留 + `let asInput = <UC>ApplicationServiceInput(` 直接構造 | `GenesisTODO.notImplemented` 消失但 `_ = payload` 仍在或 asInput 仍 closure |
+| 3 | 每 domain stored property 都有 `self.<f> =` 且無 `GenesisTODO.notImplemented` | `GenesisTODO.notImplemented` 消失但缺 assignment |
 
 半填 → **exit 4**：`partial fill detected in <file>; manual repair needed before /api`。
 
@@ -108,7 +108,7 @@ Read 並解析（用語意錨點，勿用行號）：
 
 **Phase 1.l 後 `<UC>Input` ≡ AS Input**（含 aggId + 業務欄位 + operatorId）。**Phase 1.p D13 後**例外：當 AS Input field 型別為 wire DTO（如 `EmployeeStatusDto`）而 `<UC>Input` 同名 field 為 domain type（如 `EmployeeStatus`），call site 必須 wrap `init(from:)`。
 
-Edit 替換 `fatalError("TODO(/api skill): execute body ...")` 整段為（依各 struct 實際欄位）：
+Edit 替換 `throw GenesisTODO.notImplemented("TODO(/api skill): execute body ...")` 整段為（依各 struct 實際欄位）：
 
 ```swift
         let service = <UC>Service(repository: repository)
@@ -129,7 +129,7 @@ Skill 處理流程：
 1. Read execute body，grep `genesis-todo(phase=1.p.1, kind=dto-init-from-input,` 找所有 markers
 2. 解析每行的 `field=<name>` 與 `dto=<dtoName>` — `field` 用 `.init(from: input.<field>)` 而非 `input.<field>`
 3. 其餘 field 走 plain pass-through `input.<field>`
-4. Edit 把整段 markers + fatalError 替換為填好的 `service.execute(...)` + `return .init(...)`
+4. Edit 把整段 markers + `throw GenesisTODO.notImplemented(...)` 替換為填好的 `service.execute(...)` + `return .init(...)`
 
 > 實例（updateProfile, AS Input 有 `status: EmployeeStatusDto`，`<UC>Input` 有 `status: EmployeeStatus`）：
 > ```swift
@@ -150,8 +150,8 @@ Skill 處理流程：
 
 ### category 2 — ApiHandler AS Input 構造
 
-把 `_ = payload` / `_ = <aggIdName>` / `_ = operatorId` 與 closure-form
-`let asInput = { fatalError(...) }()` 整段替換為直接構造：
+把 `_ = payload` / `_ = <aggIdName>` / `_ = operatorId` 與 throwing-closure-form
+`let asInput = try { throw GenesisTODO.notImplemented(...) }()` 整段替換為直接構造：
 
 ```swift
         let asInput = <UC>ApplicationServiceInput(
@@ -180,7 +180,7 @@ Skill 處理流程：
 
 ### category 3 — DTO struct toDomain（僅 DTO 涉及時）
 
-替換 `fatalError("TODO(/api skill): struct DTO toDomain ...")` 為 field-by-field（依 **domain type** 決定轉換）：
+替換 `throw GenesisTODO.notImplemented("TODO(/api skill): struct DTO toDomain ...")` 為 field-by-field（依 **domain type** 決定轉換）：
 
 - plain / Optional：`self.<f> = dto.<f>`
 - `Decimal`：`guard let v = Decimal(string: dto.<f>) else { throw InvalidDecimalStringError(field: "<f>") }` + `self.<f> = v`

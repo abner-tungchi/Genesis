@@ -68,7 +68,9 @@ public enum FixtureRenderer {
             lines.append(funcs.joined(separator: "\n\n"))
             lines.append("")
             let content = lines.joined(separator: "\n")
-            let path = "Tests/\(contextName)Tests/SharedUtility/UsecaseCall/\(aggregate.name).swift"
+            // Path via the single-source TestLayout deriver (was an inline literal that drifted from the
+            // test-gen SKILL prose; same string, now one owner).
+            let path = TestLayout.fixturePath(contextName: contextName, aggregateName: aggregate.name)
             outputs.append((path, content, "fixture"))
         }
 

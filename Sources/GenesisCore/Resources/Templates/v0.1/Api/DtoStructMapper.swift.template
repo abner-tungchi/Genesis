@@ -9,6 +9,6 @@ extension {DtoTypeName} {
 extension {DomainTypeName} {
     package init(from dto: {DtoTypeName}) throws {
         // TODO(/api skill): map fields with type conversion (Date/Decimal/nested DTO)
-        fatalError("TODO(/api skill): struct DTO toDomain for {DomainTypeName}")
+        throw GenesisTODO.notImplemented("TODO(/api skill): struct DTO toDomain for {DomainTypeName}")
     }
 }
