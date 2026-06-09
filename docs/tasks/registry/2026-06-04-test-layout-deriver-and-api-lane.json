@@ -1,0 +1,49 @@
+{
+  "id": "2026-06-04-test-layout-deriver-and-api-lane",
+  "file": "docs/tasks/2026-06-04-test-layout-deriver-and-api-lane.md",
+  "title": "TestLayout deriver（M1）+ test-gen api lane + /api fatalError→GenesisTODO（M2）",
+  "status": "done",
+  "created": "2026-06-04",
+  "completed": "2026-06-05",
+  "depends_on": ["2026-06-04-fixture-renderer", "2026-06-04-phase-1z-test-gen-enabled-red"],
+  "soft_depends_on": ["phase-1h-api-renderer", "phase-1i-api-handler", "2026-06-03-phase-1x-codegen-usecase-execute-body", "2026-06-03-phase-1y-tdd-honest-hole-migration"],
+  "discussion": "docs/discussions/2026-06-04-test-api-lane-and-layout.md",
+  "preconditions": [
+    "file:Sources/GenesisCore/FixtureRenderer.swift",
+    "file:Sources/GenesisCore/SourceWriter.swift",
+    "file:Sources/GenesisCore/VerifyChecker.swift",
+    "file:Sources/GenesisCore/ApiRenderer.swift",
+    "file:Sources/GenesisCore/ApiHandlerRenderer.swift",
+    "file:Sources/GenesisCore/OpenApiYamlRenderer.swift",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/ApiHandlerMethod.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/ApplicationService.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/v0.1/Api/DtoStructMapper.swift.template",
+    "file:Sources/GenesisCore/Resources/Templates/skills/test-gen/SKILL.md",
+    "file:Sources/GenesisCore/Resources/Templates/skills/api/SKILL.md"
+  ],
+  "verification": [
+    "M1: swift test --filter TestLayoutTests (golden deep-path + drift-guard: SKILL.md prose 逐字含 TestLayout templates) + FixtureRendererTests 仍綠 (路徑換來源無回歸)",
+    "M2: swift test --filter VerifyCheckerTests (regression: GenesisTODO-bearing api stub → remainingMarkers 非空; 填好後綠) + 全 suite 無回歸",
+    "regen IAM --skip-build: fixture 經 deriver 落 deep 路徑; /api 3 site 無 fatalError 殘留、改 GenesisTODO.notImplemented; clean-room swift build --build-tests 編得過 (未填 stub 形); genesis verify 抓未填 stub (非 false-green)",
+    "clean-room Api-test compile gate (#4, lock 前必過): fresh genesis new + /test-gen → api 檔 Genesis-form (ApiHandler(kdbClient:), import <A>Aggregate only) → swift build --build-tests 編得過"
+  ],
+  "tags": ["codegen", "test-gen", "test-layout", "deriver", "api-test", "verify", "genesis-todo", "fatalError-migration", "renderer"],
+  "status_history": [
+    {
+      "status": "draft",
+      "at": "2026-06-04T07:00:00Z",
+      "note": "write-spec from test-api-lane-and-layout consensus + user 拍板 5 開放問題 (layout=DEEP-NOW〔minority/高風險〕; verify-fix=(b) /api fatalError→GenesisTODO; api-lane=always-emit; clean-room-gate=require; Decimal/Date=String-literal-pin-to-config). 兩 milestone: M1 TestLayout deriver (純 refactor, 收斂 FixtureRenderer↔test-gen 的現存 split path bug); M2 test-gen api layer 維度 + 3 fatalError→GenesisTODO + /api SKILL marker 同步. Step-3b grounding done (read REAL code): SourceWriter.commit 已 createDirectory(withIntermediateDirectories:true)+rollback empty-dirs → DEEP 在 new-time mkdir 風險為零 (T2, orphan-on-rename 是 test-gen regen prose 守則); 3 fatalError site 全在 aggregate module (ApiHandlerRenderer:26 ApiHandler, ApiRenderer:39 AS, ApiRenderer:69 DtoMapper) → 各有唯一 package GenesisTODO 可見不歧義 (T3); context-handler/read-method fatalError count=0 → 不在範圍; VerifyChecker 既有 Sources/ scan 抓 GenesisTODO.notImplemented:59 → verify-gap fix 幾乎免費 (僅加 regression 測, T3); ApiHandlerMethod fatalError 在非-throwing IIFE → 改 throwing IIFE+try、保 .ok/.notFound ladder、保 TODO(/api skill) 訊息 (T4); /api SKILL.md 與 fatalError 深耦 (locator/exit-gate/replace) → M2 逐條改錨點、保訊息 (T5); 核心張力 T1: deriver 是 Swift 但 test-gen 是 LLM skill → Option A (path-template 常數為單一真相 + SKILL.md prose 逐字 mirror + TestLayoutTests drift-guard); Option B (.genesis/test-layout.json runtime 檔) 否決為 follow-up. DEEP 慣例釘 OC 金標 AuditQuotingAggregate. 改動面: NEW TestLayout.swift + TestLayoutTests; EDIT FixtureRenderer(路徑來源) + test-gen SKILL(deep 路徑+api recipe) + api SKILL(marker 錨) + 3 Api templates(fatalError→GenesisTODO) + VerifyCheckerTests(regression). NEXT: audit-spec (adversarial workflow)."
+    },
+    {
+      "status": "ready",
+      "at": "2026-06-04T08:00:00Z",
+      "note": "**audit-spec DONE** (adversarial workflow wf_278fd3b5-edc, 2 lens feasibility/compile + fidelity/scope + synthesis; 對照 REAL SourceWriter/ApiRenderer/ApiHandlerRenderer/VerifyChecker/OpenApiYamlRenderer/PackageRenderer/DtoRenderer/AggregateRenderer + OC 金標樹 + swiftc 6.2.3 scratch-compile + iam-cosmogony-bundle). Verdict NEEDS_FIX, ready_after_fixes=true (no fundamental flaw). CONFIRMED-SOUND: (a) IIFE-throw form (T4) `swiftc -typecheck` EXIT=0 且為必需形 — naive non-throwing IIFE+bare throw fails 'call can throw but not marked with try'; (b) 3 write-side fatalError site 全在 <A>Aggregate module、per-aggregate package GenesisTODO 可見不歧義 (ApiHandlerRenderer:26/ApiRenderer:39,69 vs AggregateRenderer:262-272); (c) context-shared/scope==nil DTO 不產 GenesisTODO-bearing mapper (ApiRenderer:58 guard + DtoRenderer:76 return nil) → 不洩進 Shared module; (d) VerifyChecker:59 自動 catch GenesisTODO.notImplemented 單行 token、verify 無需改邏輯; (e) SourceWriter:49 withIntermediateDirectories + rollback empty-dirs + PackageTestTarget 無 path:/sources:/exclude: → DEEP 無需改 SourceWriter/Package、SwiftPM 遞迴納入; (f) always-emit api lane: OpenApiYamlRenderer:18-19 與 ApiRenderer:33 同一 write filter (!isReadUseCase, get/list/find) → 每 write UC 都有 Operations.<ucCamel>; (g) AuditQuoting 確為正確 OC 金標、MockStorage 差異已處理. 6 findings ALL FIXED in spec: (S1 HIGH) collection body field emit Swift [String] 非 String — IAM 7 寫 UC 有 4 帶 Array[String](permissions/roles)、漏掉會 clean-room 多數 UC 編不過 → T6 重寫成三類映射(scalar literal / collection 陣列字面 / non-primitive-element thunk) + M2.b recipe 補 array 規則 + clean-room Human-gate 強制含 array UC; (S2 HIGH) M1 漏 @Suite struct 改名 — DEEP 併 Usecase+Api 同 target → struct <ucPascal>Tests 撞名 invalid-redeclaration、drift-guard(只比 path)抓不到 → M1 change-table 補 struct→<ucPascal>UsecaseTests/<ucPascal>UsecaseAuthoredTests、M2 api→<ucPascal>ApiTests/<ucPascal>ApiAuthoredTests; (S3 MED) drift-guard contains 可 green-by-vacuum → 要求 template 常數獨佔一行 byte-identical + 硬化測(非空 + 舊 flat token 不存在); (S4 MED) presenter fatalError CONFIRMED 讀側 SIGABRT + verify-false-green、且 context-level presenter(PresenterRenderer:38)無 GenesisTODO → goal 改 write-side 限定、Non-goals 升級為 confirmed follow-up 含 context-scoped GenesisTODO 警示; (S5 LOW) T6 config citation 拆引用(operationId verbatim=renderer:176, no-idiomatic=openapi-generator-config.yaml.template); (S6 LOW) OC normalized-subset 註記(QuotationAggregate 省 Usecases/、ServiceItem/ 中間層、檔名≠UC). residual (impl/clean-room 時驗): LLM 是否可靠 emit byte-identical path 常數 + 正確分辨 scalar/array/thunk → clean-room compile gate(#4)守. spec_ready. NEXT: impl (M1 先、M2 後)."
+    },
+    {
+      "status": "done",
+      "at": "2026-06-05T09:50:00Z",
+      "completed": "2026-06-05",
+      "note": "**impl DONE** (ultracode, Claude direct; M1→M2 一氣呵成 + adversarial review). M1: NEW Sources/GenesisCore/TestLayout.swift (path-template 常數 single source + testPath/fixturePath/supportPath; <contextName>/<A>/<ucPascal> 占位與 SKILL 同款); FixtureRenderer:71 改呼叫 TestLayout.fixturePath (single owner, golden 不變); NEW SkillInstaller.bundledSkillFileContents(skill:file:) public reader (讀 raw bundled SKILL.md 供 drift-guard); test-gen SKILL.md → DEEP 路徑 (Usecases/<ucPascal>/<ucPascal>UsecaseTests) + @Suite struct 改名 (<ucPascal>UsecaseTests/<ucPascal>UsecaseAuthoredTests) + 輸出路徑固定改 bare-fenced 5-template 區塊 + glob/recipe/frontmatter 同步 + regen orphan-dir prose; NEW TestLayoutTests (golden deep-path + drift-guard). M2: 3 寫側 fatalError→throw GenesisTODO.notImplemented (ApiHandlerMethod throwing-IIFE+try 保 .ok/.notFound ladder, ApplicationService:36, DtoStructMapper:12, 保 TODO(/api skill) 訊息); api/SKILL.md re-anchor (locator 保訊息、exit-gate 改 GenesisTODO、replace 範例改 throwing-IIFE、description 改); test-gen SKILL.md 加 'Api lane（layer=api，always emit）' recipe (Genesis-form ApiHandler(kdbClient:)、只 import <A>Aggregate、envelope 三類映射 scalar-literal/collection-陣列字面/non-primitive-thunk、happy-200+not-found-404 mechanical、bad-input/parse-boundary 422 thunk、skip ApplicationServiceTests、文件化紅更久); VerifyCheckerTests +2 regression; ApiRendererTests 2 golden 更新 (fatalError→GenesisTODO). **GATES**: swift build ok; TestLayoutTests 5/5; VerifyCheckerTests 18/18; ApiRendererTests 14/14; 全 suite 306 pass / 2 skip / 0 fail; clean-room `genesis new IAMContext` + `swift build --build-tests` EXIT=0 (T3/T4 證於真 tree: 3 GenesisTODO stub module-visible + 編得過); `genesis verify` 列出 /api ApiHandler+ApplicationService GenesisTODO markers (D-verify-gap 修了，非 false-green). **ADVERSARIAL REVIEW** (workflow wf_baa9a62f-c5d, 2 lens false-green + compile-semantic + synthesis, scratch-compiled 全部): verdict FIX_THEN_SHIP, 1 HIGH (MF1) — drift-guard 用 whole-file contains 是 green-by-vacuum (usecase/support template 在 SKILL 出現多次：prose bullet + fenced block + glob → 改壞 canonical fenced block 仍綠，lens 用 1-char mutation 證明)。**MF1 FIXED**: drift-guard 改為 split ``` fence、要求 EXACTLY ONE fenced segment 含全 5 template (canonical block)；mutation-proof 確認改壞 canonical 行現在會 FAIL (之前 pass)。順帶套 lens-2 F1 (LOW prose tighten: happy-200 fixture create 收同一 <aggId>，OC parity)。confirmed-sound: 3 stub 真 throw + module-visible (含 DtoStructMapper scratch-compile two-file module EXIT=0)、IIFE-throw 無 dead-code diagnostic、verify regression bite、S2 無撞名、S1 collection-literal first-class、api recipe shape 對齊 OC golden + Genesis 非泛型 ApiHandler. residual (Human clean-room #4 only): LLM emit byte-identical path 常數 / 三類 envelope 分類 / happy-200 aggId 串接 — 皆 prose 已盡量釘、靠 #4 gate. **NOT committed** (await user; M1+M2 全 working-tree, 無 git safety net). Follow-ups: presenter-fill fatalError→GenesisTODO (讀側 SIGABRT + verify-false-green, 需 context-scoped GenesisTODO); Option B runtime layout manifest; orphan-dir 自動清理; Human clean-room /test-gen round-trip."
+    }
+  ]
+}
