@@ -18,7 +18,7 @@ struct {ContextName}Server {
 
     static func main() async throws {
         let router = Router()
-        // TODO: add middleware (CORS / auth / logging) as needed for your project.
+        // TODO: add middleware (CORS / auth / logging) as needed for your project (project-specific; not codegen'd).
 
         let esdbSettings = ProcessInfo.processInfo.environment["ESDB_URL"]
             ?? "kurrent://admin:changeit@localhost:2113?tls=false"
@@ -29,17 +29,20 @@ struct {ContextName}Server {
 
 {HandlerRegistrations}
 
-        // TODO(Phase 1.m v2): projection subscription wiring
-        //   - Stream naming: Genesis projection JS uses `$ce-<SourceCategoryPrefix><Aggregate>`
-        //     (e.g. `$ce-IAMUserAccessProfile`，非 `$ce-UserAccessProfile`)，
-        //     prefix 由 ReadModelRenderer 從 contextName 衍生（IAMContext → "IAM"，OpportunityContext → "OC"）。
-        //     詳見 docs/decisions.md Phase 1.g ratification 的 SourceCategoryPrefix 規則。
-        //   - Create KurrentDB persistent subscription per stream
-        //   - Setup EventBus + EventMappers per source aggregate
-        //   - Dispatch RecordedEvent via mappers → eventBus → projectors
-        //   - Until subscription is wired, read endpoints return empty/notFound
-        //     (projection state stays empty without event ingestion).
-        //   See OC `OCServer.swift` for production-level pattern with retry/nack.
+        // READ endpoints need NO Swift subscription here. A GET materializes its read model on-demand: the
+        // codegen'd server-side JS projection (projections/*Projection.js, deployed via `bash scripts/projection.sh`)
+        // links `$ce-<prefix><Aggregate>` events into the read-model stream, and the Presenter's coordinator replays
+        // it at GET time. So reads work once (a) `bash scripts/start-kurrentdb.sh` + `bash scripts/projection.sh`
+        // have run and (b) the source aggregate stream has events. EVENTUALLY CONSISTENT: a GET immediately after a
+        // write may return nil/empty/404 until the async projection catches up (no synchronous read-your-write).
+        //
+        // The category prefix = the uppercase letters of the context name (StreamNaming.categoryPrefix), identical
+        // to the aggregate's write category, so the JS `$ce-<prefix><Aggregate>` matches what the aggregate writes.
+        //
+        // TODO (separate, OPTIONAL — cross-aggregate WRITE reactions only, NOT needed for reads): if this context
+        // has cross-aggregate event listeners, wire a KurrentDB persistent subscription + EventBus + EventMappers
+        // here and register the When<Event> listeners. See OC `OCServer.swift` / `EventBusRegister.swift` for the
+        // pattern (persistent subscription create + ack/nack retry loop + publishRecordedEvent dispatch).
 
         let portString = ProcessInfo.processInfo.environment["PORT"] ?? "8080"
         let port = Int(portString) ?? 8080

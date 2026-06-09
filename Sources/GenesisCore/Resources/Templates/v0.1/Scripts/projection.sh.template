@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# GENESIS-GENERATED. Deploy the codegen'd read-model JS projections (projections/*Projection.js) into KurrentDB.
+# Generic across contexts — globs projections/*Projection.js and (re)creates each as a continuous JS projection.
+# Run after scripts/start-kurrentdb.sh. Config is env-overridable; defaults target a local KurrentDB.
+
+set -euo pipefail
+
+# Config (env-overridable; localhost defaults). KDB_HOST tracks HTTP_PORT so overriding the port in
+# start-kurrentdb.sh (HTTP_PORT) is honored here too when KDB_HOST itself is not set.
+KDB_HOST="${KDB_HOST:-http://localhost:${HTTP_PORT:-2113}}"
+KDB_USER="${KDB_USER:-admin}"
+KDB_PASS="${KDB_PASS:-changeit}"
+PROJECTIONS_DIR="${PROJECTIONS_DIR:-projections}"
+WAIT_TIME="${WAIT_TIME:-0.5}"
+STEP_WAIT="${STEP_WAIT:-2}"   # wait after delete (KurrentDB clears asynchronously) before re-create
+
+GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
+
+if ! command -v jq &> /dev/null; then
+    echo "error: jq is required to parse JSON (install: apt-get install jq / brew install jq)"
+    exit 1
+fi
+
+if [ ! -d "$PROJECTIONS_DIR" ]; then
+    printf "${YELLOW}no ${PROJECTIONS_DIR}/ directory yet — nothing to deploy${NC}\n"
+    exit 0
+fi
+
+check_projection_exists() {
+    local name=$1
+    local exists
+    exists=$(curl -s -u "${KDB_USER}:${KDB_PASS}" "${KDB_HOST}/projections/any" \
+        | jq -r --arg name "$name" '.projections[] | select(.name == $name) | .name')
+    [ -n "$exists" ]
+}
+
+disable_projection() {
+    local name=$1
+    printf "${BLUE}  → Disabling ${name}${NC}\n"
+    curl -s -o /tmp/kdb_disable.txt -w "%{http_code}" -d{} \
+        "${KDB_HOST}/projection/${name}/command/disable" -u "${KDB_USER}:${KDB_PASS}" >/dev/null || true
+    sleep "$STEP_WAIT"
+}
+
+delete_projection() {
+    local name=$1
+    printf "${BLUE}  → Deleting ${name}${NC}\n"
+    local http_code
+    http_code=$(curl -s -o /tmp/kdb_delete.txt -w "%{http_code}" -X DELETE \
+        "${KDB_HOST}/projection/${name}?deleteStateStream=true&deleteCheckpointStream=true&deleteEmittedStreams=true" \
+        -H "accept:application/json" -H "Content-Length:0" -u "${KDB_USER}:${KDB_PASS}")
+    sleep "$STEP_WAIT"
+    if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 404 ]; then return 0; fi
+    printf "${RED}  ✗ Delete failed (HTTP ${http_code})${NC}\n"; [ -f /tmp/kdb_delete.txt ] && cat /tmp/kdb_delete.txt; return 1
+}
+
+create_projection_api() {
+    local file=$1 name=$2
+    printf "${BLUE}  → Creating ${name}${NC}\n"
+    local http_code
+    http_code=$(curl -s -o /tmp/kdb_create.txt -w "%{http_code}" --data-binary "@${file}" \
+        "${KDB_HOST}/projections/continuous?name=${name}&type=js&enabled=true&emit=true&trackemittedstreams=true" \
+        -u "${KDB_USER}:${KDB_PASS}")
+    if [ "$http_code" -eq 201 ]; then printf "${GREEN}  ✓ Created${NC}\n"; return 0; fi
+    printf "${RED}  ✗ Create failed (HTTP ${http_code})${NC}\n"; [ -f /tmp/kdb_create.txt ] && cat /tmp/kdb_create.txt; return 1
+}
+
+process_projection() {
+    local file=$1
+    local name
+    name=$(basename "$file" Projection.js)
+    printf "${YELLOW}projection: ${name}${NC}\n"
+    if check_projection_exists "$name"; then
+        disable_projection "$name"
+        delete_projection "$name" || return 1
+    fi
+    create_projection_api "$file" "$name" || return 1
+    printf "${GREEN}✓ ${name}${NC}\n\n"
+}
+
+main() {
+    echo "deploying projections from ${PROJECTIONS_DIR}/ to ${KDB_HOST} ..."
+    local tmpfile="/tmp/kdb_projections_list.txt"
+    find "$PROJECTIONS_DIR" -name "*Projection.js" -type f | sort > "$tmpfile"
+    local total success fail
+    total=$(wc -l < "$tmpfile"); success=0; fail=0
+    while IFS= read -r file; do
+        if process_projection "$file"; then success=$((success + 1)); sleep "$WAIT_TIME"; else fail=$((fail + 1)); fi
+    done < "$tmpfile"
+    rm -f "$tmpfile" /tmp/kdb_disable.txt /tmp/kdb_delete.txt /tmp/kdb_create.txt
+    printf "done: %s total, ${GREEN}%s ok${NC}" "$total" "$success"
+    if [ "$fail" -gt 0 ]; then printf ", ${RED}%s failed${NC}\n" "$fail"; exit 1; fi
+    printf "\n"
+}
+
+main "$@"

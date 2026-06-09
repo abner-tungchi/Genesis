@@ -157,8 +157,10 @@ public enum AggregateRenderer {
             )
         }
 
-        // Category prefix: uppercase letters from contextName (e.g. IAMContext → IAMC, QuotationContext → QC).
-        let categoryPrefix = String(contextName.filter { $0.isUppercase })
+        // Category prefix via the single source of truth (StreamNaming) — uppercase letters of contextName
+        // (e.g. IAMContext → IAMC, QuotationContext → QC). The read side (ReadModelRenderer JS fromStreams +
+        // Presenter categoryRule) derives from the SAME function, so write/read stream prefixes align.
+        let categoryPrefix = try StreamNaming.categoryPrefix(contextName: contextName)
 
         // Phase 1.t / D4 + Phase 1.u / C-ensureInvariant: carry bundle-declared invariants into
         // ensureInvariant() as a commented obligation. Do NOT emit named check*() stubs (avoids "domain

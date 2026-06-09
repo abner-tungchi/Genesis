@@ -69,7 +69,7 @@ final class ReadModelRendererTests: XCTestCase {
         let paths = Set(outputs.map { $0.path })
         XCTAssertTrue(paths.contains("Sources/AuditQuotingAggregate/Usecase/Projector/GetQuotingProofs/QuotingProofsReadModel.swift"))
         XCTAssertTrue(paths.contains("Sources/AuditQuotingAggregate/Usecase/Projector/GetQuotingProofs/GetQuotingProofsPresenter.swift"))
-        XCTAssertTrue(paths.contains("projections/AUDIT_QUOTING_GetQuotingProofsProjection.js"))
+        XCTAssertTrue(paths.contains("projections/AQC_GetQuotingProofsProjection.js"))
     }
 
     func testHappyPathContentSanity() throws {
@@ -88,13 +88,13 @@ final class ReadModelRendererTests: XCTestCase {
         XCTAssertTrue(pr.content.contains("package struct GetQuotingProofsPresenter: GetQuotingProofsProjectorProtocol"))
         XCTAssertTrue(pr.content.contains("CQRSProjectorInput"))
         XCTAssertTrue(pr.content.contains("KurrentStorageCoordinator"))
-        XCTAssertTrue(pr.content.contains("AUDIT_QUOTING_"), "ProjectionStreamPrefix")
+        XCTAssertTrue(pr.content.contains("AQC_"), "ProjectionStreamPrefix = uppercaseLetters(context)+_ (AuditQuotingContext→AQC_)")
 
         let js = outputs.first(where: { $0.path.hasSuffix("Projection.js") })!
-        XCTAssertTrue(js.content.contains("fromStreams([\"$ce-AUDIT_QUOTINGAuditQuoting\"])"),
-            "$ce- source streams use SourceCategoryPrefix (no trailing _) — audit M1")
-        XCTAssertTrue(js.content.contains("linkTo(\"AUDIT_QUOTING_GetQuotingProofs-\""),
-            "linkTo uses ProjectionStreamPrefix (with _) — audit M1")
+        XCTAssertTrue(js.content.contains("fromStreams([\"$ce-AQCAuditQuoting\"])"),
+            "$ce- source stream uses categoryPrefix (no trailing _), ALIGNED with aggregate write category $ce-AQCAuditQuoting")
+        XCTAssertTrue(js.content.contains("linkTo(\"AQC_GetQuotingProofs-\""),
+            "linkTo uses projectionPrefix (with _)")
         XCTAssertTrue(js.content.contains("event.body[\"quotingId\"]"))
     }
 
@@ -234,28 +234,30 @@ final class ReadModelRendererTests: XCTestCase {
 
     // MARK: - Stream prefix (audit L2 edge cases)
 
-    func testStreamPrefixAliasOpportunity() throws {
+    // Phase: prefix unified to StreamNaming.categoryPrefix = uppercaseLetters(contextName), aligning the read
+    // side to the aggregate write category. OC reproduces "OC" via uppercaseLetters WITHOUT the old alias.
+    func testStreamPrefixOpportunity() throws {
         let p = try ReadModelRenderer.streamPrefix(contextName: "OpportunityContext")
         XCTAssertEqual(p.projection, "OC_")
         XCTAssertEqual(p.sourceCategory, "OC")
     }
 
-    func testStreamPrefixFallbackIAMContext() throws {
+    func testStreamPrefixIAMContext() throws {
         let p = try ReadModelRenderer.streamPrefix(contextName: "IAMContext")
-        XCTAssertEqual(p.projection, "IAM_")
-        XCTAssertEqual(p.sourceCategory, "IAM")
+        XCTAssertEqual(p.projection, "IAMC_")   // aligned with aggregate write category $ce-IAMC<Agg>
+        XCTAssertEqual(p.sourceCategory, "IAMC")
     }
 
-    func testStreamPrefixFallbackMyApp() throws {
+    func testStreamPrefixMyApp() throws {
         let p = try ReadModelRenderer.streamPrefix(contextName: "MyApp")
-        XCTAssertEqual(p.projection, "MY_APP_")
-        XCTAssertEqual(p.sourceCategory, "MY_APP")
+        XCTAssertEqual(p.projection, "MA_")
+        XCTAssertEqual(p.sourceCategory, "MA")
     }
 
-    func testStreamPrefixFallbackBillingContext() throws {
+    func testStreamPrefixBillingContext() throws {
         let p = try ReadModelRenderer.streamPrefix(contextName: "BillingContext")
-        XCTAssertEqual(p.projection, "BILLING_")
-        XCTAssertEqual(p.sourceCategory, "BILLING")
+        XCTAssertEqual(p.projection, "BC_")
+        XCTAssertEqual(p.sourceCategory, "BC")
     }
 
     func testStreamPrefixContextOnlyThrows() throws {
@@ -282,7 +284,7 @@ final class ReadModelRendererTests: XCTestCase {
         // ReadModel + JS still emitted
         XCTAssertEqual(outputs.count, 2)
         XCTAssertTrue(paths.contains("Sources/AuditQuotingAggregate/Usecase/Projector/GetQuotingProofs/QuotingProofsReadModel.swift"))
-        XCTAssertTrue(paths.contains("projections/AUDIT_QUOTING_GetQuotingProofsProjection.js"))
+        XCTAssertTrue(paths.contains("projections/AQC_GetQuotingProofsProjection.js"))
     }
 
     // MARK: - StoredFields default heuristic (audit M3)
@@ -386,6 +388,105 @@ final class ReadModelRendererTests: XCTestCase {
         )) { err in
             guard case GenesisError.bundleInvalid(let r) = err else { XCTFail(); return }
             XCTAssertTrue(r.contains("not found in bundle.aggregates[]"))
+        }
+    }
+
+    // MARK: - M2b read↔write stream-prefix alignment (the bug this task fixes)
+
+    /// A widget bundle in a NON-OC context: the JS projection's `$ce-` source stream must equal the aggregate's
+    /// physical write category (`<categoryPrefix><Agg>`). Both now derive from StreamNaming.categoryPrefix
+    /// (uppercase letters). Before the fix, ReadModelRenderer used an alias/upperSnake → mismatch → silent empty read.
+    private func widgetBundle(fromEventPayload: String) -> FullBundle {
+        let agg = AggregateSpec(
+            aggregateSpecId: "agg-Widget", name: "Widget", identityName: "widgetId",
+            state: [], invariants: [], eventNames: ["WidgetEdited"]
+        )
+        let uc = UseCaseSpec(
+            useCaseSpecId: "uc-edit", aggregateSpecId: "agg-Widget", useCase: "EditWidget", aggregate: "Widget",
+            input: [FieldSpec(name: "widgetId", rawType: "String"), FieldSpec(name: "value", rawType: "String")],
+            emittedEvent: "WidgetEdited",
+            eventPayload: [FieldSpec(name: "widgetId", rawType: "String"), FieldSpec(name: "value", rawType: "String")],
+            preconditions: []
+        )
+        let rm = ReadModelSpec(
+            readModelSpecId: "rm-GetWidgetValue", aggregateSpecId: "agg-Widget",
+            name: "GetWidgetValue", eventNames: ["WidgetEdited"], aggregateRef: "Widget",
+            key: ReadModelKey(field: "widgetId", type: "String", fromEventPayload: fromEventPayload),
+            storedFields: [ReadModelStoredField(name: "value", type: "String?", defaultValue: nil)],
+            eventRefs: [ReadModelEventRef(name: "WidgetEdited", sourceAggregate: "Widget")],
+            comment: nil
+        )
+        return FullBundle(
+            manifestVersion: 1, bundleId: "t", context: "WidgetContext",
+            aggregates: [agg], useCases: [uc], dtos: [], readModels: [rm]
+        )
+    }
+
+    func testReadStreamPrefixAlignsWithWriteCategory() throws {
+        let bundle = widgetBundle(fromEventPayload: "widgetId")
+        let adapter = Adapter.defaultFor(contextName: "WidgetContext")
+        let out = try ReadModelRenderer.render(bundle: bundle, contextName: "WidgetContext", adapter: adapter)
+        let js = try XCTUnwrap(out.first { $0.path.hasSuffix("Projection.js") }).content
+        // WidgetContext → uppercaseLetters → "WC". Aggregate writes $ce-WCWidget; JS MUST subscribe the same.
+        XCTAssertTrue(js.contains("fromStreams([\"$ce-WCWidget\"])"),
+            "JS $ce- source stream must equal the aggregate write category $ce-WCWidget (read↔write alignment)")
+        XCTAssertTrue(js.contains("linkTo(\"WC_GetWidgetValue-\""))
+        XCTAssertTrue(js.contains("event.body[\"widgetId\"]"))
+        // pin: read side derives from the SAME single source the aggregate write category uses.
+        XCTAssertEqual(try ReadModelRenderer.streamPrefix(contextName: "WidgetContext").sourceCategory,
+                       try StreamNaming.categoryPrefix(contextName: "WidgetContext"))
+    }
+
+    // MARK: - M2c key.fromEventPayload guard
+
+    func testKeyFromEventPayloadGuardPassesWhenFieldInPayload() throws {
+        let bundle = widgetBundle(fromEventPayload: "widgetId")   // widgetId IS in WidgetEdited payload
+        XCTAssertNoThrow(try ReadModelRenderer.render(
+            bundle: bundle, contextName: "WidgetContext", adapter: Adapter.defaultFor(contextName: "WidgetContext")
+        ))
+    }
+
+    func testKeyFromEventPayloadGuardThrowsWhenFieldMissing() throws {
+        let bundle = widgetBundle(fromEventPayload: "nope")   // not a field of WidgetEdited payload
+        XCTAssertThrowsError(try ReadModelRenderer.render(
+            bundle: bundle, contextName: "WidgetContext", adapter: Adapter.defaultFor(contextName: "WidgetContext")
+        )) { err in
+            guard case GenesisError.bundleInvalid(let r) = err else { XCTFail("expected bundleInvalid, got \(err)"); return }
+            XCTAssertTrue(r.contains("key.fromEventPayload 'nope'"), "must name the bad field; got: \(r)")
+            XCTAssertTrue(r.contains("WidgetEdited"), "must name the event whose payload lacks it; got: \(r)")
+        }
+    }
+
+    /// MF-A: event names are unique only PER aggregate. A cross-aggregate readModel referencing aggregate B's
+    /// `Created` must be validated against B's payload — even if aggregate A also emits `Created` WITH the field.
+    /// Without sourceAggregate scoping the guard resolves the first same-named use case (Alpha) → false-pass.
+    func testKeyGuardScopesToSourceAggregate() throws {
+        let aggA = AggregateSpec(aggregateSpecId: "agg-A", name: "Alpha", identityName: "alphaId",
+                                 state: [], invariants: [], eventNames: ["Created"])
+        let aggB = AggregateSpec(aggregateSpecId: "agg-B", name: "Beta", identityName: "betaId",
+                                 state: [], invariants: [], eventNames: ["Created"])
+        // Alpha.Created HAS sharedId; Beta.Created does NOT.
+        let ucA = UseCaseSpec(useCaseSpecId: "uc-a", aggregateSpecId: "agg-A", useCase: "CreateAlpha", aggregate: "Alpha",
+                              input: [], emittedEvent: "Created",
+                              eventPayload: [FieldSpec(name: "sharedId", rawType: "String")], preconditions: [])
+        let ucB = UseCaseSpec(useCaseSpecId: "uc-b", aggregateSpecId: "agg-B", useCase: "CreateBeta", aggregate: "Beta",
+                              input: [], emittedEvent: "Created",
+                              eventPayload: [FieldSpec(name: "betaId", rawType: "String")], preconditions: [])
+        // readModel references BETA's Created, keyed on sharedId (present in Alpha, absent in Beta) → must FAIL on Beta.
+        let rm = ReadModelSpec(readModelSpecId: "rm-x", aggregateSpecId: "agg-B",
+                               name: "GetBetaThing", eventNames: ["Created"], aggregateRef: "Beta",
+                               key: ReadModelKey(field: "betaId", type: "String", fromEventPayload: "sharedId"),
+                               storedFields: [ReadModelStoredField(name: "v", type: "String?", defaultValue: nil)],
+                               eventRefs: [ReadModelEventRef(name: "Created", sourceAggregate: "Beta")],
+                               comment: nil)
+        let bundle = FullBundle(manifestVersion: 1, bundleId: "t", context: "WidgetContext",
+                                aggregates: [aggA, aggB], useCases: [ucA, ucB], dtos: [], readModels: [rm])
+        XCTAssertThrowsError(try ReadModelRenderer.render(
+            bundle: bundle, contextName: "WidgetContext", adapter: Adapter.defaultFor(contextName: "WidgetContext")
+        )) { err in
+            guard case GenesisError.bundleInvalid(let r) = err else { XCTFail("expected bundleInvalid, got \(err)"); return }
+            XCTAssertTrue(r.contains("sharedId"),
+                "guard must validate against Beta's payload (lacks sharedId), not Alpha's same-named event; got: \(r)")
         }
     }
 }

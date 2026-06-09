@@ -219,13 +219,13 @@ candidate = union(resolvePayload(e, bundle).map(\.name) for e in selectedEvents)
 
 ## streamPrefix resolution
 
-Skill 不問 user prefix；deterministic：
+Skill 不問 user prefix；deterministic、**單一規則**（= `StreamNaming.categoryPrefix`，與 aggregate 寫 category 同源，使 JS `fromStreams` / Presenter `categoryRule` 與事件實際落地的 `$ce-<prefix><Agg>` 對齊）：
 
-1. `<bundle>.adapter.yaml` 若有 `streamPrefix` → 用它
-2. bundle.context 若為 object 且含 streamPrefix → 用它
-3. Fallback：strip `"Context"` suffix, alias map (`Opportunity → OC`)，else upper-snake + `_`
+> **prefix = contextName 的「大寫字母」**（取 full contextName 的 uppercase letters），projection prefix = 該值 + `_`。
 
-範例：`OpportunityContext` → `OC_`、`IAMContext` → `IAM_`、`BillingContext` → `BILLING_`
+範例：`OpportunityContext` → `OC_`、`IAMContext` → `IAMC_`、`BillingContext` → `BC_`、`AuditQuotingContext` → `AQC_`。
+
+（⚠️ 舊版曾寫「adapter.yaml / bundle.context 的 `streamPrefix` 覆寫」+「`Opportunity→OC` alias / upper-snake fallback」—— **皆已廢除**：Genesis 不讀任何 `streamPrefix` 覆寫欄位，且 alias/upper-snake 會讓非-OpportunityContext 的讀側 prefix 與寫 category 錯位、read model 靜默全空。現一律走 uppercase-letters 單一規則。）
 
 ## 命名慣例 (verify before write)
 

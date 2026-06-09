@@ -438,7 +438,7 @@ final class NewCommandTests: XCTestCase {
         let fm = FileManager.default
         let rmFile = tmpDir.appendingPathComponent("Sources/UserAccessProfileAggregate/Usecase/Projector/GetUserAccessProfileRoles/UserAccessProfileRolesReadModel.swift")
         let prFile = tmpDir.appendingPathComponent("Sources/UserAccessProfileAggregate/Usecase/Projector/GetUserAccessProfileRoles/GetUserAccessProfileRolesPresenter.swift")
-        let jsFile = tmpDir.appendingPathComponent("projections/IAM_GetUserAccessProfileRolesProjection.js")
+        let jsFile = tmpDir.appendingPathComponent("projections/IAMC_GetUserAccessProfileRolesProjection.js")
         XCTAssertTrue(fm.fileExists(atPath: rmFile.path), "ReadModel file missing at \(rmFile.path)")
         XCTAssertTrue(fm.fileExists(atPath: prFile.path), "Presenter file missing at \(prFile.path)")
         XCTAssertTrue(fm.fileExists(atPath: jsFile.path), "JS projection missing at \(jsFile.path)")
@@ -454,10 +454,10 @@ final class NewCommandTests: XCTestCase {
         XCTAssertTrue(prContent.contains("event: RolesAssigned"))
 
         let jsContent = try String(contentsOf: jsFile)
-        XCTAssertTrue(jsContent.contains("$ce-IAMUserAccessProfile"),
-            "JS uses SourceCategoryPrefix without trailing _ (audit M1)")
-        XCTAssertTrue(jsContent.contains("linkTo(\"IAM_GetUserAccessProfileRoles-"),
-            "JS linkTo uses ProjectionStreamPrefix with _ (audit M1)")
+        XCTAssertTrue(jsContent.contains("$ce-IAMCUserAccessProfile"),
+            "JS $ce- source stream uses categoryPrefix (IAMContext→IAMC), ALIGNED with aggregate write category")
+        XCTAssertTrue(jsContent.contains("linkTo(\"IAMC_GetUserAccessProfileRoles-"),
+            "JS linkTo uses projectionPrefix IAMC_ (read↔write aligned)")
     }
 
     func testReadmodelPresenterScaffoldOnce() throws {

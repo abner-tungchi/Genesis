@@ -186,6 +186,12 @@ struct NewCommand: AsyncParsableCommand {
             try plan(file.path, file.content, file.role)
         }
 
+        // 2.3.8 Deploy scripts (read-after-write: deploy the codegen'd JS projections into KurrentDB + boot KDB).
+        // Generic, context-name-parameterized; the gating artifact that makes read GET return projected data.
+        for file in try DeployScriptRenderer.render(contextName: contextName) {
+            try plan(file.path, file.content, file.role)
+        }
+
         // 2.4 Test placeholder
         let testTemplate = try TemplateLoader.loadTemplate(name: "TestPlaceholder.swift", ext: "template")
         let testRendered = TemplateRenderer.render(template: testTemplate, vars: ["ContextName": contextName])

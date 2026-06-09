@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# GENESIS-GENERATED. Start (or reset) a local KurrentDB for development & testing.
+#
+# Prerequisites: Docker running.
+# Forcibly stops & removes any existing container with the same name, then starts a fresh one
+# (safe to call repeatedly / from /reset-projection). Config is env-overridable.
+
+set -euo pipefail
+
+CONTAINER="${CONTAINER:-kurrentdb-__CONTEXT_KEBAB__}"
+HTTP_PORT="${HTTP_PORT:-2113}"
+GRPC_PORT="${GRPC_PORT:-1113}"
+IMAGE="${IMAGE:-docker.eventstore.com/kurrent-latest/kurrentdb:latest}"
+
+echo "🔄 Stopping existing $CONTAINER (if any)..."
+docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+
+echo "🚀 Starting fresh $CONTAINER..."
+docker run -d \
+    --name "$CONTAINER" \
+    -p "$HTTP_PORT:2113" \
+    -p "$GRPC_PORT:1113" \
+    --env EVENTSTORE_RUN_PROJECTIONS=All \
+    --env EVENTSTORE_START_STANDARD_PROJECTIONS=true \
+    --env EVENTSTORE_INSECURE=true \
+    --env EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP=true \
+    "$IMAGE" \
+    >/dev/null
+
+echo "⏳ Waiting for KurrentDB to become ready..."
+for _ in {1..30}; do
+    if curl -sf -u admin:changeit "http://localhost:$HTTP_PORT/projections/any" >/dev/null 2>&1; then
+        echo "✅ KurrentDB ready on http://localhost:$HTTP_PORT (container: $CONTAINER)"
+        echo "   UI:  http://localhost:$HTTP_PORT"
+        echo "   Deploy projections: bash scripts/projection.sh"
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "❌ KurrentDB failed to become ready within 30s"
+echo "   Check container logs: docker logs $CONTAINER"
+exit 1

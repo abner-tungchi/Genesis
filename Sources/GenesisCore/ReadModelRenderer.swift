@@ -64,6 +64,37 @@ public enum ReadModelRenderer {
                 }
             }
 
+            // M2c key.fromEventPayload guard: the JS projection links each event into the read-model stream via
+            // `event.body["<key.fromEventPayload>"]`. If that field is absent from a referenced event's payload, the
+            // linkTo targets a stream nobody writes → the read model is SILENTLY empty forever (highest-blast-radius
+            // latent bug). For each eventRef, resolve the emitting use case (by emitted-event type name) and, IF
+            // resolvable, hard-fail when the id field is missing; if UNresolvable, warn but do not block (fail-safe —
+            // never kill a legitimate-but-under-described bundle).
+            for ref in entry.eventRefs {
+                let evtName = CaseTransformer.upperCamel(ref.name)
+                // Scope to ref.sourceAggregate: event names are only unique PER aggregate (BundleParser enforces
+                // per-aggregate ownership, not global uniqueness), so two aggregates may both emit e.g. `Created`
+                // with different payloads. Resolving by event name alone could validate the WRONG payload →
+                // false-pass (silent-empty read model) or false-fail on a legit cross-aggregate readModel.
+                let emitting = bundle.useCases.first {
+                    CaseTransformer.upperCamel($0.emittedEvent) == evtName && $0.aggregate == ref.sourceAggregate
+                }
+                guard let uc = emitting else {
+                    let warning = "⚠ readModel '\(entry.name)': cannot resolve emitting use case for event '\(evtName)' "
+                        + "to verify key.fromEventPayload='\(key.fromEventPayload)'; skipping guard for this event\n"
+                    FileHandle.standardError.write(Data(warning.utf8))
+                    continue
+                }
+                let payloadFields = Set(uc.eventPayload.map(\.name))
+                guard payloadFields.contains(key.fromEventPayload) else {
+                    throw GenesisError.bundleInvalid(
+                        reason: "readModel '\(entry.name)' key.fromEventPayload '\(key.fromEventPayload)' is not a field of "
+                            + "event '\(evtName)' payload \(payloadFields.sorted()); the JS projection linkTo would point at a "
+                            + "stream nobody writes → read model stays silently empty. Fix key.fromEventPayload (run /readmodel)."
+                    )
+                }
+            }
+
             let noun = String(entry.name.dropFirst("Get".count))
             let readModelTypeName = "\(noun)ReadModel"
             let presenterTypeName = "\(entry.name)Presenter"
@@ -145,21 +176,15 @@ public enum ReadModelRenderer {
 
     // MARK: - Stream prefix derivation
 
+    /// Phase: read/write stream-prefix alignment. The prefix is now the SAME `StreamNaming.categoryPrefix`
+    /// (uppercase letters of contextName) that AggregateRenderer uses for the aggregate write category — so the
+    /// JS `fromStreams(["$ce-<sourceCategory><Agg>"])` subscribes to the exact stream the aggregate writes to,
+    /// and the Presenter `categoryRule .fromClass(withPrefix: projection)` reads the link stream the JS emits.
+    /// (The old `Opportunity→OC` alias + `upperSnake` fallback only aligned for OpportunityContext; every other
+    /// context's reads silently broke. uppercaseLetters("OpportunityContext") == "OC" reproduces OC without the alias.)
     public static func streamPrefix(contextName: String) throws -> (projection: String, sourceCategory: String) {
-        let stripped: String = {
-            if contextName.hasSuffix("Context") {
-                return String(contextName.dropLast("Context".count))
-            }
-            return contextName
-        }()
-        if stripped.isEmpty {
-            throw GenesisError.bundleInvalid(
-                reason: "contextName must not equal 'Context' alone; cannot derive stream prefix"
-            )
-        }
-        let aliases: [String: String] = ["Opportunity": "OC"]
-        let core: String = aliases[stripped] ?? CaseTransformer.upperSnake(stripped)
-        return (projection: "\(core)_", sourceCategory: core)
+        let cat = try StreamNaming.categoryPrefix(contextName: contextName)
+        return (projection: "\(cat)_", sourceCategory: cat)
     }
 
     // MARK: - Stored fields default heuristic
