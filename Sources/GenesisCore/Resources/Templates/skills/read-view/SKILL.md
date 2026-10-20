@@ -146,9 +146,10 @@ package struct <OutputCaseX>Dto: Equatable, Codable {
 collection shape **不產** 此檔（複用 `/read-projector` 已產的 element DTO）。
 
 ### 3.3 APPEND ApiHandler read method（Class B key-upsert，anchor `func <opId>(`）
+> 方法**不可**宣告 `package`：參數／回傳是 generated internal 的 `Operations.*` 型別（openapi-generator `accessModifier: internal`），`package` 會編譯失敗（method cannot be declared package because its parameter uses an internal type）。與 codegen 的 `ApiHandlerReadMethod` 模板一致。
 進 `Sources/<A>Aggregate/Adapter/ApiHandler.swift` body（**不**動 header/generic/init/mapToApiError）：
 ```swift
-    package func <opId>(_ input: Operations.<opId>.Input) async throws -> Operations.<opId>.Output {
+    func <opId>(_ input: Operations.<opId>.Input) async throws -> Operations.<opId>.Output {
         let <wireId> = input.path.<wireId>
         let service = Get<View>ApplicationService(kdbClient: kdbClient)
         do {
@@ -196,7 +197,7 @@ collection shape **不產** 此檔（複用 `/read-projector` 已產的 element 
 - **atomic**：任一檔失敗 → 不 partial、報哪檔。`.init(error: .<named>)` 需 named case 在**同一個** ApiError enum（404 body 所 $ref 的）→ 三檔一致才編得過。
 
 ### 3.6 test tiers（AS + Api）
-> **test 檔骨架（audit MF3，照 `/test-gen` @Suite 骨架 recipe）**：import header（`import Testing`/`import KurrentDB`/`import <A>Aggregate`〔+ DDDKit/TestUtility/Foundation 視需要〕）；`.tags(.<aggLowerCamel>)` 需 `extension Tag { @Tag static var <agg>: Self }` 在共用支援檔、**idempotent append-if-absent**（否則 test target 編不過；`swift build` 不 build test target → Human gate 才炸）。
+> **test 檔骨架（audit MF3，照 `/test-gen` @Suite 骨架 recipe）**：import header（`import Testing`/`import KurrentDB`/`@testable import <A>Aggregate`（Api tier 需 internal 的 `Operations`／ApiHandler 方法）〔+ DDDKit/TestUtility/Foundation 視需要〕）；`.tags(.<aggLowerCamel>)` 需 `extension Tag { @Tag static var <agg>: Self }` 在共用支援檔、**idempotent append-if-absent**（否則 test target 編不過；`swift build` 不 build test target → Human gate 才炸）。
 - `Get<View>ApplicationServiceTests.swift`：`@Suite(.serialized, .tags(.<aggLowerCamel>))` + kdbClient + `Task.sleep(for: .seconds(0.5))`；@Test：**notFound（不存在 id）+ not-applicable（有則）+ 每個 output shape ≥1 happy-path**（discriminated 每 output case 一個、collection 一個）。⚠️ **行為斷言 body 非 mini-spec 可推導 → 出 compilable stub**：**notFound stub 須 setup-free**（用 fresh/random id 呼 `execute`、斷言 thrown `ContextError<<A>QueryError>.error == .<aggLowerCamel>NotFound`，**不**依賴 `withTestBundle`/`createX` write helper）；happy-path / not-applicable body（需 write helper + 部署 projection）留 Human gate。header 註解寫 prerequisite（localhost KDB + 部署 projection + `/reset-projection`）。
 - `Get<View>ApiTests.swift`：full HTTP seam，`ApiHandler(kdbClient: kdbClient)`（**非** OC `<MockStorage>`）、`withTestBundle` + `Task.sleep(0.5)`、wire-String 斷言、error case 斷言（`response.notFound.body.json.error == .<aggLowerCamel>NotFound`）。
 

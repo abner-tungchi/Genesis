@@ -70,7 +70,7 @@ Read 並解析（用語意錨點，勿用行號）：
 - **Service Input**（`{ucPascal}Service.swift` 的 `execute(input:)` Input + `Usecase/Port/In/<ucPascal>/<ucPascal>Input.swift`）→ field list
 - **payload schema**（`openapi.yaml` 該 UC 的 requestBody）→ 只用來確認**欄位存在性**
 - **`<A>Error` enum cases**（`<A>Error.swift`）
-- **ApiHandler method block**（`ApiHandler.swift` 內 `package func {ucCamel}(_`）
+- **ApiHandler method block**（`ApiHandler.swift` 內 `func {ucCamel}(_`（internal：參數是 generated internal 的 `Operations.*` 型別，非 `package`））
 - category 3 涉及時：DTO scaffold + 對應 **domain type declaration**（`Glob Sources/<A>Aggregate/**/{DomainTypeName}.swift`）→ 取 stored property target types
 
 `{aggIdName}` 從既有 AS scaffold / handler 既有 `input.path.{aggIdName}` 讀出，**不要**自己猜 field order。
@@ -207,7 +207,7 @@ report 標記 `category 4: skipped (aggregate-wide, defer v2)`。
 
 - 型別來自 Phase 1.f `<Ctx>Shared`：`ApplicationService`、`ContextError<E>`、`Iso8601ParsingError`、`InvalidDecimalStringError`
 - `DDDError.aggregateNotFound` 來自 DDDKit（scaffold 已 import）
-- `Operations.X.Input/Output` + `Components.Schemas.<A>ApiError` 來自 OpenAPIGenerator plugin（Phase 1.i）
+- `Operations.X.Input/Output` + `Components.Schemas.<A>ApiError` 來自 OpenAPIGenerator plugin（Phase 1.i；`accessModifier: internal`，module 內可見）
 
 ## 與其他 skills 的關係
 

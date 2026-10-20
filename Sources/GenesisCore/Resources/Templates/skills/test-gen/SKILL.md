@@ -203,7 +203,7 @@ prior-state 同理：emit「前置 fixture call(s) 留 thunk + 目標 execute + 
 
 對**每個 write UC**，除上面的 usecase lane 外，**一律**再產一條 api lane 兩檔（`<ucPascal>ApiTests.generated.swift` / `.authored.swift`，路徑見「輸出路徑固定」的 api template；@Suite struct = `<ucPascal>ApiTests`，authored 殼 = `<ucPascal>ApiAuthoredTests`）。api lane 測 HTTP/transport seam（OC 的 `<UC>ApiTests` parity），重用 usecase lane 的 harness：`@Suite(.serialized, .tags(.<agg>))`、real localhost KDB、`withTestBundle`、two-file ownership、reconcile、enabled-red ladder、洞表示、錯誤模板。
 
-**SUT = Genesis-form `ApiHandler(kdbClient:)`**（**非** OC 的 `ApiHandler<MockStorage>` —— Genesis 不生 MockStorage）。**imports：只 `import <A>Aggregate`**（`Operations` / `Components` / `APIProtocol` 由 OpenAPIGenerator build plugin emit `package` 進 aggregate module，`swift build` 後可見；test-gen 不 build，predicted envelope 在 build 後才編）。
+**SUT = Genesis-form `ApiHandler(kdbClient:)`**（**非** OC 的 `ApiHandler<MockStorage>` —— Genesis 不生 MockStorage）。**imports：只 `@testable import <A>Aggregate`**（`Operations` / `Components` / `APIProtocol` 由 OpenAPIGenerator build plugin 以 `accessModifier: internal` emit 進 aggregate module，ApiHandler 的 operation 方法亦為 internal，test target 須 `@testable import` 才看得到；`swift build` 後可見；test-gen 不 build，predicted envelope 在 build 後才編）。
 
 **request envelope 由 bundle 確定性預測**（讀「怎麼 call」非讀 impl）：operationId = `useCase` 逐字 → `Operations.<ucCamel>`；path param = `aggregate.identityName`；header = 字面 `operatorId`；body = `uc.input` 去掉 `operatorId`/aggId。
 
