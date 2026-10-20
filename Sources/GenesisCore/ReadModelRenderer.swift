@@ -146,7 +146,9 @@ public enum ReadModelRenderer {
             let prPath = "\(projectorDir)/\(presenterTypeName).swift"
             if !existingPresenterPaths.contains(prPath) {
                 let prTemplate = try TemplateLoader.loadTemplate(name: "Projector/Presenter.swift", ext: "template")
-                let whenMethods = renderWhenMethods(eventTypeNames: normalizedEvents.map(\.typeName))
+                let whenMethods = renderWhenMethods(
+                    presenterName: entry.name, eventTypeNames: normalizedEvents.map(\.typeName)
+                )
                 let prContent = TemplateRenderer.render(template: prTemplate, vars: [
                     "SharedImport": sharedImport,
                     "AggregateImports": aggregateImports,  // empty for per-agg, multi-line for context-level (audit M3)
@@ -239,14 +241,14 @@ public enum ReadModelRenderer {
         )
     }
 
-    private static func renderWhenMethods(eventTypeNames: [String]) -> String {
+    private static func renderWhenMethods(presenterName: String, eventTypeNames: [String]) -> String {
         eventTypeNames.map { name in
             """
 
                 package func when(readModel: inout ReadModelType, event: \(name)) throws {
-                    // TODO(Phase 1.g): mutation logic not yet codegen'd. Hand-fill below, or wait
-                    // for /readmodel-mutation v2 skill. Plugin requires this method to satisfy the
-                    // generated projector protocol; current body intentionally no-op.
+                    // TODO(Phase 1.g): mutation logic not yet filled. Run `/readmodel-mutation \(presenterName)`
+                    // to fill it (or hand-fill below). Plugin requires this method to satisfy the generated
+                    // projector protocol; current body intentionally no-op.
                     _ = readModel
                     _ = event
                 }

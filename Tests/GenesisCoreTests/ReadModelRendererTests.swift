@@ -422,6 +422,20 @@ final class ReadModelRendererTests: XCTestCase {
         XCTAssertEqual(whenCount, 2, "expected one when() per selected event")
     }
 
+    /// The stub used to say "wait for /readmodel-mutation v2 skill" although the skill already exists (handover run
+    /// #33). Each stub now names the exact command to run for this presenter.
+    func testPresenterStubCommentPointsToReadmodelMutationCommand() throws {
+        let bundle = minimalBundle(readModels: [happyReadModel(name: "GetQuotingProofs")])
+        let outputs = try ReadModelRenderer.render(
+            bundle: bundle, contextName: "AuditQuotingContext", adapter: defaultAdapter()
+        )
+        let pr = try XCTUnwrap(outputs.first(where: { $0.path.hasSuffix("GetQuotingProofsPresenter.swift") }))
+        XCTAssertEqual(pr.content.components(separatedBy: "Run `/readmodel-mutation GetQuotingProofs`").count - 1, 2,
+                       "one pointer per when() stub")
+        XCTAssertFalse(pr.content.contains("v2 skill"), pr.content)
+        XCTAssertFalse(pr.content.contains("wait for"), pr.content)
+    }
+
     // MARK: - Unknown aggregateRef
 
     func testUnknownAggregateRefThrows() throws {
