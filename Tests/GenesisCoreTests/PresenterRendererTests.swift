@@ -100,6 +100,26 @@ final class PresenterRendererTests: XCTestCase {
         XCTAssertFalse(f.content.contains("repository"), "read-side uses kdbClient, not repository")
     }
 
+    func testInputFieldCosmogonyArrayNotationResolved() throws {
+        let p = PresenterSpec(
+            presenterSpecId: "p-x", name: "GetThings", readModelRef: "GetThings",
+            aggregateRef: "AuditQuoting",
+            input: PresenterInput(fields: [
+                PresenterInputField(name: "ids", type: "Array[String]", fromPath: "ids"),
+            ]),
+            output: PresenterOutput(kind: .array, elementType: "ThingDto", elementSource: "things"),
+            endpoint: PresenterEndpoint(path: "/things", method: "GET"),
+            comment: nil
+        )
+        let outputs = try PresenterRenderer.render(
+            bundle: bundleWith(presenters: [p]), contextName: "AuditQuotingContext",
+            adapter: .defaultFor(contextName: "AuditQuotingContext")
+        )
+        let c = outputs[0].content
+        XCTAssertTrue(c.contains("ids: [String]"), c)
+        XCTAssertFalse(c.contains("Array["), c)
+    }
+
     func testHappyPathSingleOptional() throws {
         let p = presenter(kind: .single, elementType: "FooDto", isOptional: true)
         let outputs = try PresenterRenderer.render(

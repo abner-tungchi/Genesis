@@ -72,7 +72,13 @@ public enum PresenterRenderer {
     ) throws -> String {
         let template = try TemplateLoader.loadTemplate(name: "Api/PresenterApplicationService.swift", ext: "template")
 
-        let fields = presenter.input.fields
+        let fields = presenter.input.fields.map {
+            PresenterInputField(
+                name: $0.name,
+                type: SwiftTypeResolver.translateNotation(rawType: $0.type),
+                fromPath: $0.fromPath
+            )
+        }
         let inputFields: String = fields
             .map { "    package let \($0.name): \($0.type)" }
             .joined(separator: "\n")

@@ -328,6 +328,58 @@ final class ReadModelRendererTests: XCTestCase {
         XCTAssertTrue(c.contains("self.explicit = 42"))
     }
 
+    // MARK: - Cosmogony bracket notation must be resolved to Swift types
+
+    private func renderRMFile(storedFields: [ReadModelStoredField], keyType: String = "String") throws -> String {
+        let rm = ReadModelSpec(
+            readModelSpecId: "rm-1", aggregateSpecId: "agg-AuditQuoting",
+            name: "GetSnapshot", eventNames: ["Happened"],
+            aggregateRef: "AuditQuoting",
+            key: ReadModelKey(field: "id", type: keyType, fromEventPayload: "id"),
+            storedFields: storedFields,
+            eventRefs: [ReadModelEventRef(name: "Happened", sourceAggregate: "AuditQuoting")],
+            comment: nil
+        )
+        let bundle = FullBundle(
+            manifestVersion: 1, bundleId: "t", context: "AuditQuotingContext",
+            aggregates: [minimalAggregate(events: ["Happened"])],
+            useCases: [], dtos: [], readModels: [rm]
+        )
+        let outputs = try ReadModelRenderer.render(
+            bundle: bundle, contextName: "AuditQuotingContext", adapter: defaultAdapter()
+        )
+        return outputs.first(where: { $0.path.hasSuffix("ReadModel.swift") })!.content
+    }
+
+    func testStoredFieldCosmogonyArrayNotationResolvedToSwiftArray() throws {
+        // Shape produced by BundleParser when flattening returnType.fields with a non-primitive type.
+        let c = try renderRMFile(storedFields: [
+            ReadModelStoredField(name: "permissions", type: "Array[String]?", defaultValue: nil),
+        ])
+        XCTAssertTrue(c.contains("package var permissions: [String]?"), c)
+        XCTAssertTrue(c.contains("self.permissions = nil"), c)
+        XCTAssertFalse(c.contains("Array["), c)
+    }
+
+    func testStoredFieldNonOptionalCosmogonyArrayGetsEmptyArrayDefault() throws {
+        let c = try renderRMFile(storedFields: [
+            ReadModelStoredField(name: "ids", type: "Array[String]", defaultValue: nil),
+            ReadModelStoredField(name: "tags", type: "Set[String]", defaultValue: nil),
+            ReadModelStoredField(name: "grid", type: "Array[Array[Int]]", defaultValue: nil),
+        ])
+        XCTAssertTrue(c.contains("package var ids: [String]"), c)
+        XCTAssertTrue(c.contains("self.ids = []"), c)
+        XCTAssertTrue(c.contains("package var tags: Set<String>"), c)
+        XCTAssertTrue(c.contains("self.tags = Set()"), c)
+        XCTAssertTrue(c.contains("package var grid: [[Int]]"), c)
+        XCTAssertTrue(c.contains("self.grid = []"), c)
+    }
+
+    func testReadModelKeyTypeCosmogonyNotationResolved() throws {
+        let c = try renderRMFile(storedFields: [], keyType: "Array[String]")
+        XCTAssertFalse(c.contains("Array["), c)
+    }
+
     func testStoredFieldNonOptionalNoDefaultThrows() throws {
         let rm = ReadModelSpec(
             readModelSpecId: "rm-1", aggregateSpecId: "agg-AuditQuoting",

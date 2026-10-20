@@ -121,12 +121,21 @@ public enum ReadModelRenderer {
             // 1. ReadModel.swift
             let rmPath = "\(projectorDir)/\(readModelTypeName).swift"
             let rmTemplate = try TemplateLoader.loadTemplate(name: "Projector/ReadModel.swift", ext: "template")
-            let storedFieldDecls = try renderStoredFieldDeclarations(entry.storedFields)
-            let storedFieldDefaults = try renderStoredFieldDefaults(entry.storedFields)
+            // Stored field / key types may arrive in Cosmogony notation (`Array[String]`); normalize to Swift.
+            let storedFields = entry.storedFields.map {
+                ReadModelStoredField(
+                    name: $0.name,
+                    type: SwiftTypeResolver.translateNotation(rawType: $0.type, adapter: adapter),
+                    defaultValue: $0.defaultValue
+                )
+            }
+            let keyType = SwiftTypeResolver.translateNotation(rawType: key.type, adapter: adapter)
+            let storedFieldDecls = try renderStoredFieldDeclarations(storedFields)
+            let storedFieldDefaults = try renderStoredFieldDefaults(storedFields)
             let rmContent = TemplateRenderer.render(template: rmTemplate, vars: [
                 "SharedImport": sharedImport,
                 "ReadModelTypeName": readModelTypeName,
-                "KeyType": key.type,
+                "KeyType": keyType,
                 "KeyField": key.field,
                 "StoredFieldDeclarations": storedFieldDecls,
                 "StoredFieldDefaults": storedFieldDefaults,
@@ -142,7 +151,7 @@ public enum ReadModelRenderer {
                     "SharedImport": sharedImport,
                     "AggregateImports": aggregateImports,  // empty for per-agg, multi-line for context-level (audit M3)
                     "Name": entry.name,
-                    "KeyType": key.type,
+                    "KeyType": keyType,
                     "KeyField": key.field,
                     "PresenterTypeName": presenterTypeName,
                     "ReadModelTypeName": readModelTypeName,

@@ -39,4 +39,25 @@ final class SwiftTypeResolverTests: XCTestCase {
             "[[String]]"
         )
     }
+
+    // MARK: - translateNotation (non-throwing; used for read model / presenter types)
+
+    func testTranslateNotationBracketForms() {
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "Array[String]"), "[String]")
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "Set[Int]"), "Set<Int>")
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "Array[Array[String]]"), "[[String]]")
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "Array[Set[UUID]]"), "[Set<UUID>]")
+    }
+
+    func testTranslateNotationKeepsOptionalMarker() {
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "Array[String]?"), "[String]?")
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "String?"), "String?")
+    }
+
+    func testTranslateNotationPassesThroughUnknownAndSwiftForms() {
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "PermissionDto"), "PermissionDto")
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "[String]"), "[String]")
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "Set<String>"), "Set<String>")
+        XCTAssertEqual(SwiftTypeResolver.translateNotation(rawType: "Array[Foo]"), "[Foo]")
+    }
 }

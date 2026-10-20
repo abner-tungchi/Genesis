@@ -51,6 +51,26 @@ public enum SwiftTypeResolver {
         )
     }
 
+    /// Non-throwing notation translation for types that reach a renderer unresolved
+    /// (read model stored fields / key, presenter input). Rewrites Cosmogony bracket notation
+    /// (`Array[X]` -> `[X]`, `Set[X]` -> `Set<X>`, recursively) and keeps trailing `?` markers.
+    /// Unlike `resolve`, unknown names pass through unchanged (they may be types from other
+    /// modules); the swift build is the arbiter for those. Adapter typeMapping wins first.
+    public static func translateNotation(rawType: String, adapter: Adapter? = nil) -> String {
+        let trimmed = rawType.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasSuffix("?") {
+            return translateNotation(rawType: String(trimmed.dropLast()), adapter: adapter) + "?"
+        }
+        if let mapped = adapter?.typeMapping[trimmed] { return mapped }
+        if let inner = matchContainer(trimmed, prefix: "Array[", suffix: "]") {
+            return "[\(translateNotation(rawType: inner, adapter: adapter))]"
+        }
+        if let inner = matchContainer(trimmed, prefix: "Set[", suffix: "]") {
+            return "Set<\(translateNotation(rawType: inner, adapter: adapter))>"
+        }
+        return trimmed
+    }
+
     private static func matchContainer(_ s: String, prefix: String, suffix: String) -> String? {
         guard s.hasPrefix(prefix), s.hasSuffix(suffix), s.count > prefix.count + suffix.count else {
             return nil
