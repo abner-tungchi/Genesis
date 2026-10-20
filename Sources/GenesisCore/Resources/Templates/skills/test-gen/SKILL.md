@@ -106,6 +106,7 @@ import DDDKit
 import KurrentDB
 import TestUtility
 import <contextName>          // 或 import <A>Aggregate（依 generated 模組劃分）
+import <Ctx>Shared            // 必加：`ContextError` 定義在此（package struct，不隨 `import <A>Aggregate` 傳遞），如 `import IAMContextShared`
 
 @Suite(.serialized, .tags(.<agg>))
 struct <ucPascal>UsecaseTests {
@@ -205,7 +206,9 @@ prior-state 同理：emit「前置 fixture call(s) 留 thunk + 目標 execute + 
 
 **SUT = Genesis-form `ApiHandler(kdbClient:)`**（**非** OC 的 `ApiHandler<MockStorage>` —— Genesis 不生 MockStorage）。**imports：只 `@testable import <A>Aggregate`**（`Operations` / `Components` / `APIProtocol` 由 OpenAPIGenerator build plugin 以 `accessModifier: internal` emit 進 aggregate module，ApiHandler 的 operation 方法亦為 internal，test target 須 `@testable import` 才看得到；`swift build` 後可見；test-gen 不 build，predicted envelope 在 build 後才編）。
 
-**request envelope 由 bundle 確定性預測**（讀「怎麼 call」非讀 impl）：operationId = `useCase` 逐字 → `Operations.<ucCamel>`；path param = `aggregate.identityName`；header = 字面 `operatorId`；body = `uc.input` 去掉 `operatorId`/aggId。
+**`Operations` 必須模組限定（載重點）**：api lane 檔因 harness 需 `KurrentDBClient` 而同時 `import KurrentDB`，而 KurrentDB 也公開一個 `Operations<Target>` class → 裸寫 `Operations.<ucCamel>.Input` 會 `'Operations' is ambiguous for type lookup`。凡在 api lane 檔（含 thunk 型別標註）引用該 enum，一律寫 `<A>Aggregate.Operations.<ucCamel>.Input`，**不可**裸寫 `Operations.`（`.init(...)` 推導型別的 call site 不受影響）。
+
+**request envelope 由 bundle 確定性預測**（讀「怎麼 call」非讀 impl）：operationId = `useCase` 逐字 → `<A>Aggregate.Operations.<ucCamel>`；path param = `aggregate.identityName`；header = 字面 `operatorId`；body = `uc.input` 去掉 `operatorId`/aggId。
 
 **envelope 欄位三類映射（載重點，漏掉會編不過）**：
 1. **scalar wire-primitive**（`String`/`Int`/`Bool`，含 Genesis 把 `Decimal`/`Date` 都降成 wire `String`）→ typed literal，如 `totalAssets: "100.5"`、`count: 3`、`enabled: true`。

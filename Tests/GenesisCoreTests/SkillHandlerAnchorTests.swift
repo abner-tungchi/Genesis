@@ -40,4 +40,30 @@ final class SkillHandlerAnchorTests: XCTestCase {
             XCTAssertNil(text.range(of: #"package func [^\n]*Operations\."#, options: .regularExpression), name)
         }
     }
+
+    // MARK: test-gen template compile contracts (generated tests must build: `swift build --build-tests`)
+
+    func testTestGenUsecaseLaneImportsContextShared() throws {
+        let text = try skill("test-gen")
+        let recipe = try XCTUnwrap(text.range(of: "## @Suite 骨架 recipe"))
+        let rest = String(text[recipe.upperBound...])
+        let block = try XCTUnwrap(rest.components(separatedBy: "```swift").dropFirst().first?.components(separatedBy: "```").first)
+        XCTAssertTrue(block.contains("import <Ctx>Shared"), "ContextError lives in <Ctx>Shared")
+        XCTAssertTrue(block.contains("import KurrentDB"))
+    }
+
+    func testTestGenApiLaneNeverUsesUnqualifiedOperations() throws {
+        let text = try skill("test-gen")
+        XCTAssertTrue(text.contains("<A>Aggregate.Operations.<ucCamel>"))
+        // `import KurrentDB` also exposes `Operations`; bare `Operations.` is ambiguous. Only the prohibition line may mention it.
+        for line in text.components(separatedBy: "\n") where !line.contains("裸寫") {
+            XCTAssertNil(line.range(of: #"(?<![\w.>])Operations\."#, options: .regularExpression), line)
+        }
+    }
+
+    func testReadViewTestSkeletonQualifiesOperationsAndImportsShared() throws {
+        let text = try skill("read-view")
+        XCTAssertTrue(text.contains("`import <Ctx>Shared`（斷言 `ContextError` 用）"))
+        XCTAssertTrue(text.contains("`<A>Aggregate.Operations.<opId>`"))
+    }
 }
