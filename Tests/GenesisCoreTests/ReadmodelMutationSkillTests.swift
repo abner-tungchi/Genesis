@@ -203,4 +203,19 @@ final class ReadmodelMutationSkillTests: XCTestCase {
         XCTAssertTrue(text.contains("每次 AskUserQuestion 最多 4 題、每題最多 4 個 options"))
         XCTAssertTrue(text.contains("第二題要等第一題的回答"), "a second-stage question never shares a call with its first stage")
     }
+
+    /// `/readmodel-mutation getPermissions` used to exit 1 because stripGet only recognizes a leading `Get`.
+    /// The read model type now comes from the presenter's own `typealias ReadModelType`, and a lowercase
+    /// first letter is retried before giving a case-sensitivity hint.
+    func testPresenterNameCaseToleranceReadsTypealias() throws {
+        let text = try skill()
+        let start = try XCTUnwrap(text.range(of: "## Phase 1 — "))
+        let end = try XCTUnwrap(text.range(of: "## Phase 2 — "))
+        let phase1 = String(text[start.lowerBound..<end.lowerBound])
+        XCTAssertTrue(phase1.contains("`typealias ReadModelType = <X>`"))
+        XCTAssertTrue(phase1.contains("找不到 typealias 才退回 `<stripGet(presenterName)>ReadModel`"))
+        XCTAssertTrue(phase1.contains("首字改大寫再 Glob 一次"))
+        XCTAssertTrue(phase1.contains("`struct <Name>Presenter`"), "the canonical name comes from the file, not the argument's case")
+        XCTAssertTrue(phase1.contains("PascalCase"), "the not-found message must hint at case sensitivity")
+    }
 }

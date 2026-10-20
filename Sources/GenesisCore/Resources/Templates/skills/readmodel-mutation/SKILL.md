@@ -35,7 +35,11 @@ Glob 兩種 module 路徑合併（Phase 1.k.2 後 cross-agg projector 在 contex
 - `Sources/*Aggregate/Usecase/Projector/<presenterName>/<presenterName>Presenter.swift`（per-agg）
 - `Sources/*/Projector/<presenterName>/<presenterName>Presenter.swift`，排除 `*Aggregate`（context-level）
 
-判定：0 match → exit 1：`prerequisite missing: <presenterName>Presenter.swift not found; run /readmodel + genesis new`；≥2 match → exit 4：`ambiguous presenter <presenterName> in [...]; manual disambiguation needed`；1 match → `<readModelTypeName>` = `<stripGet(presenterName)>ReadModel`，verify `<readModelTypeName>.swift` 在 projector 同 dir，缺 → exit 1。
+判定：
+
+- 0 match 且 `presenterName` 首字小寫 → 首字改大寫再 Glob 一次（`getPermissions` → `GetPermissions`）。仍 0 match → exit 1：`prerequisite missing: <presenterName>Presenter.swift not found (name is case-sensitive; use the PascalCase presenter name, e.g. GetPermissions); run /readmodel + genesis new`。
+- ≥2 match → exit 4：`ambiguous presenter <presenterName> in [...]; manual disambiguation needed`。
+- 1 match → 正式 presenterName 取檔內 `struct <Name>Presenter` 的 `<Name>`（與參數大小寫不同時，報表印 `argument normalized: <arg> → <Name>`）。read model 型別讀 presenter 檔的 `typealias ReadModelType = <X>`，`<readModelTypeName>` = `<X>`；找不到 typealias 才退回 `<stripGet(presenterName)>ReadModel`。verify `<readModelTypeName>.swift` 在 projector 同 dir，缺 → exit 1。
 
 ## Phase 2 — Parse projector + per-method 狀態（idempotent）
 
