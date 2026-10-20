@@ -518,13 +518,18 @@ public enum BundleParser {
         } else if let rt = raw.returnType, let rtFields = rt.fields, !rtFields.isEmpty {
             // Phase 1.l.1: Cosmogony adapter — flatten returnType.fields → storedFields.
             // Cosmogony returnType doesn't carry `default`; for primitives supply sensible
-            // default; for custom types (likely DTO) mark Optional (nil default auto-inferred
+            // default; for collections keep non-Optional (empty default inferred); for custom types (likely DTO) mark Optional (nil default auto-inferred
             // by ReadModelRenderer). Consistent with how aggregate state is treated.
             storedFields = rtFields.compactMap { f -> ReadModelStoredField? in
                 guard let n = f.name, !n.isEmpty else { return nil }
                 guard let t = f.type, !t.isEmpty else { return nil }
                 if let primDefault = inferDefaultForPrimitive(t) {
                     return ReadModelStoredField(name: n, type: t, defaultValue: primDefault)
+                } else if (isCollectionType(t) || t.hasPrefix("Set[")) && !t.hasSuffix("?") {
+                    // Collections stay non-Optional (ReadModelRenderer infers `[]` / `Set()` / `[:]`): a canvas
+                    // `Array[String]` return field must line up with a presenter array Output (`[String]`),
+                    // otherwise `return readModel.<field>` fails to compile against `[String]?`.
+                    return ReadModelStoredField(name: n, type: t, defaultValue: nil)
                 } else {
                     // Wrap non-primitive in Optional — DTOs / custom types default to nil
                     return ReadModelStoredField(name: n, type: "\(t)?", defaultValue: nil)

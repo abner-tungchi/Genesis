@@ -496,6 +496,35 @@ final class BundleParserFullTests: XCTestCase {
         XCTAssertEqual(sf[1].type, "Int")
     }
 
+    func testReadModelReturnTypeCollectionFieldStaysNonOptional() throws {
+        // #29: canvas `Array[String]` return field must NOT be wrapped in Optional — otherwise the read model
+        // property is `[String]?` while a presenter array Output is `[String]` and `return readModel.<f>` fails to compile.
+        let url = try writeFixture("""
+        {
+          "manifestVersion": 1,
+          "bundleId": "abc",
+          "context": "FooContext",
+          \(Self.aggregateWithEvent),
+          "readModels": [{
+            "queryName": "getFoo",
+            "returnType": {
+              "shape": "object",
+              "fields": [
+                {"name": "permissions", "type": "Array[String]"},
+                {"name": "tags", "type": "Set[String]"},
+                {"name": "owner", "type": "OwnerDto"}
+              ]
+            }
+          }]
+        }
+        """)
+        let sf = try BundleParser.parseFull(at: url).readModels[0].storedFields
+        XCTAssertEqual(sf.map(\.name), ["permissions", "tags", "owner"])
+        XCTAssertEqual(sf[0].type, "Array[String]")
+        XCTAssertEqual(sf[1].type, "Set[String]")
+        XCTAssertEqual(sf[2].type, "OwnerDto?", "custom (DTO) types keep the Optional wrap")
+    }
+
     func testReadModelExplicitFieldsPreferredOverDerive() throws {
         // Backward compat: when both legacy explicit fields AND Cosmogony derive fields present,
         // explicit wins (no double-emit, no surprise overwrites).
