@@ -123,19 +123,28 @@ no-op 標記（人選「不影響」時由本 skill 寫入；**不含** `_ = rea
 
 aggregate 是 `[X]`、readModel 是 `Set<X>` → `Set(...)` 包起來。其他差異（Optional 以外的型別轉換、含 `if` / `guard` / `switch` / 迴圈的片段）→ 不轉，歸 ask，片段放進「依據」。
 
-### ask 題目（AskUserQuestion，選項依 payload 形狀產生）
+### ask 題目（AskUserQuestion，依 payload 形狀決定題型）
 
-一題 = 一個（方法, 待決欄位），或一個「整個事件」。question 帶事件 payload、readModel 欄位型別、aggregate 對此事件做了什麼（附片段，或「aggregate 未改此欄位」）。每題 2–4 個 options，AskUserQuestion 自動附 Other：
+一題 = 一個（方法, 待決欄位），或一個「整個事件」。question 帶事件 payload、readModel 欄位型別、aggregate 對此事件做了什麼（附片段，或「aggregate 未改此欄位」）。每次 AskUserQuestion 最多 4 題、每題最多 4 個 options（自動附 Other＝口述）。哪種形狀問哪種題：
 
-| 形狀 | options |
+| 形狀 | 題型與 options |
 |---|---|
-| payload 集合 → 同名 readModel 集合（元素型別相同） | 加入（聯集；陣列＝不重複追加、保留順序）／移除（差集）／不影響（no-op）／skip |
-| payload scalar → 同名 readModel scalar | 覆寫（`readModel.<f> = event.<f>`，型別不同時附轉換）／不影響（no-op）／skip |
-| 整個事件（沒有同名欄位） | 不影響（no-op）／skip |
+| payload 集合 → 同名 readModel 集合（元素型別相同） | 兩段式。第一題問 payload 性質：這次的差量／完整快照（整欄覆寫）／不影響這個 read model（no-op）／skip。選「這次的差量」才問第二題：加入（聯集／追加）／移除（差集） |
+| payload scalar → 同名 readModel scalar | 單題（單一值不分差量／快照）：覆寫（`readModel.<f> = event.<f>`，型別不同時附轉換）／不影響這個 read model（no-op）／skip；累加等其他寫法 → Other 口述 |
+| payload 集合 → 同名欄位但元素型別不同、或巢狀 struct | 單題：不影響這個 read model（no-op）／skip；會影響 → Other 口述（轉換由人說） |
+| 整個事件（沒有同名欄位） | 單題：不影響這個 read model（no-op）／skip；會影響 → Other 口述 |
 
-- **一定含**「不影響（no-op）」與「skip」。覆寫（payload 是完整快照）、其他寫法、不同名欄位之間的對照（例：roles → permissions）→ 選 Other 口述；不同名欄位**不**自動配成選項。
-- 選「不影響（no-op）」時標記理由寫 `<E> 不改變 <欄位>（使用者確認）`；Other 以「no-op：」開頭 = no-op 並以人寫的理由入標記；其他 Other 文字 = 口述：先回述 `語意理解：<paraphrase>` 再轉 Swift，回述與程式碼一起放進整表確認。只轉寫人說的，不腦補。
-- 每次 AskUserQuestion 最多 4 題，依審閱表順序分批。
+回答 → 程式碼（`<o>` 同 reuse 轉換；payload `Set<X>` 寫進 `[X]` 先 `.sorted()`）：
+
+| 回答 | readModel `[X]` | readModel `Set<X>` |
+|---|---|---|
+| 差量＋加入 | 不重複追加、保留順序（reuse 第一段） | `readModel.<f> = <o>.union(event.<g>)` |
+| 差量＋移除 | 移除（reuse 第二段） | `readModel.<f> = <o>.subtracting(event.<g>)` |
+| 完整快照 | `readModel.<f> = event.<g>` | `readModel.<f> = Set(event.<g>)` |
+
+- 第一題與單題**一定含**「不影響這個 read model（no-op）」與「skip」。不同名欄位之間的對照（例：roles → permissions）→ Other 口述；不同名欄位**不**自動配成選項。
+- 選 no-op 時標記理由寫 `<E> 不改變 <欄位>（使用者確認）`；Other 以「no-op：」開頭 = no-op 並以人寫的理由入標記；其他 Other 文字 = 口述：先回述 `語意理解：<paraphrase>` 再轉 Swift，回述與程式碼一起放進整表確認。只轉寫人說的，不腦補。
+- 分批：第一輪送全部第一題與單題，依審閱表順序每次最多 4 題；第二輪只送答了「這次的差量」的第二題（第二題要等第一題的回答，不能和它同一次送出），同樣每次最多 4 題。兩輪都答完才進整表確認。
 
 ## Phase 5 — 審閱表 → 問答 → 整表確認（一次呈現）
 
@@ -146,7 +155,7 @@ aggregate 是 `[X]`、readModel 是 `Set<X>` → `Set(...)` 包起來。其他�
 | 1 | PrivilegeGranted | reuse-from-aggregate | aggregate-id 1 行 + 聯集 3 行（貼完整程式碼） | `Entity/Commands/<A>+GrantPrivilege.swift`：`self.permissions = (self.permissions ?? []).union(event.permissions)`；domain-fill 口述原文；Set 聯集 → 陣列不重複追加、保留順序 |
 | 2 | RolesAssigned | ask | Q：RolesAssigned 是否影響 permissions？ | payload `roles: [String]`；aggregate 只改 roles |
 
-5b. 問 ask 列（上節）。
+5b. 問 ask 列（上節：先第一題與單題，再第二題）。
 5c. 把回答換成程式碼（no-op → 標記；skip → 保留 stub），重印審閱表與將寫入的 diff，用 `AskUserQuestion` 一題確認整表：options「照表寫入」「全部 skip（不寫）」；逐列修改用 Other（`#列號：改法`，改法可為 skip / no-op / 口述）。改過只重印變動列再確認，直到「照表寫入」。
 
 只有 mechanical / aggregate-id 列（沒有 reuse / ask）→ 不問，直接寫。

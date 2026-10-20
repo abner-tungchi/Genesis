@@ -79,7 +79,7 @@ final class ReadmodelMutationSkillTests: XCTestCase {
         let optionRows = lines(text).filter { $0.hasPrefix("| payload ") || $0.hasPrefix("| 整個事件") }
         XCTAssertGreaterThanOrEqual(optionRows.count, 3)
         for row in optionRows {
-            XCTAssertTrue(row.contains("不影響（no-op）") && row.contains("skip"), row)
+            XCTAssertTrue(row.contains("不影響這個 read model（no-op）") && row.contains("skip"), row)
         }
         for word in ["聯集", "差集", "覆寫", "口述"] {
             XCTAssertTrue(text.contains(word), word)
@@ -182,5 +182,25 @@ final class ReadmodelMutationSkillTests: XCTestCase {
         }
         let eventYamlInput = try XCTUnwrap(rows.first { $0.contains("**event.yaml**") })
         XCTAssertTrue(eventYamlInput.contains("→ exit 1"), "Phase 3 must say a missing event.yaml exits 1: \(eventYamlInput)")
+    }
+
+    // MARK: - Round 2: user decisions
+
+    /// For a collection payload the first question asks what the payload IS (this event's delta / full snapshot /
+    /// no-op / skip); only "delta" leads to a second question (add / remove). Other shapes get a single question.
+    func testCollectionAskIsTwoStageAndBatchedWithinAskUserQuestionLimits() throws {
+        let text = try skill()
+        let rows = lines(text)
+        let collectionRow = try XCTUnwrap(rows.first { $0.hasPrefix("| payload 集合 → 同名 readModel 集合") })
+        XCTAssertTrue(collectionRow.contains("兩段式"), collectionRow)
+        for option in ["這次的差量", "完整快照（整欄覆寫）", "不影響這個 read model（no-op）", "skip", "加入（聯集／追加）", "移除（差集）"] {
+            XCTAssertTrue(collectionRow.contains(option), "\(option) missing: \(collectionRow)")
+        }
+        let scalarRow = try XCTUnwrap(rows.first { $0.hasPrefix("| payload scalar") })
+        XCTAssertTrue(scalarRow.contains("單題"), scalarRow)
+        let wholeEventRow = try XCTUnwrap(rows.first { $0.hasPrefix("| 整個事件") })
+        XCTAssertTrue(wholeEventRow.contains("單題"), wholeEventRow)
+        XCTAssertTrue(text.contains("每次 AskUserQuestion 最多 4 題、每題最多 4 個 options"))
+        XCTAssertTrue(text.contains("第二題要等第一題的回答"), "a second-stage question never shares a call with its first stage")
     }
 }
