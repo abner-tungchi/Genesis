@@ -63,17 +63,74 @@ final class SkillInstallerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
     }
 
-    func testInstallRejectsSymlinkRoot() throws {
+    func testInstallFollowsSymlinkRootToUserOwnedDir() throws {
         let realDir = tmpDir.appendingPathComponent("real", isDirectory: true)
         try FileManager.default.createDirectory(at: realDir, withIntermediateDirectories: true)
         let symlink = tmpDir.appendingPathComponent("skills-link")
         try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: realDir)
 
+        let summary = try SkillInstaller.install(into: symlink, force: false)
+        XCTAssertEqual(summary.installed.count, 14)
+        XCTAssertTrue(summary.failed.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: realDir.appendingPathComponent("usecase/SKILL.md").path),
+                      "files must land in the symlink destination")
+        // The link itself is untouched.
+        let dest = try FileManager.default.destinationOfSymbolicLink(atPath: symlink.path)
+        XCTAssertEqual(dest, realDir.path)
+    }
+
+    func testInstallRejectsDanglingSymlinkRoot() throws {
+        let symlink = tmpDir.appendingPathComponent("skills-link")
+        try FileManager.default.createSymbolicLink(
+            at: symlink, withDestinationURL: tmpDir.appendingPathComponent("does-not-exist")
+        )
         XCTAssertThrowsError(try SkillInstaller.install(into: symlink, force: false)) { error in
             guard case .fileSystemFailed = error as? GenesisError else {
                 return XCTFail("expected fileSystemFailed, got \(error)")
             }
         }
+    }
+
+    func testInstallRejectsSymlinkRootToFile() throws {
+        let file = tmpDir.appendingPathComponent("a-file")
+        try "x".write(to: file, atomically: true, encoding: .utf8)
+        let symlink = tmpDir.appendingPathComponent("skills-link")
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: file)
+        XCTAssertThrowsError(try SkillInstaller.install(into: symlink, force: false)) { error in
+            guard case .fileSystemFailed = error as? GenesisError else {
+                return XCTFail("expected fileSystemFailed, got \(error)")
+            }
+        }
+    }
+
+    func testInstallThroughSymlinkRootStillRefusesSymlinkedSkillEntry() throws {
+        let realDir = tmpDir.appendingPathComponent("real", isDirectory: true)
+        try FileManager.default.createDirectory(at: realDir, withIntermediateDirectories: true)
+        let elsewhere = tmpDir.appendingPathComponent("elsewhere", isDirectory: true)
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: realDir.appendingPathComponent("usecase"), withDestinationURL: elsewhere
+        )
+        let symlink = tmpDir.appendingPathComponent("skills-link")
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: realDir)
+
+        let summary = try SkillInstaller.install(into: symlink, force: true)
+        XCTAssertTrue(summary.failed.contains { $0.skill == "usecase" }, "symlinked skill entry must be refused even with force")
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: elsewhere.path).isEmpty,
+                      "nothing may be written through a symlinked skill entry")
+    }
+
+    func testInstallThroughSymlinkRootLeavesNonGenesisSkillsUntouched() throws {
+        let realDir = tmpDir.appendingPathComponent("real", isDirectory: true)
+        let foreign = realDir.appendingPathComponent("my-own-skill", isDirectory: true)
+        try FileManager.default.createDirectory(at: foreign, withIntermediateDirectories: true)
+        let marker = foreign.appendingPathComponent("SKILL.md")
+        try "mine".write(to: marker, atomically: true, encoding: .utf8)
+        let symlink = tmpDir.appendingPathComponent("skills-link")
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: realDir)
+
+        _ = try SkillInstaller.install(into: symlink, force: true)
+        XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), "mine")
     }
 
     func testInstallRejectsTypeConfusedEntry() throws {

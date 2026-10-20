@@ -87,26 +87,42 @@ public enum SkillInstaller {
         }
     }
 
-    /// Installs each bundled skill into `targetSkillsDir`. Best-effort: a failed skill
-    /// is recorded in `summary.failed` and does not abort the remaining skills.
-    public static func install(into targetSkillsDir: URL, force: Bool) throws -> SkillInstallSummary {
-        let names = try bundledSkillNames()
-        let skillsDir = try bundledSkillsDir()
-
-        // Reject symlinked / non-directory target root before any mutation.
-        var rootIsDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: targetSkillsDir.path, isDirectory: &rootIsDir) {
-            let rootIsSymlink = (try? targetSkillsDir.resourceValues(forKeys: [.isSymbolicLinkKey]))?
-                .isSymbolicLink == true
-            if rootIsSymlink || !rootIsDir.boolValue {
+    /// Resolves the install target root. A real directory is returned as-is (created when missing).
+    /// A symlinked root is followed once to its final destination, which must be an existing directory owned
+    /// by the current user — otherwise throws `fileSystemFailed`. Per-skill entries inside the root are still
+    /// never followed (see `install` / `uninstall`).
+    static func resolveTargetRoot(_ requested: URL) throws -> URL {
+        let fm = FileManager.default
+        let isSymlink = (try? requested.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
+        if isSymlink {
+            let resolved = requested.resolvingSymlinksInPath()
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: resolved.path, isDirectory: &isDir), isDir.boolValue else {
                 throw GenesisError.fileSystemFailed(
                     operation: "validate target skills dir",
-                    underlying: "\(targetSkillsDir.path) is a symlink or not a directory"
+                    underlying: "\(requested.path) is a symlink that does not resolve to a directory"
+                )
+            }
+            let owner = (try? fm.attributesOfItem(atPath: resolved.path)[.ownerAccountID]) as? NSNumber
+            guard owner?.uint32Value == getuid() else {
+                throw GenesisError.fileSystemFailed(
+                    operation: "validate target skills dir",
+                    underlying: "\(requested.path) is a symlink to \(resolved.path), which is not owned by the current user"
+                )
+            }
+            return resolved
+        }
+        var isDir: ObjCBool = false
+        if fm.fileExists(atPath: requested.path, isDirectory: &isDir) {
+            guard isDir.boolValue else {
+                throw GenesisError.fileSystemFailed(
+                    operation: "validate target skills dir",
+                    underlying: "\(requested.path) is a symlink or not a directory"
                 )
             }
         } else {
             do {
-                try FileManager.default.createDirectory(at: targetSkillsDir, withIntermediateDirectories: true)
+                try fm.createDirectory(at: requested, withIntermediateDirectories: true)
             } catch {
                 throw GenesisError.fileSystemFailed(
                     operation: "create skills dir",
@@ -114,6 +130,20 @@ public enum SkillInstaller {
                 )
             }
         }
+        return requested
+    }
+
+    /// Installs each bundled skill into `targetSkillsDir`. Best-effort: a failed skill
+    /// is recorded in `summary.failed` and does not abort the remaining skills.
+    public static func install(into requestedSkillsDir: URL, force: Bool) throws -> SkillInstallSummary {
+        let names = try bundledSkillNames()
+        let skillsDir = try bundledSkillsDir()
+
+        // Validate the target root before any mutation. A symlinked root is allowed ONLY when it resolves
+        // to an existing directory owned by the current user (e.g. an orrery-managed ~/.claude/skills);
+        // writes then land in the resolved directory. Dangling links, links to files, and links to
+        // directories owned by someone else are still refused.
+        let targetSkillsDir = try resolveTargetRoot(requestedSkillsDir)
 
         var installed: [String] = []
         var skipped: [String] = []
