@@ -49,4 +49,51 @@ final class OpenApiYamlRendererTests: XCTestCase {
             "permissions (Array[String]) must NOT render as type: string (PA-F5 regression)"
         )
     }
+
+    // MARK: - presenter GET response schema (read API path, #28)
+
+    private func renderPresenterYaml(kind: PresenterOutputKind, elementType: String) throws -> String {
+        let agg = AggregateSpec(
+            aggregateSpecId: "agg-1", name: "Thing", identityName: "thingId",
+            state: [], invariants: [], eventNames: ["Created"]
+        )
+        let presenter = PresenterSpec(
+            presenterSpecId: "p-GetThings", name: "GetThings", readModelRef: "GetThings",
+            aggregateRef: "Thing",
+            input: PresenterInput(fields: [PresenterInputField(name: "thingId", type: "String", fromPath: "thingId")]),
+            output: PresenterOutput(kind: kind, elementType: elementType, elementSource: "things"),
+            endpoint: PresenterEndpoint(path: "/thing/{thingId}/things", method: "GET"),
+            comment: nil
+        )
+        let bundle = FullBundle(
+            manifestVersion: 1, bundleId: "t", context: "ThingContext",
+            aggregates: [agg], useCases: [], dtos: [], readModels: [], presenters: [presenter]
+        )
+        let outputs = try OpenApiYamlRenderer.render(
+            bundle: bundle, contextName: "ThingContext", adapter: .defaultFor(contextName: "ThingContext")
+        )
+        return outputs.first { $0.path.hasSuffix("openapi.yaml") }!.content
+    }
+
+    func testPresenterArrayOfPrimitiveRendersInlineItemsNotRef() throws {
+        let yaml = try renderPresenterYaml(kind: .array, elementType: "String")
+        XCTAssertTrue(yaml.contains("                type: array\n                items:\n                  type: string"), yaml)
+        XCTAssertFalse(yaml.contains("schemas/String"), "String is not a component schema")
+    }
+
+    func testPresenterSinglePrimitiveRendersInlineType() throws {
+        let yaml = try renderPresenterYaml(kind: .single, elementType: "Int")
+        XCTAssertTrue(yaml.contains("              schema:\n                type: integer"), yaml)
+        XCTAssertFalse(yaml.contains("schemas/Int"), yaml)
+    }
+
+    func testPresenterArrayOfCustomTypeStillUsesRef() throws {
+        let yaml = try renderPresenterYaml(kind: .array, elementType: "ThingDto")
+        XCTAssertTrue(yaml.contains("items:\n                  $ref: '#/components/schemas/ThingDto'"), yaml)
+    }
+
+    func testPresenterSingleCustomTypeStillUsesRef() throws {
+        let yaml = try renderPresenterYaml(kind: .single, elementType: "ThingDto")
+        XCTAssertTrue(yaml.contains("schema:\n                $ref: '#/components/schemas/ThingDto'"), yaml)
+    }
 }

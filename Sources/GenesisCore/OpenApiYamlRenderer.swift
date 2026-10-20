@@ -100,16 +100,7 @@ public enum OpenApiYamlRenderer {
             op.append("          content:")
             op.append("            application/json:")
             op.append("              schema:")
-            switch presenter.output.kind {
-            case .array:
-                op.append("                type: array")
-                op.append("                items:")
-                op.append("                  $ref: '#/components/schemas/\(presenter.output.elementType)'")
-            case .single:
-                op.append("                $ref: '#/components/schemas/\(presenter.output.elementType)'")
-            case .scalar:
-                op.append("                type: \(yamlType(for: presenter.output.elementType))")
-            }
+            op.append(contentsOf: presenterResponseSchemaLines(for: presenter.output, indent: 16))
             op.append("        '404':")
             op.append("          $ref: '#/components/responses/NotFoundError'")
             op.append("        '422':")
@@ -248,16 +239,7 @@ public enum OpenApiYamlRenderer {
             op.append("            application/json:")
             op.append("              schema:")
             // Response schema per output.kind
-            switch presenter.output.kind {
-            case .array:
-                op.append("                type: array")
-                op.append("                items:")
-                op.append("                  $ref: '#/components/schemas/\(presenter.output.elementType)'")
-            case .single:
-                op.append("                $ref: '#/components/schemas/\(presenter.output.elementType)'")
-            case .scalar:
-                op.append("                type: \(yamlType(for: presenter.output.elementType))")
-            }
+            op.append(contentsOf: presenterResponseSchemaLines(for: presenter.output, indent: 16))
             op.append("        '404':")
             op.append("          $ref: '#/components/responses/NotFoundError'")
             op.append("        '422':")
@@ -327,6 +309,43 @@ public enum OpenApiYamlRenderer {
             result.append(Character(ch.lowercased()))
         }
         return result
+    }
+
+    /// Swift primitive element types that have no `components/schemas` entry — they must be inlined
+    /// (`type: string`), never `$ref`'d (swift-openapi-generator fails on a dangling `$ref`).
+    private static let primitiveSchemaTypes: Set<String> = [
+        "String", "Int", "Int64", "UInt", "UInt64", "Bool", "Decimal", "Date", "Double", "Float",
+    ]
+
+    /// Schema lines for a response element type: primitives and nested collections are inlined, any other
+    /// (custom / DTO) type is a `$ref` to `components/schemas`.
+    static func schemaLines(forElementType type: String, indent: Int) -> [String] {
+        let pad = String(repeating: " ", count: indent)
+        let t = type.trimmingCharacters(in: .whitespaces)
+        if let inner = collectionElementType(of: t) {
+            return ["\(pad)type: array", "\(pad)items:"] + schemaLines(forElementType: inner, indent: indent + 2)
+        }
+        let base = t.replacingOccurrences(of: "?", with: "")
+        if primitiveSchemaTypes.contains(base) {
+            switch base {
+            case "Double", "Float": return ["\(pad)type: number"]
+            default: return ["\(pad)type: \(yamlType(for: base))"]
+            }
+        }
+        return ["\(pad)$ref: '#/components/schemas/\(base)'"]
+    }
+
+    /// Presenter GET 200-response schema lines (under `schema:`), per output kind.
+    static func presenterResponseSchemaLines(for output: PresenterOutput, indent: Int) -> [String] {
+        let pad = String(repeating: " ", count: indent)
+        switch output.kind {
+        case .array:
+            return ["\(pad)type: array", "\(pad)items:"] + schemaLines(forElementType: output.elementType, indent: indent + 2)
+        case .single:
+            return schemaLines(forElementType: output.elementType, indent: indent)
+        case .scalar:
+            return ["\(pad)type: \(yamlType(for: output.elementType))"]
+        }
     }
 
     static func yamlType(for swiftType: String) -> String {
