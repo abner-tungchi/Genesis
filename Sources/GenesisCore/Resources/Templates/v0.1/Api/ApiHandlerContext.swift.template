@@ -1,6 +1,7 @@
 import DDDCore
 import Foundation
 import KurrentDB
+import OpenAPIRuntime
 {AggregateImports}
 {SharedImport}
 
@@ -16,6 +17,19 @@ package struct ApiHandler: APIProtocol {
     private func mapToApiError(_ error: Error) -> Components.Schemas.{Context}ApiError? {
 {MAP_TO_API_ERROR_BRANCHES}
         return nil
+    }
+
+    /// Registers this handler's operations on `transport` (e.g. a Hummingbird `Router`).
+    /// The generated `registerHandlers` is `internal` (see openapi-generator-config.yaml:
+    /// `accessModifier: internal` keeps the generator's imports non-`package`, which Swift 6.4
+    /// rejects when mixed with plain `import Foundation`), so the Server target calls this
+    /// `package` forwarder instead.
+    package func registerApiHandlers(
+        on transport: any ServerTransport,
+        serverURL: URL = .defaultOpenAPIServerURL,
+        middlewares: [any ServerMiddleware] = []
+    ) throws {
+        try registerHandlers(on: transport, serverURL: serverURL, middlewares: middlewares)
     }
 
 {UC_HANDLER_METHODS}

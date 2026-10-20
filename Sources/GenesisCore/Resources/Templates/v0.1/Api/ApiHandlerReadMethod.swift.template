@@ -1,4 +1,4 @@
-    package func {ucCamel}(_ input: Operations.{ucCamel}.Input) async throws -> Operations.{ucCamel}.Output {
+    func {ucCamel}(_ input: Operations.{ucCamel}.Input) async throws -> Operations.{ucCamel}.Output {
         let {pathParamName} = input.path.{pathParamName}
         _ = {pathParamName}
 

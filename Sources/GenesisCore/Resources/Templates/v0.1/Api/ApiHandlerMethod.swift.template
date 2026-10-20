@@ -1,4 +1,4 @@
-    package func {ucCamel}(_ input: Operations.{ucCamel}.Input) async throws -> Operations.{ucCamel}.Output {
+    func {ucCamel}(_ input: Operations.{ucCamel}.Input) async throws -> Operations.{ucCamel}.Output {
         guard case let .json(payload) = input.body else {
             return .unprocessableContent(.init(body: .json(.init(error: .invalidPayload))))
         }

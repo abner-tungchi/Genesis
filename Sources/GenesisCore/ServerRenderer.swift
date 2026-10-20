@@ -46,10 +46,10 @@ public enum ServerRenderer {
         // handler registrations: 8-space indent (inside `main()` body)
         var registrations: [String] = []
         for agg in aggregatesWithHandler.sorted(by: { $0.name < $1.name }) {
-            registrations.append("        try \(agg.name)Aggregate.ApiHandler(kdbClient: kdbClient)\n            .registerHandlers(on: router, serverURL: serverURL, middlewares: [])")
+            registrations.append("        try \(agg.name)Aggregate.ApiHandler(kdbClient: kdbClient)\n            .registerApiHandlers(on: router, serverURL: serverURL, middlewares: [])")
         }
         if hasContextPresenter {
-            registrations.append("        try \(contextName).ApiHandler(kdbClient: kdbClient)\n            .registerHandlers(on: router, serverURL: serverURL, middlewares: [])")
+            registrations.append("        try \(contextName).ApiHandler(kdbClient: kdbClient)\n            .registerApiHandlers(on: router, serverURL: serverURL, middlewares: [])")
         }
 
         let content = TemplateRenderer.render(template: template, vars: [
