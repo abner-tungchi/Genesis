@@ -18,14 +18,14 @@ final class SkillInstallerTests: XCTestCase {
         let names = try SkillInstaller.bundledSkillNames()
         XCTAssertEqual(
             Set(names),
-            ["api", "bundle-plan", "domain-fill", "event-storming", "presenter", "presenter-fill", "readmodel", "readmodel-mutation", "strict-review", "test-gen", "usecase", "write-ddd-spec"]
+            ["api", "bundle-plan", "domain-fill", "event-storming", "presenter", "presenter-fill", "read-projector", "read-view", "readmodel", "readmodel-mutation", "strict-review", "test-gen", "usecase", "write-ddd-spec"]
         )
     }
 
     func testInstallIntoEmptyDir() throws {
         let target = tmpDir.appendingPathComponent("skills", isDirectory: true)
         let summary = try SkillInstaller.install(into: target, force: false)
-        XCTAssertEqual(summary.installed.count, 12)  // Phase 1.w added domain-fill (was 11 after test-gen)
+        XCTAssertEqual(summary.installed.count, 14)  // + read-projector, read-view (no-bundle read skills)
         XCTAssertTrue(summary.skipped.isEmpty)
         XCTAssertTrue(summary.overwritten.isEmpty)
         XCTAssertTrue(summary.failed.isEmpty)
@@ -40,7 +40,7 @@ final class SkillInstallerTests: XCTestCase {
         let summary = try SkillInstaller.install(into: target, force: false)
         XCTAssertTrue(summary.skipped.contains("usecase"))
         XCTAssertFalse(summary.installed.contains("usecase"))
-        XCTAssertEqual(summary.installed.count, 11)  // Phase 1.w: 12 total - 1 skipped (usecase)
+        XCTAssertEqual(summary.installed.count, 13)  // 14 total - 1 skipped (usecase)
     }
 
     func testInstallForceOverwrites() throws {
@@ -96,10 +96,10 @@ final class SkillInstallerTests: XCTestCase {
     func testUninstallRemovesUnmodified() throws {
         let target = tmpDir.appendingPathComponent("skills", isDirectory: true)
         let installed = try SkillInstaller.install(into: target, force: false)
-        XCTAssertEqual(installed.installed.count, 12)
+        XCTAssertEqual(installed.installed.count, 14)
 
         let summary = try SkillInstaller.uninstall(from: target, force: false)
-        XCTAssertEqual(summary.removed.count, 12, "freshly-installed (unmodified) skills must all be removed")
+        XCTAssertEqual(summary.removed.count, 14, "freshly-installed (unmodified) skills must all be removed")
         XCTAssertTrue(summary.skippedModified.isEmpty)
         XCTAssertTrue(summary.notPresent.isEmpty)
         XCTAssertTrue(summary.failed.isEmpty)
@@ -117,7 +117,7 @@ final class SkillInstallerTests: XCTestCase {
         let summary = try SkillInstaller.uninstall(from: target, force: false)
         XCTAssertTrue(summary.skippedModified.contains("usecase"), "human-edited skill must be kept (not silently deleted)")
         XCTAssertFalse(summary.removed.contains("usecase"))
-        XCTAssertEqual(summary.removed.count, 11, "the other 11 unmodified skills are removed")
+        XCTAssertEqual(summary.removed.count, 13, "the other 13 unmodified skills are removed")
         XCTAssertTrue(FileManager.default.fileExists(atPath: edited.path), "kept skill's file must still exist")
     }
 
@@ -137,7 +137,7 @@ final class SkillInstallerTests: XCTestCase {
         let target = tmpDir.appendingPathComponent("never-created-skills", isDirectory: true)
         XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
         let summary = try SkillInstaller.uninstall(from: target, force: false)
-        XCTAssertEqual(summary.notPresent.count, 12, "no install → every bundled skill is not-present")
+        XCTAssertEqual(summary.notPresent.count, 14, "no install → every bundled skill is not-present")
         XCTAssertTrue(summary.removed.isEmpty)
         XCTAssertTrue(summary.skippedModified.isEmpty)
         XCTAssertTrue(summary.failed.isEmpty)
