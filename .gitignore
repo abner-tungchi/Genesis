@@ -17,3 +17,6 @@ DerivedData/
 
 # Generated human-readable views of discussion docs (regenerated from the .md by /discuss render.mjs)
 docs/discussions/*.html
+
+# Personal MCP server config (per-machine, not shared)
+.mcp.json
