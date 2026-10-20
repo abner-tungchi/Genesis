@@ -1,6 +1,6 @@
 ---
 name: domain-fill
-description: Genesis intent-elicitation domain-fill skill (transcription-only). Inside a Genesis-bootstrapped project, /domain-fill [<Aggregate>] walks each entity-layer GenesisTODO.notImplemented domain hole (command precondition + build-event / non-type-closure when reducer / create-init derived fields) ONE AT A TIME, prints the hole's scaffold context (bundle precondition / signature), then STOPS via AskUserQuestion and waits for the human to dictate the domain logic. It transcribes the human's stated intent into Swift — it NEVER drafts domain logic itself. No human dictation → the throw GenesisTODO.notImplemented is physically kept (never transcribes). Sibling of /usecase /api /readmodel-mutation (deterministic fills); this is the human-judgment counterpart.
+description: Genesis intent-elicitation domain-fill skill (transcription-only). Inside a Genesis-bootstrapped project, /domain-fill [<Aggregate>] walks each entity-layer GenesisTODO.notImplemented domain hole (command precondition + build-event / non-type-closure when reducer / create-init derived fields) ONE AT A TIME, prints the hole's scaffold context (bundle precondition / signature), then STOPS via AskUserQuestion and waits for the human to dictate the domain logic. It transcribes the human's stated intent into Swift — it NEVER drafts domain logic itself. No human dictation → the throw GenesisTODO.notImplemented is physically kept (never transcribes). Sibling of /usecase and /api (deterministic fills); this is the human-judgment counterpart. Downstream, /readmodel-mutation reuses the when() semantics confirmed here as read-side proposals (written only after human confirmation) and asks the human when semantics are unclear.
 argument-hint: [Aggregate]
 disable-model-invocation: true
 allowed-tools: Read, Edit, Glob, Grep, Bash, AskUserQuestion
@@ -12,7 +12,7 @@ allowed-tools: Read, Edit, Glob, Grep, Bash, AskUserQuestion
 
 ## 你的任務
 
-系統化「**人說 domain 邏輯 → 你 transcribe 成 Swift**」填掉 `genesis new` 留的 entity-layer `throw GenesisTODO.notImplemented(...)` domain 洞:command precondition + build-event / 非-type-closure `when` reducer / create-init 的 derived 欄位。你是 deterministic fill skills（/usecase /api /readmodel-mutation）的 **intent-driven 對偶** + fill pipeline 最後一棒。
+系統化「**人說 domain 邏輯 → 你 transcribe 成 Swift**」填掉 `genesis new` 留的 entity-layer `throw GenesisTODO.notImplemented(...)` domain 洞:command precondition + build-event / 非-type-closure `when` reducer / create-init 的 derived 欄位。你是 deterministic fill skills（/usecase /api）的 **intent-driven 對偶** + 寫入端 fill pipeline 最後一棒;讀取端的 /readmodel-mutation 在你之後跑，會把這裡已確認的 `when` 語意做成讀取端提案。
 
 > **不含 ensureInvariant**:Phase 1.y 起 ensureInvariant 是 runnable no-op（無 marker，DDDKit 每次 apply 跑、throw 會炸 fixture seed）。invariant 的實作由 **TDD invariant test**（餵壞狀態、期望被擋 → 紅 → 實作 → 綠）驅動,並由 **`genesis verify`**（要求每個 declared invariant errorCode 有 enabled test）把關 —— 不是 domain-fill 的 marker-grep 範疇。
 
@@ -109,7 +109,7 @@ semantic:每 filled 洞 provenance = 人 dictate（已逐洞確認）。
 
 ## Framework constraints / 與其他 skills 的關係
 
-- 上游:`genesis new`（Phase 1.y `GenesisTODO.notImplemented` 洞）+ deterministic fill skills（/usecase /api /readmodel-mutation 跑完機械層）。fill pipeline **最後一棒**。
-- sibling:/usecase（orchestration，code-driven）/ /api（adapter）/ /readmodel-mutation（read，type-closure deterministic）—— 本 skill 是它們的 **intent-driven 對偶**。
+- 上游:`genesis new`（Phase 1.y `GenesisTODO.notImplemented` 洞）+ deterministic fill skills（/usecase /api 跑完機械層）。寫入端 fill pipeline **最後一棒**。下游:/readmodel-mutation（讀取端）—— 先跑本 skill 再跑它，同一件事不必問兩次。
+- sibling:/usecase（orchestration，code-driven）/ /api（adapter）—— 本 skill 是它們的 **intent-driven 對偶**。/readmodel-mutation（讀取端 projector when()）:確定的直接填、語意不明時用選擇題問人;它的 reuse 提案只沿用本 skill 已確認的寫入端語意（已填的 `when(event:)`，provenance 可查），held 的洞不會被沿用，提案仍要人確認才寫。
 - honest-hole 閉環:codegen 留 throw-marker（不腦補）↔ /domain-fill 填洞（人沒說不腦補）↔ `genesis verify` release gate 把關。
-- 不重疊 / 不碰:orchestration（/usecase）/ adapter（/api）/ read type-closure（/readmodel-mutation）/ test（/test-gen）/ **ensureInvariant**（no-op，由 TDD invariant test + genesis verify 驅動，非 marker 洞）/ legacy #error/fatalError（pre-1.y，warn regenerate）/ read-side domain（GetPermissions，defer）。
+- 不重疊 / 不碰:orchestration（/usecase）/ adapter（/api）/ read projector when()（/readmodel-mutation）/ test（/test-gen）/ **ensureInvariant**（no-op，由 TDD invariant test + genesis verify 驅動，非 marker 洞）/ legacy #error/fatalError（pre-1.y，warn regenerate）/ read-side domain（GetPermissions，defer）。

@@ -218,4 +218,20 @@ final class ReadmodelMutationSkillTests: XCTestCase {
         XCTAssertTrue(phase1.contains("`struct <Name>Presenter`"), "the canonical name comes from the file, not the argument's case")
         XCTAssertTrue(phase1.contains("PascalCase"), "the not-found message must hint at case sensitivity")
     }
+
+    /// /domain-fill used to call /readmodel-mutation a deterministic / type-closure fill that runs before it. It now
+    /// runs after /domain-fill and only reuses the write-side semantics confirmed there.
+    func testDomainFillDescribesReadmodelMutationReuse() throws {
+        let text = try SkillInstaller.bundledSkillFileContents(skill: "domain-fill", file: "SKILL.md")
+        for stale in [
+            "/usecase /api /readmodel-mutation (deterministic fills)",
+            "deterministic fill skills（/usecase /api /readmodel-mutation）",
+            "/readmodel-mutation 跑完機械層",
+            "/readmodel-mutation（read，type-closure deterministic）",
+            "read type-closure（/readmodel-mutation）",
+        ] {
+            XCTAssertFalse(text.contains(stale), stale)
+        }
+        XCTAssertTrue(text.contains("只沿用本 skill 已確認的寫入端語意"))
+    }
 }
