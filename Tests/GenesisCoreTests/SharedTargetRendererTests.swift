@@ -150,7 +150,7 @@ final class SharedTargetRendererTests: XCTestCase {
         let outputs = try renderDefault(contextName: "IAMContext")
         let readme = outputs.first { $0.path.hasSuffix("README.md") }!
         XCTAssertTrue(readme.content.contains("IAMContext"), "ContextName placeholder must be substituted")
-        XCTAssertTrue(readme.content.contains("0.1.0-phase1k"), "GenesisVersion placeholder must be substituted")
+        XCTAssertTrue(readme.content.contains(GenesisCoreVersion.current), "GenesisVersion placeholder must be substituted")
         XCTAssertFalse(readme.content.contains("{ContextName}"), "unresolved placeholder: \(readme.content)")
         XCTAssertFalse(readme.content.contains("{GenesisVersion}"), "unresolved placeholder")
         XCTAssertFalse(readme.content.contains("{Date}"), "unresolved placeholder")

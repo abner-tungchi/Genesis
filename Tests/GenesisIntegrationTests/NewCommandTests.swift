@@ -1,4 +1,5 @@
 import XCTest
+import GenesisCore
 
 final class NewCommandTests: XCTestCase {
     private var tmpDir: URL!
@@ -235,7 +236,7 @@ final class NewCommandTests: XCTestCase {
             encoding: .utf8
         )
         XCTAssertTrue(readme.contains("IAMContext"), "README placeholder must substitute ContextName")
-        XCTAssertTrue(readme.contains("0.1.0-phase1k"), "README must contain Genesis version")
+        XCTAssertTrue(readme.contains(GenesisCoreVersion.current), "README must contain Genesis version")
         XCTAssertFalse(readme.contains("{ContextName}"), "unresolved placeholder")
         XCTAssertFalse(readme.contains("{GenesisVersion}"), "unresolved placeholder")
         XCTAssertFalse(readme.contains("{Date}"), "unresolved placeholder")
