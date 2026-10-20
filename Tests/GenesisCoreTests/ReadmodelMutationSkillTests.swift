@@ -120,4 +120,67 @@ final class ReadmodelMutationSkillTests: XCTestCase {
         XCTAssertTrue(text.contains("## Phase 5 — 審閱表"))
         XCTAssertTrue(text.contains("## Phase 6 — 一次寫入"))
     }
+
+    // MARK: - Round 2: independent read-back findings
+
+    /// A collection payload can be this event's delta or a full snapshot; nothing in the name or type tells which,
+    /// and a wrong guess compiles. So no collection-payload event is ever mechanical — removeAll / append struct stay
+    /// mechanical only when the payload shape rules out the snapshot reading (one element), and assignList is out.
+    func testCollectionPayloadAmbiguityIsNeverAutoDecided() throws {
+        let rows = lines(try skill())
+        XCTAssertTrue(rows.contains { $0.contains("集合型 payload 的差量／快照歧義永遠不自動判定") })
+        let removeAll = rows.filter { $0.contains("**removeAll**") }
+        XCTAssertFalse(removeAll.isEmpty)
+        for row in removeAll { XCTAssertTrue(row.contains("單一元素的 id locator"), row) }
+        let append = rows.filter { $0.contains("**append struct**") }
+        XCTAssertFalse(append.isEmpty)
+        for row in append { XCTAssertTrue(row.contains("單一元素的完整欄位"), row) }
+        let assignList = try XCTUnwrap(rows.first { $0.contains("**assignList**") })
+        XCTAssertTrue(assignList.contains("不屬 mechanical"), assignList)
+    }
+
+    func testNoOpMarkerBlockHasNoPlaceholders() throws {
+        let rows = lines(try skill())
+        let intro = try XCTUnwrap(rows.firstIndex { $0.hasPrefix("no-op 標記（") })
+        let open = try XCTUnwrap(rows[intro...].firstIndex { $0 == "```swift" })
+        let close = try XCTUnwrap(rows[(open + 1)...].firstIndex { $0 == "```" })
+        let block = rows[(open + 1)..<close].joined(separator: "\n")
+        XCTAssertTrue(block.contains("// readmodel-mutation: no-op —"), block)
+        XCTAssertFalse(block.contains("_ = readModel"), block)
+        XCTAssertFalse(block.contains("_ = event"), block)
+    }
+
+    func testUnfilledAggregateHoleAlwaysGoesToAsk() throws {
+        let text = try skill()
+        XCTAssertTrue(text.contains("aggregate 的 `when(event:)` 還是洞（含 `GenesisTODO`，`/domain-fill` skip 過）→ 不可沿用，該欄位一律歸 ask"))
+    }
+
+    func testSkipLeavesWholeStubIncludingAggregateIdLine() throws {
+        let text = try skill()
+        XCTAssertTrue(text.contains("人選 skip → 該方法整段 stub 原封不動（aggregate-id 那行也不寫"))
+        XCTAssertTrue(text.contains("skip / manual 的方法不動"))
+    }
+
+    func testWholeTableConfirmationOffersWriteAllSkipAllAndPerRowEdits() throws {
+        let rows = lines(try skill())
+        let confirm = try XCTUnwrap(rows.first { $0.hasPrefix("5c.") })
+        for option in ["「照表寫入」", "「全部 skip（不寫）」", "`#列號：改法`"] {
+            XCTAssertTrue(confirm.contains(option), "\(option) missing: \(confirm)")
+        }
+    }
+
+    func testPartialFillIsCheckedBeforeAnyWrite() throws {
+        let text = try skill()
+        XCTAssertTrue(text.contains("半填在**寫入前**檢查：一次列出全部半填方法，什麼都不寫"))
+    }
+
+    func testExit1CoversEveryMissingPrerequisite() throws {
+        let rows = lines(try skill())
+        let exit1 = try XCTUnwrap(rows.first { $0.hasPrefix("| exit 1 |") })
+        for item in ["arg 空", "presenter", "ReadModel", "event.yaml"] {
+            XCTAssertTrue(exit1.contains(item), "\(item) missing: \(exit1)")
+        }
+        let eventYamlInput = try XCTUnwrap(rows.first { $0.contains("**event.yaml**") })
+        XCTAssertTrue(eventYamlInput.contains("→ exit 1"), "Phase 3 must say a missing event.yaml exits 1: \(eventYamlInput)")
+    }
 }

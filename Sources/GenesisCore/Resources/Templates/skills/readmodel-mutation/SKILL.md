@@ -20,7 +20,7 @@ allowed-tools: Read, Edit, Write, Glob, Grep, AskUserQuestion
 - **只動 when() body 內的 stub**；不動 type signature / typealias / buildReadModel / coordinator / categoryRule / imports。
 - **不動 ReadModel** swift、**不動 aggregate**（`Entity/` 只讀）；**不寫 openapi.yaml** / event.yaml / Package.swift / bundle JSON / 任何 *.yaml。唯一另寫的檔是 `docs/readmodel-mutation-provenance.md`。
 - **不動 read-side AS body**（/presenter-fill 範疇）。一次一 presenter；scaffold-once + idempotent per-method。
-- **不猜增減語意**：payload 是差量（加入／移除）還是快照（整欄取代），事件名與型別都判斷不出；猜錯會**編譯通過但語意錯**。delta 動詞（`Granted | Revoked | Added | Removed | Deleted | Assigned`）事件永遠不套整欄取代的 pattern，只能沿用 aggregate 已確認的 `when(event:)`（提案，人確認才寫）或問人。
+- **不猜增減語意**：集合型 payload（`[X]` / `Set<X>`）是這次的差量（加入／移除）還是完整快照（整欄覆寫），事件名與型別都判斷不出；猜錯會**編譯通過但語意錯**。原則：**集合型 payload 的差量／快照歧義永遠不自動判定**——payload 帶整個集合的事件一律不屬 mechanical，只能沿用 aggregate 已確認的 `when(event:)`（提案，人確認才寫）或問人。mechanical 只收 payload 形狀已排除快照解讀的增減：removeAll 要「單一元素的 id locator」、append struct 要「單一元素的完整欄位」。delta 動詞（`Granted | Revoked | Added | Removed | Deleted | Assigned`）也永遠不套整欄取代的 pattern。
 - **不因單一方法無法處理就中止**：沒有 pattern 的方法歸 reuse-from-aggregate / ask / manual，其餘方法照常處理，全部結果列在報表。
 - 提案與問答結果**未經人確認不寫**。人選 skip → 該方法整段 stub 原封不動（aggregate-id 那行也不寫，下次重跑會重新分類）。
 
@@ -58,7 +58,7 @@ no-op 標記（人選「不影響」時由本 skill 寫入；**不含** `_ = rea
 ## Phase 3 — 讀輸入（全部唯讀）
 
 1. **ReadModel**：`<readModelTypeName>.swift` 的 stored properties（name + Swift 型別；區分 scalar / `[X]` / `Set<X>` / nested struct / `<X>Dto`；記 Optional）。**key 欄位** = `var id: String { <key> }` 回傳的欄位（`buildReadModel` 已由 input.id 設好）：只由 set anchor 寫，其他事件不提問、不寫。
-2. **event.yaml**（per-agg：`Sources/<A>Aggregate/event.yaml`；context-level：各事件所屬 aggregate 的 event.yaml）：每個 `<E>` 的 `properties`（name + type）、`kind`、`aggregateRootId.alias`。plugin 產的 Swift 事件型別有 `event.<alias>: String`（沒宣告 alias 時叫 `aggregateRootId`），它不在 `properties` 裡。
+2. **event.yaml**（per-agg：`Sources/<A>Aggregate/event.yaml`；context-level：各事件所屬 aggregate 的 event.yaml）：每個 `<E>` 的 `properties`（name + type）、`kind`、`aggregateRootId.alias`。plugin 產的 Swift 事件型別有 `event.<alias>: String`（沒宣告 alias 時叫 `aggregateRootId`），它不在 `properties` 裡。event.yaml 缺檔、或找不到某個 `<E>` 的定義 → exit 1：`prerequisite missing: <event.yaml path> (<E>)`。
 3. **aggregate 寫入端語意**（reuse 用；Grep `func when(event: <E>)` 於 `Sources/*Aggregate/Entity/`）：
    - 一般事件：`Sources/<A>Aggregate/Entity/Commands/<A>+<UC>.swift` 的 `package func when(event: <E>) throws`。
    - createdEvent：`Entity/<A>.swift` 的 rehydration `init?(first createdEvent: <E>, ...)` 把 `createdEvent.<f>` 傳給 full init，full init 的 `self.<f> = <f>` 等同 `self.<f> = event.<f>`。
@@ -73,13 +73,14 @@ no-op 標記（人選「不影響」時由本 skill 寫入；**不含** `_ = rea
 
 **mechanical**：依 priority 試下列 pattern（命中第一個即用；aggregate-id 欄位不在此寫；key 欄位只由 set anchor 寫）：
 
-1. 名含 `Removed` / `Deleted` 且 event 有 `*Id` 對應某 collection elem id → **removeAll**：`readModel.<col>.removeAll { $0.<idField> == event.<idField> }`
+1. 名含 `Removed` / `Deleted`，且 payload 是**單一元素的 id locator**（scalar `*Id`，對應某 collection elem id）→ **removeAll**：`readModel.<col>.removeAll { $0.<idField> == event.<idField> }`。payload 帶 `[X]` / `Set<X>`（一次移除一批）→ 不屬 mechanical
 2. 名含 `Edited` / `Updated` / `Renamed` 且 event 有 `*Id` locator + 其他 fields → **updateAt**：`guard let i = readModel.<col>.firstIndex(where: { $0.<idField> == event.<idField> }) else { return }` + `readModel.<col>[i].<f> = event.<f>`
-3. 名含 `Added` 且 payload fields ⊇ collection elem fields 全集（同名同型）→ **append struct**：`readModel.<col>.append(.init(<f1>: event.<f1>, <f2>: event.<f2>))`
+3. 名含 `Added`，且 payload 是**單一元素的完整欄位**（payload fields ⊇ collection elem fields 全集，同名同型；不是 `[Elem]` 整包）→ **append struct**：`readModel.<col>.append(.init(<f1>: event.<f1>, <f2>: event.<f2>))`
 4. target field 型別是 `<X>Dto`（單一，非 collection）→ 試 **Dto-convert**（下方三條件）；先於 anchor/scalar 判（`<X>Dto` 用 scalar 會型別不符）
 5. 名含 `Created`（anchor）→ **set anchor**：同名同型 scalar 逐行 `readModel.<f> = event.<f>`（collection 初始空，**不**在 anchor event append）
 6. 名含 `Set` / `Edited` 且 payload 全 scalar 直對 readModel 同名同型 scalar → **set scalar**：`readModel.<f> = event.<f>`
-7. event 有單一 `[X]` field 對應 readModel `Set<X>`，且 verb 不在 delta 黑名單 → **assignList**：`readModel.<setField> = Set(event.<arr>)`（delta 動詞是差量，整欄取代會錯）
+
+原 pattern 7 **assignList**（`readModel.<setField> = Set(event.<arr>)`）：payload 是整個集合，差量／快照分不出（含 delta 動詞）→ **不屬 mechanical**，走 reuse-from-aggregate / ask；人答「完整快照」才寫這行。
 
 **Dto-convert 三條件**（全成立才填；type-closure 是必要非充分：`init(from:)` 存在只證明「可轉型」，不證明「該覆寫」）：
 
@@ -91,7 +92,7 @@ no-op 標記（人選「不影響」時由本 skill 寫入；**不含** `_ = rea
 **待決欄位**：排除 key、aggregate-id、mechanical 已寫的欄位後，readModel 欄位若 (a) payload 有同名欄位（型別可不同），或 (b) aggregate 對 `<E>` 的寫入端語意指派了同名 state 欄位 → 待決，逐欄判：
 
 - **reuse-from-aggregate（提案）**：aggregate 該段已填，且對此欄位是**單一運算式**的指派 → 擷取該運算式，依下節轉成讀取端寫法，連同來源片段進審閱表；人確認才寫。
-- **ask**：其餘待決欄位（aggregate 該段是洞、沒有同名 state、片段不是單一運算式、或轉換需要人決定）。
+- **ask**：aggregate 的 `when(event:)` 還是洞（含 `GenesisTODO`，`/domain-fill` skip 過）→ 不可沿用，該欄位一律歸 ask。沒有同名 state、片段不是單一運算式、或轉換需要人決定 → 也歸 ask。
 - 方法沒有 mechanical 行、沒有待決欄位，而 readModel 還有 key / aggregate-id 以外的欄位（例：aggregate 只改了 read model 沒有的欄位）→ 整個事件一題 ask：「此事件是否影響這個 read model？」
 
 **manual**（留空殼，報表說明原因）：reorder（名含 `Reordered` / `Moved` / `Sorted`）、insert-at-position（payload 有 index / position / before* / after*）、跨事件條件（要看其他 state 才能決定）、custom type wrap（非 Dto 自訂型別要建構）、append struct 但 collection elem 有 field 不在 payload（需 default，如 OC `uniqueCode: nil, traits: []`）。
