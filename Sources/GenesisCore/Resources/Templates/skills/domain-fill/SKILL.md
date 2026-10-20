@@ -110,6 +110,6 @@ semantic:每 filled 洞 provenance = 人 dictate（已逐洞確認）。
 ## Framework constraints / 與其他 skills 的關係
 
 - 上游:`genesis new`（Phase 1.y `GenesisTODO.notImplemented` 洞）+ deterministic fill skills（/usecase /api 跑完機械層）。寫入端 fill pipeline **最後一棒**。下游:/readmodel-mutation（讀取端）—— 先跑本 skill 再跑它，同一件事不必問兩次。
-- sibling:/usecase（orchestration，code-driven）/ /api（adapter）—— 本 skill 是它們的 **intent-driven 對偶**。/readmodel-mutation（讀取端 projector when()）:確定的直接填、語意不明時用選擇題問人;它的 reuse 提案只沿用本 skill 已確認的寫入端語意（已填的 `when(event:)`，provenance 可查），held 的洞不會被沿用，提案仍要人確認才寫。
+- sibling:/usecase（orchestration，code-driven）/ /api（adapter）—— 本 skill 是它們的 **intent-driven 對偶**。/readmodel-mutation（讀取端 projector when()）:確定的直接填、語意不明時用選擇題問人;它的 reuse 提案只沿用本 skill 已確認的寫入端語意（已填的 `when(event:)`，provenance 可查），選了 skip、仍保留的洞不會被沿用，提案仍要人確認才寫。
 - honest-hole 閉環:codegen 留 throw-marker（不腦補）↔ /domain-fill 填洞（人沒說不腦補）↔ `genesis verify` release gate 把關。
 - 不重疊 / 不碰:orchestration（/usecase）/ adapter（/api）/ read projector when()（/readmodel-mutation）/ test（/test-gen）/ **ensureInvariant**（no-op，由 TDD invariant test + genesis verify 驅動，非 marker 洞）/ legacy #error/fatalError（pre-1.y，warn regenerate）/ read-side domain（GetPermissions，defer）。
