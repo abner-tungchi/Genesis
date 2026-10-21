@@ -241,6 +241,9 @@ final class ReadmodelMutationSkillTests: XCTestCase {
         let text = try skill()
         let filled = try XCTUnwrap(lines(text).first { $0.hasPrefix("| 已填 |") })
         XCTAssertTrue(filled.contains("`readModel = …`"), "已填 row must accept whole-value assignment: \(filled)")
+        for token in ["`readModel.<path> =`", "`+=`", "`readModel.<x>[i].<y> =`", "作用在 readModel 成員上的 `.append(`", "只讀取 `readModel.x`"] {
+            XCTAssertTrue(filled.contains(token), "已填 row must spell the literal rule, missing \(token): \(filled)")
+        }
         let half = try XCTUnwrap(lines(text).first { $0.hasPrefix("| 半填 |") })
         XCTAssertTrue(half.contains("placeholder 與 mutation 並存"), half)
     }

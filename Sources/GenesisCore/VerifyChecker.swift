@@ -199,6 +199,18 @@ public enum VerifyChecker {
         return holes
     }
 
+    /// Literal /readmodel-mutation Phase 2 「已填」 mutation, judged on a SANITIZED line: an assignment whose target
+    /// is `readModel` or a path under it (`readModel = …`, `readModel.a.b = …`, `readModel.a[i].b = …`, optional
+    /// chaining, compound `+=` `-=` …; `==` `!=` `<=` `>=` are comparisons, not assignments), or `.append(` /
+    /// `.removeAll(` / `.removeAll {` (the mechanical pattern's trailing closure) called on a readModel member. Merely READING `readModel.x` is NOT a mutation (fail-closed).
+    static func isReadModelMutation(_ line: String) -> Bool {
+        let path = #"readModel(?:\??\.[A-Za-z_]\w*|\[[^\]]*\])*"#
+        let assign = #"\b"# + path + #"\s*(?:[-+*/%]|&&|\|\|)?=(?!=)"#
+        let call = #"\b"# + path + #"\.(?:append\s*\(|removeAll\s*[({])"#
+        return line.range(of: assign, options: .regularExpression) != nil
+            || line.range(of: call, options: .regularExpression) != nil
+    }
+
     /// nil = filled / explicit no-op; otherwise the reason it is a hole. Mirrors /readmodel-mutation Phase 2:
     /// 未填＝placeholder present; 半填＝(placeholder mixed with mutation) or (no mutation and no no-op marker);
     /// 已填＝no placeholder AND (mutation OR no-op marker). Placeholders are judged on sanitized text.
@@ -210,9 +222,7 @@ public enum VerifyChecker {
             if line.range(of: #"^_\s*=\s*readModel$"#, options: .regularExpression) != nil { hasRM = true; continue }
             if line.range(of: #"^_\s*=\s*event$"#, options: .regularExpression) != nil { hasEv = true; continue }
             hasStatement = true
-            if line.contains("readModel.") || line.contains(".append(") || line.contains(".removeAll(")
-                || line.range(of: #"\]\s*\.[A-Za-z_]"#, options: .regularExpression) != nil
-                || line.range(of: #"\breadModel\s*="#, options: .regularExpression) != nil {
+            if isReadModelMutation(line) {
                 hasMutation = true
             }
         }

@@ -491,4 +491,91 @@ final class VerifyCheckerTests: XCTestCase {
         XCTAssertEqual(lines.count, 40)
         XCTAssertFalse(lines.contains { $0.contains("more") })
     }
+
+    // MARK: - mutation judgement is literal (fail-closed): reads are NOT mutations
+
+    func testWholeReadModelAssignmentIsFilled() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                readModel = FooReadModel(fooId: event.fooId)
+            }
+        """))
+        XCTAssertEqual(VerifyChecker.verify(projectRoot: tmp).remainingReadSideHoles.count, 0)
+    }
+
+    func testReadOnlyAccessWithoutAssignmentIsHole() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                let x = readModel.permissions
+                if readModel.name == event.name { return }
+                if readModel.count >= 1 || readModel.flag != true { return }
+                var copy = readModel.items
+                copy.append(event.item)
+            }
+        """))
+        XCTAssertEqual(VerifyChecker.verify(projectRoot: tmp).remainingReadSideHoles.count, 1,
+            "reading readModel.x / comparing / appending to a LOCAL copy is not a mutation (no false-green)")
+    }
+
+    func testCompoundAndIndexedAssignmentsAreFilled() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: A) throws {
+                readModel.count += 1
+            }
+            package func when(readModel: inout ReadModelType, event: B) throws {
+                readModel.total -= event.n
+            }
+            package func when(readModel: inout ReadModelType, event: C) throws {
+                readModel.items[idx].name = event.name
+            }
+            package func when(readModel: inout ReadModelType, event: D) throws {
+                readModel.child?.name = event.name
+            }
+            package func when(readModel: inout ReadModelType, event: E) throws {
+                readModel.tags.append(event.tag)
+            }
+        """))
+        XCTAssertEqual(VerifyChecker.verify(projectRoot: tmp).remainingReadSideHoles.count, 0)
+    }
+
+    func testEachReadSideCategoryAloneFailsPassed() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                _ = readModel
+                _ = event
+            }
+        """))
+        var r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingMarkers.count + r.remainingTestHoles.count + r.uncoveredInvariants.count, 0)
+        XCTAssertFalse(r.passed, "a Presenter hole alone must fail verify")
+        try FileManager.default.removeItem(at: tmp.appendingPathComponent(presenterPath))
+        try write("Sources/AAggregate/Adapter/GetFoo/GetFooApplicationService.swift", """
+        struct S { func execute() -> Int { fatalError("TODO(/presenter-fill skill): x") } }
+        """)
+        r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingReadSideHoles.count, 1)
+        XCTAssertFalse(r.passed, "a read-side AS hole alone must fail verify")
+        try FileManager.default.removeItem(at: tmp.appendingPathComponent("Sources/AAggregate/Adapter/GetFoo/GetFooApplicationService.swift"))
+        XCTAssertTrue(VerifyChecker.verify(projectRoot: tmp).passed, "no holes anywhere -> passes")
+    }
+
+    func testHoleFilePathsAreRelativeWhenRootIsASymlink() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                _ = readModel
+                _ = event
+            }
+        """))
+        try write("Sources/AAggregate/Cmd.swift", "func f() throws { throw GenesisTODO.notImplemented(\"x\") }")
+        let link = FileManager.default.temporaryDirectory.appendingPathComponent("VC-link-\(UUID().uuidString)")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: tmp)
+        defer { try? FileManager.default.removeItem(at: link) }
+        let r = VerifyChecker.verify(projectRoot: link)
+        let files = (r.remainingReadSideHoles + r.remainingMarkers).map(\.file)
+        XCTAssertEqual(files.count, 2)
+        for f in files {
+            XCTAssertTrue(f.hasPrefix("Sources/"), "expected a project-relative path, got \(f)")
+            XCTAssertFalse(f.contains("/private") || f.hasPrefix("/"), f)
+        }
+    }
 }
