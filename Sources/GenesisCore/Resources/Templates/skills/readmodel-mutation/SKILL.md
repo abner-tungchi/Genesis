@@ -48,7 +48,7 @@ Read presenter，抽出每個 `package func when(readModel: inout ReadModelType,
 | 狀態 | 判定 | 動作 |
 |---|---|---|
 | 未填 | `_ = readModel`、`_ = event` 兩行都在，除 stub 註解外沒有其他 statement | 進 Phase 4 分類 |
-| 已填 | 無 placeholder，且有 mutation（`readModel.` 指派 / `.append(` / `.removeAll(` / `[i].`）**或** no-op 標記 `// readmodel-mutation: no-op` | skip（重跑不碰） |
+| 已填 | 無 placeholder，且有 mutation（`readModel.` 指派 / `readModel = …` 整體賦值 / `.append(` / `.removeAll(` / `[i].`）**或** no-op 標記 `// readmodel-mutation: no-op` | skip（重跑不碰） |
 | 半填 | 其他：只剩一個 placeholder、placeholder 與 mutation 並存、或 body 無 mutation 且無 no-op 標記 | exit 4：`partial fill detected in when(...event: <E>)` |
 
 半填在**寫入前**檢查：一次列出全部半填方法，什麼都不寫。沒有未填方法 → 報表 `nothing to do` exit 0。

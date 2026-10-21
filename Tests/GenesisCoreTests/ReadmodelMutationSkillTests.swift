@@ -234,4 +234,14 @@ final class ReadmodelMutationSkillTests: XCTestCase {
         }
         XCTAssertTrue(text.contains("只沿用本 skill 已確認的寫入端語意"))
     }
+
+    /// `genesis verify` treats a whole-value `readModel = …` assignment as a mutation; the skill's 已填 row must
+    /// agree, else one body reads "filled" to verify but half-filled (exit 4) to the skill.
+    func testFilledRowAcceptsWholeReadModelAssignmentAndPlaceholderPlusMutationIsHalfFilled() throws {
+        let text = try skill()
+        let filled = try XCTUnwrap(lines(text).first { $0.hasPrefix("| 已填 |") })
+        XCTAssertTrue(filled.contains("`readModel = …`"), "已填 row must accept whole-value assignment: \(filled)")
+        let half = try XCTUnwrap(lines(text).first { $0.hasPrefix("| 半填 |") })
+        XCTAssertTrue(half.contains("placeholder 與 mutation 並存"), half)
+    }
 }
