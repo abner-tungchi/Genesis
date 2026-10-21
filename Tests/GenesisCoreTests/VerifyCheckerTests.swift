@@ -474,4 +474,21 @@ final class VerifyCheckerTests: XCTestCase {
         XCTAssertEqual(r.uncoveredInvariants.count, 0)
         XCTAssertEqual(r.remainingTestHoles.count, 0)
     }
+
+    // MARK: - G19: long hole lists are truncated with an explicit "... and N more"
+
+    func testHoleListTruncatesWithAndNMore() {
+        let holes = (1...45).map { VerifyChecker.Hole(file: "f\($0).swift", snippet: "s\($0)") }
+        let lines = VerifyChecker.formatHoleList(holes, limit: 40)
+        XCTAssertEqual(lines.count, 41)
+        XCTAssertEqual(lines.first, "    f1.swift: s1")
+        XCTAssertEqual(lines.last, "    … and 5 more")
+    }
+
+    func testHoleListAtLimitHasNoMoreLine() {
+        let holes = (1...40).map { VerifyChecker.Hole(file: "f\($0).swift", snippet: "s") }
+        let lines = VerifyChecker.formatHoleList(holes, limit: 40)
+        XCTAssertEqual(lines.count, 40)
+        XCTAssertFalse(lines.contains { $0.contains("more") })
+    }
 }

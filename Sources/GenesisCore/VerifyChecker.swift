@@ -127,6 +127,16 @@ public enum VerifyChecker {
                       remainingReadSideHoles: readSideHoles)
     }
 
+    // MARK: - report formatting
+
+    /// Indented report lines for a hole list: the first `limit` holes, then `    … and N more` when truncated
+    /// (the caller prints the total in the heading line, so nothing is silently dropped).
+    public static func formatHoleList(_ holes: [Hole], limit: Int = 40) -> [String] {
+        var out = holes.prefix(limit).map { "    \($0.file): \($0.snippet)" }
+        if holes.count > limit { out.append("    … and \(holes.count - limit) more") }
+        return out
+    }
+
     // MARK: - read-side holes
 
     /// Marker the /readmodel-mutation skill writes when the human answers "does not affect this read model".

@@ -40,7 +40,7 @@ struct VerifyCommand: AsyncParsableCommand {
 
         if !result.remainingMarkers.isEmpty {
             print("✗ \(result.remainingMarkers.count) unfilled domain hole(s) (GenesisTODO.notImplemented):")
-            for h in result.remainingMarkers.prefix(40) { print("    \(h.file): \(h.snippet)") }
+            VerifyChecker.formatHoleList(result.remainingMarkers).forEach { print($0) }
         }
         if !result.uncoveredInvariants.isEmpty {
             print("✗ \(result.uncoveredInvariants.count) declared invariant(s) with NO enabled test (honesty backstop):")
@@ -48,13 +48,13 @@ struct VerifyCommand: AsyncParsableCommand {
         }
         if !result.remainingTestHoles.isEmpty {
             print("✗ \(result.remainingTestHoles.count) unfilled test-side Given hole(s) (genesisTODO arrange-thunk in an enabled @Test):")
-            for h in result.remainingTestHoles.prefix(40) { print("    \(h.file): \(h.snippet)") }
+            VerifyChecker.formatHoleList(result.remainingTestHoles).forEach { print($0) }
             print("    → author the Given (fixture call + input value, + positive-arrange #require) in <UC>Tests.authored.swift")
         }
 
         if !result.remainingReadSideHoles.isEmpty {
             print("✗ \(result.remainingReadSideHoles.count) unfilled read-side hole(s) (Presenter when() stub / read-side AS fatalError):")
-            for h in result.remainingReadSideHoles.prefix(40) { print("    \(h.file): \(h.snippet)") }
+            VerifyChecker.formatHoleList(result.remainingReadSideHoles).forEach { print($0) }
             print("    → fill when() bodies with /readmodel-mutation <presenterName> (or mark `// readmodel-mutation: no-op — <reason>`); fill read-side AS with /presenter-fill <presenterName>")
         }
 
