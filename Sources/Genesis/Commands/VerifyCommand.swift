@@ -6,11 +6,23 @@ import GenesisCore
 /// used to give at compile time. Run inside a generated project root. Fails (exit 2) if any GenesisTODO
 /// marker remains in Sources/, OR any aggregate invariant errorCode has no enabled live-assertion test,
 /// OR (Phase 1.z FIX-2) any enabled @Test in Tests/ still calls the genesisTODO(...) arrange-thunk (an
-/// unfilled Given). Verify is RED throughout development and goes green only when all three are clear.
+/// unfilled Given), OR any read-side hole remains: a Presenter `when(readModel:event:)` still an unfilled /
+/// half-filled stub (same rule as /readmodel-mutation; `// readmodel-mutation: no-op` counts as filled) or a
+/// read-side ApplicationService still holding `fatalError("TODO(/presenter-fill skill)…")`.
+/// Verify is RED throughout development and goes green only when all four are clear.
 struct VerifyCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "verify",
-        abstract: "Verify a generated project: no unfilled GenesisTODO holes (Sources or Tests), and every aggregate invariant has an enabled test."
+        abstract: "Verify a generated project: no unfilled GenesisTODO holes (Sources or Tests), no unfilled read-side holes (Presenter when() stubs, read-side AS fatalError), and every aggregate invariant has an enabled test.",
+        discussion: """
+        Exit 0 only when all four checks are clear; exit 2 otherwise:
+          1. no GenesisTODO.notImplemented left in Sources/ (unfilled domain holes)
+          2. every aggregate invariant has an enabled test with a live assertion
+          3. no unfilled test-side Given (genesisTODO arrange-thunk in an enabled @Test)
+          4. no unfilled read-side hole: a Presenter when(readModel:event:) that is still a stub or half-filled \
+        (fill it with /readmodel-mutation, or mark it `// readmodel-mutation: no-op — <reason>`), or a \
+        read-side ApplicationService still holding fatalError("TODO(/presenter-fill skill)") (fill with /presenter-fill)
+        """
     )
 
     @Option(name: .customLong("project-dir"), help: "Generated project root (default: cwd).")
@@ -40,8 +52,14 @@ struct VerifyCommand: AsyncParsableCommand {
             print("    → author the Given (fixture call + input value, + positive-arrange #require) in <UC>Tests.authored.swift")
         }
 
+        if !result.remainingReadSideHoles.isEmpty {
+            print("✗ \(result.remainingReadSideHoles.count) unfilled read-side hole(s) (Presenter when() stub / read-side AS fatalError):")
+            for h in result.remainingReadSideHoles.prefix(40) { print("    \(h.file): \(h.snippet)") }
+            print("    → fill when() bodies with /readmodel-mutation <presenterName> (or mark `// readmodel-mutation: no-op — <reason>`); fill read-side AS with /presenter-fill <presenterName>")
+        }
+
         if result.passed {
-            print("✓ genesis verify passed: no unfilled holes (Sources or Tests), every invariant has an enabled live-assertion test")
+            print("✓ genesis verify passed: no unfilled holes (Sources, Tests or read side), every invariant has an enabled live-assertion test")
             return
         }
         genesisExit(2)

@@ -315,4 +315,163 @@ final class VerifyCheckerTests: XCTestCase {
         XCTAssertEqual(r.remainingMarkers.count, 0,
             "a filled /api handler (no GenesisTODO.notImplemented) must not be flagged as an unfilled marker")
     }
+
+    // MARK: - read-side holes (Presenter when() stubs + read-side AS fatalError)
+
+    private let presenterPath = "Sources/AAggregate/Usecase/Projector/GetFoo/GetFooPresenter.swift"
+
+    private func presenter(_ whens: String) -> String {
+        """
+        package struct GetFooPresenter: Presenter {
+            package typealias ReadModelType = FooReadModel
+        \(whens)
+        }
+        """
+    }
+
+    func testUnfilledPresenterWhenIsHole() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                // TODO(Phase 1.g): mutation logic not yet filled. Run `/readmodel-mutation GetFoo`
+                _ = readModel
+                _ = event
+            }
+        """))
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingReadSideHoles.count, 1)
+        XCTAssertEqual(r.remainingReadSideHoles.first?.file, presenterPath)
+        XCTAssertTrue(r.remainingReadSideHoles.first?.snippet.contains("FooCreated") ?? false)
+        XCTAssertFalse(r.passed)
+    }
+
+    func testHalfFilledPresenterWhenIsHole() throws {
+        // only one placeholder left
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                _ = event
+            }
+            package func when(readModel: inout ReadModelType, event: FooRenamed) throws {
+                let x = event.name
+            }
+        """))
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingReadSideHoles.count, 2,
+            "a single leftover placeholder, and a body with no mutation and no no-op marker, are both half-filled holes")
+    }
+
+    func testPlaceholderPlusMutationIsHole() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                _ = readModel
+                _ = event
+                readModel.name = event.name
+            }
+        """))
+        XCTAssertEqual(VerifyChecker.verify(projectRoot: tmp).remainingReadSideHoles.count, 1)
+    }
+
+    func testFilledPresenterWhenIsNotHole() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                readModel.fooId = event.fooId
+                readModel.name = event.name
+            }
+            package func when(readModel: inout ReadModelType, event: FooItemAdded) throws {
+                readModel.items.append(.init(id: event.id))
+            }
+            package func when(readModel: inout ReadModelType, event: FooItemRemoved) throws {
+                readModel.items.removeAll { $0.id == event.id }
+            }
+            package func when(readModel: inout ReadModelType, event: FooItemEdited) throws {
+                guard let i = readModel.items.firstIndex(where: { $0.id == event.id }) else { return }
+                readModel.items[i].name = event.name
+            }
+        """))
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingReadSideHoles.count, 0)
+    }
+
+    func testNoOpMarkerIsNotHole() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooRetired) throws {
+                // readmodel-mutation: no-op — FooRetired 不改變任何 read model 欄位（使用者確認）
+            }
+        """))
+        XCTAssertEqual(VerifyChecker.verify(projectRoot: tmp).remainingReadSideHoles.count, 0)
+    }
+
+    func testPlaceholderMentionedOnlyInCommentOrStringIsNotHole() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                // old stub was: _ = readModel; _ = event
+                let note = "_ = readModel"
+                /* _ = event */
+                readModel.name = event.name + note
+            }
+        """))
+        XCTAssertEqual(VerifyChecker.verify(projectRoot: tmp).remainingReadSideHoles.count, 0,
+            "placeholder tokens inside comments/strings must not count (sanitized-content judgement)")
+    }
+
+    func testNoOpMarkerInsideStringDoesNotCount() throws {
+        // the no-op marker is a COMMENT; a string literal that merely spells it must not silence the hole.
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                let s = "// readmodel-mutation: no-op"
+                _ = s
+            }
+        """))
+        XCTAssertEqual(VerifyChecker.verify(projectRoot: tmp).remainingReadSideHoles.count, 1)
+    }
+
+    func testCommentedOutWhenIsNotChecked() throws {
+        try write(presenterPath, presenter("""
+            // package func when(readModel: inout ReadModelType, event: FooCreated) throws { _ = readModel; _ = event }
+        """))
+        XCTAssertEqual(VerifyChecker.verify(projectRoot: tmp).remainingReadSideHoles.count, 0)
+    }
+
+    func testReadSideApplicationServiceFatalErrorIsHole() throws {
+        try write("Sources/AAggregate/Adapter/GetFoo/GetFooApplicationService.swift", """
+        package struct GetFooApplicationService {
+            package func execute(input: Input) async throws -> Output {
+                // TODO(/presenter-fill skill): fetch via GetFooPresenter
+                fatalError("TODO(/presenter-fill skill): execute body for GetFooApplicationService")
+            }
+        }
+        """)
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingReadSideHoles.count, 1, "only the live fatalError( line counts, not the comment above it")
+        XCTAssertTrue(r.remainingReadSideHoles.first?.snippet.contains("TODO(/presenter-fill") ?? false)
+        XCTAssertFalse(r.passed)
+        XCTAssertEqual(r.remainingMarkers.count, 0, "the read-side AS hole is its own category")
+    }
+
+    func testPresenterFillMentionedInCommentOrStringIsNotHole() throws {
+        try write("Sources/AAggregate/Adapter/GetFoo/GetFooApplicationService.swift", """
+        package struct GetFooApplicationService {
+            package func execute(input: Input) async throws -> Output {
+                // was: fatalError("TODO(/presenter-fill skill)")  — filled by /presenter-fill
+                let doc = "fatalError(\"TODO(/presenter-fill skill)\")"
+                let other = "TODO(/presenter-fill skill)"
+                return Output(doc: doc, other: other)
+            }
+            func unrelated() { fatalError("unreachable") }
+        }
+        """)
+        XCTAssertEqual(VerifyChecker.verify(projectRoot: tmp).remainingReadSideHoles.count, 0)
+    }
+
+    func testReadSideHolesDoNotChangeOtherCategories() throws {
+        try write(presenterPath, presenter("""
+            package func when(readModel: inout ReadModelType, event: FooCreated) throws {
+                _ = readModel
+                _ = event
+            }
+        """))
+        let r = VerifyChecker.verify(projectRoot: tmp)
+        XCTAssertEqual(r.remainingMarkers.count, 0)
+        XCTAssertEqual(r.uncoveredInvariants.count, 0)
+        XCTAssertEqual(r.remainingTestHoles.count, 0)
+    }
 }

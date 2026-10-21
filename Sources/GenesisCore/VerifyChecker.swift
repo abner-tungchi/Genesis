@@ -1,7 +1,7 @@
 import Foundation
 
 /// Phase 1.y/1.z: the structural honesty gate that replaces #error's compile-time enforcement.
-/// `genesis verify` (run in a generated project root) checks three things WITHOUT needing the bundle:
+/// `genesis verify` (run in a generated project root) checks four things WITHOUT needing the bundle:
 ///  1. no GenesisTODO.notImplemented marker remains in Sources/ (unfilled domain holes).
 ///  2. every aggregate invariant errorCode (read from <A>Error.swift's enum cases — the bundle is not
 ///     copied into the generated tree) has ≥1 ENABLED (non-.disabled) test referencing it via a LIVE
@@ -10,6 +10,13 @@ import Foundation
 ///  3. (Phase 1.z FIX-2) no remaining test-side Given hole: an enabled @Test in Tests/ that still calls the
 ///     `genesisTODO(...)` arrange-thunk (or GenesisTODO.notImplemented) is an unfilled Given — the enabled-red
 ///     world moved the hole from Sources(#error/.disabled) into Tests/, so the gate follows it.
+///  4. (read side) no remaining read-side hole: (a) a Presenter `when(readModel: inout …, event: <E>)` whose body is
+///     still an unfilled / half-filled stub by EXACTLY the /readmodel-mutation Phase 2 rule (placeholder
+///     `_ = readModel` / `_ = event` present, or no mutation and no `// readmodel-mutation: no-op` marker) —
+///     such a stub compiles and runs but leaves the read model permanently empty; (b) a read-side
+///     ApplicationService whose `fatalError("TODO(/presenter-fill skill)…")` is still a live call — a read API
+///     call would crash. These holes are deliberately NOT GenesisTODO throws (DDDKit projectors swallow thrown
+///     errors into nil, and the stub shape is the contract /readmodel-mutation and /presenter-fill key on).
 ///
 /// Detection is comment-AND-string-literal-aware (Phase 1.z FIX-1) via a single-pass `sanitizeSwift` lexer.
 /// A naive grep would (a) false-POSITIVE coverage on test-gen's `genesisTODO("... .<code> ...")` thunk
@@ -32,8 +39,10 @@ public enum VerifyChecker {
         public let remainingMarkers: [Hole]
         public let uncoveredInvariants: [String]   // errorCodes with no enabled live-assertion test
         public let remainingTestHoles: [Hole]      // FIX-2: genesisTODO( arrange-thunks left in enabled @Tests
+        public let remainingReadSideHoles: [Hole]  // unfilled Presenter when() stubs + read-side AS fatalError TODOs
         public var passed: Bool {
             remainingMarkers.isEmpty && uncoveredInvariants.isEmpty && remainingTestHoles.isEmpty
+                && remainingReadSideHoles.isEmpty
         }
     }
 
@@ -43,10 +52,11 @@ public enum VerifyChecker {
 
         var markers: [Hole] = []
         var invariantCodes: Set<String> = []
+        var readSideHoles: [Hole] = []
 
         for url in swiftFiles(in: sourcesURL) {
             guard let content = try? String(contentsOf: url, encoding: .utf8) else { continue }
-            let rel = url.path.replacingOccurrences(of: projectRoot.path + "/", with: "")
+            let rel = relativePath(url, in: projectRoot)
 
             // (1) remaining markers — real GenesisTODO.notImplemented CALLS, not comments/strings, not the
             // enum declaration itself. Detect on the sanitized line (comment/string content blanked, so a
@@ -65,6 +75,9 @@ public enum VerifyChecker {
                     markers.append(Hole(file: rel, snippet: raw.trimmingCharacters(in: .whitespaces)))
                 }
             }
+
+            // (4) read-side holes (Presenter when() stubs, read-side AS fatalError TODO).
+            readSideHoles.append(contentsOf: scanReadSide(rel: rel, rawLines: rawLines, sanLines: sanLines))
 
             // (2a) invariant errorCodes — the enum cases in the AGGREGATE error file ONLY.
             // Precise match: the enclosing `<A>Aggregate` dir gives <A>; the invariant error file is exactly
@@ -85,7 +98,7 @@ public enum VerifyChecker {
         var testHoles: [Hole] = []
         for url in swiftFiles(in: testsURL) {
             guard let content = try? String(contentsOf: url, encoding: .utf8) else { continue }
-            let rel = url.path.replacingOccurrences(of: projectRoot.path + "/", with: "")
+            let rel = relativePath(url, in: projectRoot)
             let sanitized = sanitizeSwift(content)
             let parts = sanitized.components(separatedBy: "@Test")
             // parts[0] is the preamble before the first @Test (also where the genesisTODO<T> helper definition
@@ -110,10 +123,113 @@ public enum VerifyChecker {
             if !covered { uncovered.append(code) }
         }
 
-        return Result(remainingMarkers: markers, uncoveredInvariants: uncovered, remainingTestHoles: testHoles)
+        return Result(remainingMarkers: markers, uncoveredInvariants: uncovered, remainingTestHoles: testHoles,
+                      remainingReadSideHoles: readSideHoles)
+    }
+
+    // MARK: - read-side holes
+
+    /// Marker the /readmodel-mutation skill writes when the human answers "does not affect this read model".
+    static let readModelNoOpMarker = #/^//\s*readmodel-mutation:\s*no-op/#
+    /// A read-side AS stub left by Phase 1.k: `fatalError("TODO(/presenter-fill skill)…")`.
+    static let presenterFillMarker = "TODO(/presenter-fill"
+
+    /// Read-side holes in ONE source file. `rawLines` / `sanLines` are the file's raw and `sanitizeSwift`
+    /// lines (1:1). Judgement is made on the sanitized lines (comments / string content gone); only the
+    /// comment-shaped no-op marker and the AS message text are read from the raw lines. Fail-closed: when the
+    /// 1:1 line mapping is broken, raw lines are used for the AS scan (over-flag) and Presenter bodies are skipped
+    /// only if no `when(readModel:` signature is found at all.
+    static func scanReadSide(rel: String, rawLines: [String], sanLines: [String]) -> [Hole] {
+        var holes: [Hole] = []
+        let aligned = rawLines.count == sanLines.count
+        let san = aligned ? sanLines : rawLines
+
+        // (b) read-side AS: a LIVE `fatalError(` whose raw line carries the /presenter-fill TODO text.
+        for (idx, s) in san.enumerated() where s.contains("fatalError(") {
+            let raw = rawLines[idx]
+            if raw.contains(presenterFillMarker) {
+                holes.append(Hole(file: rel, snippet: raw.trimmingCharacters(in: .whitespaces)))
+            }
+        }
+
+        // (a) Presenter when(readModel: inout …, event: <E>) bodies — same rule as /readmodel-mutation Phase 2.
+        let text = san.joined(separator: "\n")
+        let sigPattern = #"func\s+when\s*\(\s*readModel\s*:\s*inout\s+[A-Za-z0-9_.<>?]+\s*,\s*event\s*:\s*([A-Za-z0-9_.]+)\s*\)"#
+        guard let sig = try? NSRegularExpression(pattern: sigPattern) else { return holes }
+        let ns = text as NSString
+        for m in sig.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            let event = ns.substring(with: m.range(at: 1))
+            // body = balanced { ... } after the signature (past `throws` etc.)
+            var i = m.range.location + m.range.length
+            let sigEnd = i
+            while i < ns.length, ns.character(at: i) != 0x7B /* { */, i - sigEnd <= 60 { i += 1 }   // `throws`, newlines
+            guard i < ns.length, ns.character(at: i) == 0x7B else { continue }
+            let bodyStart = i + 1
+            var depth = 1
+            i = bodyStart
+            while i < ns.length, depth > 0 {
+                let c = ns.character(at: i)
+                if c == 0x7B { depth += 1 } else if c == 0x7D { depth -= 1 }
+                i += 1
+            }
+            let bodyEnd = depth == 0 ? i - 1 : ns.length
+            let body = ns.substring(with: NSRange(location: bodyStart, length: bodyEnd - bodyStart))
+            let firstLine = ns.substring(to: bodyStart).components(separatedBy: "\n").count - 1   // 0-based line of `{`
+            let bodyLineCount = body.components(separatedBy: "\n").count
+            let bodySan = body.components(separatedBy: "\n")
+            let bodyRaw = aligned
+                ? Array(rawLines[firstLine ..< min(rawLines.count, firstLine + bodyLineCount)])
+                : bodySan
+
+            let state = whenBodyState(sanLines: bodySan, rawLines: bodyRaw)
+            if let reason = state {
+                holes.append(Hole(file: rel, snippet: "when(readModel:event: \(event)) — \(reason)"))
+            }
+        }
+        return holes
+    }
+
+    /// nil = filled / explicit no-op; otherwise the reason it is a hole. Mirrors /readmodel-mutation Phase 2:
+    /// 未填＝placeholder present; 半填＝(placeholder mixed with mutation) or (no mutation and no no-op marker);
+    /// 已填＝no placeholder AND (mutation OR no-op marker). Placeholders are judged on sanitized text.
+    static func whenBodyState(sanLines: [String], rawLines: [String]) -> String? {
+        var hasRM = false, hasEv = false, hasMutation = false, hasStatement = false
+        for s in sanLines {
+            let line = s.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: ";"))
+            if line.isEmpty { continue }
+            if line.range(of: #"^_\s*=\s*readModel$"#, options: .regularExpression) != nil { hasRM = true; continue }
+            if line.range(of: #"^_\s*=\s*event$"#, options: .regularExpression) != nil { hasEv = true; continue }
+            hasStatement = true
+            if line.contains("readModel.") || line.contains(".append(") || line.contains(".removeAll(")
+                || line.range(of: #"\]\s*\.[A-Za-z_]"#, options: .regularExpression) != nil
+                || line.range(of: #"\breadModel\s*="#, options: .regularExpression) != nil {
+                hasMutation = true
+            }
+        }
+        // no-op marker is a COMMENT: the raw line is comment-only, and the sanitized line is empty
+        // (so a string literal that merely spells the marker cannot silence a hole).
+        var hasNoOp = false
+        for (idx, raw) in rawLines.enumerated() where idx < sanLines.count {
+            let t = raw.trimmingCharacters(in: .whitespaces)
+            if sanLines[idx].trimmingCharacters(in: .whitespaces).isEmpty, t.firstMatch(of: readModelNoOpMarker) != nil {
+                hasNoOp = true
+            }
+        }
+        if hasRM && hasEv && !hasMutation && !hasStatement { return "unfilled (still `_ = readModel` / `_ = event`)" }
+        if hasRM || hasEv { return "half-filled (leftover `_ = readModel` / `_ = event` placeholder)" }
+        if hasMutation || hasNoOp { return nil }
+        return "half-filled (no mutation and no `// readmodel-mutation: no-op` marker)"
     }
 
     // MARK: - helpers
+
+    /// Path of `url` relative to `root`, symlink-safe (macOS /var vs /private/var would otherwise leave the
+    /// root prefix in place and print a mangled path).
+    static func relativePath(_ url: URL, in root: URL) -> String {
+        let r = root.resolvingSymlinksInPath().path + "/"
+        let p = url.resolvingSymlinksInPath().path
+        return p.hasPrefix(r) ? String(p.dropFirst(r.count)) : url.path.replacingOccurrences(of: root.path + "/", with: "")
+    }
 
     /// Whole-token match for `.<code>` in an ALREADY-sanitized region — a substring `contains` would let
     /// `.permission` be falsely "covered" by a test referencing `.permissionDenied` (prefix collision).
